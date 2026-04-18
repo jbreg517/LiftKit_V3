@@ -230,7 +230,7 @@ final class WorkoutViewModel {
         case .emom:            return emomSessions
         case .intervals:       return intervalSessions
         case .manual:          return manualSessions
-        case .reps, .manual:   return []
+        case .reps:            return []
         }
     }
 

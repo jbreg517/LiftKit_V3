@@ -4,8 +4,8 @@ workflows:
     max_build_duration: 60
 
     environment:
-      xcode: 16.2        # update to match your Xcode version on Codemagic
-      groups: []         # no secrets needed for unsigned builds
+      xcode: 16.2
+      groups: []
 
     triggering:
       events:
@@ -18,9 +18,9 @@ workflows:
     scripts:
       - name: Set build number from git commit count
         script: |
+          set -eo pipefail
           BUILD=$(git rev-list --count HEAD)
           echo "Setting CFBundleVersion to $BUILD"
-          # Works if Info.plist is at the default location Xcode creates
           PLIST="LiftKit/Info.plist"
           if [ -f "$PLIST" ]; then
             /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$PLIST"
@@ -28,6 +28,7 @@ workflows:
 
       - name: Build unsigned archive
         script: |
+          set -eo pipefail
           xcodebuild archive \
             -scheme LiftKit \
             -configuration Release \
@@ -38,13 +39,23 @@ workflows:
             CODE_SIGN_IDENTITY="" \
             PROVISIONING_PROFILE_SPECIFIER="" \
             OTHER_CODE_SIGN_FLAGS="--timestamp=none" \
-            | xcpretty
+            2>&1 | tee /tmp/xcodebuild.log
+          # Verify the archive actually contains an app
+          if [ ! -d "$CM_BUILD_DIR/LiftKit.xcarchive/Products/Applications" ]; then
+            echo "ERROR: Archive produced no app bundle. Build failed."
+            cat /tmp/xcodebuild.log | grep -E "error:|Build FAILED" | tail -40
+            exit 1
+          fi
 
       - name: Package as unsigned .ipa for AltStore
         script: |
-          # AltStore signs the IPA itself using the user's personal Apple ID.
-          # We just need a valid .app in a Payload/ folder, zipped as .ipa.
-          APP_PATH=$(find "$CM_BUILD_DIR/LiftKit.xcarchive/Products/Applications" -name "*.app" | head -1)
+          set -eo pipefail
+          APP_PATH=$(find "$CM_BUILD_DIR/LiftKit.xcarchive/Products/Applications" -name "*.app" -maxdepth 1 | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: No .app bundle found in archive"
+            exit 1
+          fi
+          echo "Packaging: $APP_PATH"
           mkdir -p "$CM_BUILD_DIR/Payload"
           cp -r "$APP_PATH" "$CM_BUILD_DIR/Payload/"
           cd "$CM_BUILD_DIR"
@@ -54,22 +65,24 @@ workflows:
 
       - name: Run unit tests
         script: |
+          set -eo pipefail
           xcodebuild test \
             -scheme LiftKit \
             -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
             -only-testing:LiftKitTests \
-            | xcpretty
-        ignore_failure: true   # don't block IPA artifact on test failures
+            2>&1 | tee /tmp/test.log || true
+        ignore_failure: true
 
     artifacts:
       - "$CM_BUILD_DIR/LiftKit_unsigned.ipa"
       - "$CM_BUILD_DIR/LiftKit.xcarchive"
-      - "/tmp/xcodebuild_logs/*.log"
+      - "/tmp/xcodebuild.log"
+      - "/tmp/test.log"
 
     publishing:
       email:
         recipients:
-          - jbreg517@gmail.com   # update to your email
+          - jbreg517@gmail.com
         notify:
           success: true
           failure: true

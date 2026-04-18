@@ -51,7 +51,6 @@ struct WorkoutHomeView: View {
             .sheet(isPresented: $vm.showTypePicker) {
                 WorkoutTypePickerView(vm: vm)
             }
-            .sheet(isPresented: $vm.showTypePicker.not) {} // placeholder
             .sheet(isPresented: $showSetup) {
                 WorkoutSetupView(vm: vm, type: vm.selectedTimerType)
             }
@@ -178,27 +177,27 @@ struct WorkoutHomeView: View {
                 }
                 .padding(.horizontal, LKSpacing.md)
 
-            } else if !isPremium {
+            } else {
                 Text("Free accounts limited to 5 plans. Sign in for premium.")
                     .font(LKFont.caption)
                     .foregroundColor(LKColor.textMuted)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, LKSpacing.md)
+            }
 
-                // Show "all templates" button for premium with > 10
-                if isPremium && templates.count > UserProfile.maxVisibleTemplates {
-                    NavigationLink(destination: AllTemplatesView(templates: templates, vm: vm)) {
-                        Text("View All \(templates.count) Plans")
-                            .font(LKFont.bodyBold)
-                            .foregroundColor(LKColor.accent)
-                            .frame(maxWidth: .infinity)
-                            .padding(LKSpacing.md)
-                            .background(LKColor.surfaceElevated)
-                            .cornerRadius(LKRadius.medium)
-                    }
-                    .padding(.horizontal, LKSpacing.md)
+            // Premium users with > 10 templates see "View All"
+            if isPremium && templates.count > UserProfile.maxVisibleTemplates {
+                NavigationLink(destination: AllTemplatesView(templates: templates, vm: vm)) {
+                    Text("View All \(templates.count) Plans")
+                        .font(LKFont.bodyBold)
+                        .foregroundColor(LKColor.accent)
+                        .frame(maxWidth: .infinity)
+                        .padding(LKSpacing.md)
+                        .background(LKColor.surfaceElevated)
+                        .cornerRadius(LKRadius.medium)
                 }
+                .padding(.horizontal, LKSpacing.md)
             }
         }
     }

@@ -126,10 +126,10 @@ final class TimerEngine {
         ticker = nil
         cancelNotifications()
 
-        if phase == .work || phase == .rest {
-            pausedTimeRemaining = phaseEndDate.map { max(0, $0.timeIntervalSinceNow) }
-        } else if phase == .work {
+        if config.type == .forTime || config.type == .manual {
             pausedElapsed = elapsedTime
+        } else if phase == .work || phase == .rest {
+            pausedTimeRemaining = phaseEndDate.map { max(0, $0.timeIntervalSinceNow) }
         }
     }
 

@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum TimerPhase: String, Codable {
+enum TimerPhase {
     case idle
     case work
     case rest
@@ -8,10 +8,10 @@ enum TimerPhase: String, Codable {
 
     var label: String {
         switch self {
-        case .idle:     return "Ready"
+        case .idle:     return "READY"
         case .work:     return "WORK"
         case .rest:     return "REST"
-        case .complete: return "Done"
+        case .complete: return "DONE"
         }
     }
 

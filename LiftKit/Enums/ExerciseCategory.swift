@@ -1,6 +1,6 @@
 import Foundation
 
-enum ExerciseCategory: String, Codable, CaseIterable, Identifiable {
+enum ExerciseCategory: String, CaseIterable, Codable {
     case push    = "Push"
     case pull    = "Pull"
     case legs    = "Legs"
@@ -8,6 +8,4 @@ enum ExerciseCategory: String, Codable, CaseIterable, Identifiable {
     case cardio  = "Cardio"
     case olympic = "Olympic"
     case custom  = "Custom"
-
-    var id: String { rawValue }
 }
