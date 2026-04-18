@@ -1,0 +1,75 @@
+workflows:
+  altstore-unsigned-ipa:
+    name: LiftKit — Unsigned IPA (AltStore)
+    max_build_duration: 60
+
+    environment:
+      xcode: 16.2        # update to match your Xcode version on Codemagic
+      groups: []         # no secrets needed for unsigned builds
+
+    triggering:
+      events:
+        - push
+        - pull_request
+      branch_patterns:
+        - pattern: main
+          include: true
+
+    scripts:
+      - name: Set build number from git commit count
+        script: |
+          BUILD=$(git rev-list --count HEAD)
+          echo "Setting CFBundleVersion to $BUILD"
+          # Works if Info.plist is at the default location Xcode creates
+          PLIST="LiftKit/Info.plist"
+          if [ -f "$PLIST" ]; then
+            /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$PLIST"
+          fi
+
+      - name: Build unsigned archive
+        script: |
+          xcodebuild archive \
+            -scheme LiftKit \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$CM_BUILD_DIR/LiftKit.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            OTHER_CODE_SIGN_FLAGS="--timestamp=none" \
+            | xcpretty
+
+      - name: Package as unsigned .ipa for AltStore
+        script: |
+          # AltStore signs the IPA itself using the user's personal Apple ID.
+          # We just need a valid .app in a Payload/ folder, zipped as .ipa.
+          APP_PATH=$(find "$CM_BUILD_DIR/LiftKit.xcarchive/Products/Applications" -name "*.app" | head -1)
+          mkdir -p "$CM_BUILD_DIR/Payload"
+          cp -r "$APP_PATH" "$CM_BUILD_DIR/Payload/"
+          cd "$CM_BUILD_DIR"
+          zip -r "LiftKit_unsigned.ipa" Payload
+          echo "IPA created: $CM_BUILD_DIR/LiftKit_unsigned.ipa"
+          ls -lh "$CM_BUILD_DIR/LiftKit_unsigned.ipa"
+
+      - name: Run unit tests
+        script: |
+          xcodebuild test \
+            -scheme LiftKit \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -only-testing:LiftKitTests \
+            | xcpretty
+        ignore_failure: true   # don't block IPA artifact on test failures
+
+    artifacts:
+      - "$CM_BUILD_DIR/LiftKit_unsigned.ipa"
+      - "$CM_BUILD_DIR/LiftKit.xcarchive"
+      - "/tmp/xcodebuild_logs/*.log"
+
+    publishing:
+      email:
+        recipients:
+          - jbreg517@gmail.com   # update to your email
+        notify:
+          success: true
+          failure: true
