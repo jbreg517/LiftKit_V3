@@ -28,68 +28,62 @@ workflows:
             /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$PLIST"
           fi
 
-      - name: Build unsigned app
+      - name: Build app
         script: |
           set -eo pipefail
-          BUILD_DIR="$CM_BUILD_DIR/build"
-
           xcodebuild build \
             -scheme LiftKit \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath "$BUILD_DIR" \
+            -derivedDataPath "$CM_BUILD_DIR/build" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             PROVISIONING_PROFILE_SPECIFIER="" \
-            OTHER_CODE_SIGN_FLAGS="--timestamp=none" \
             2>&1 | tee /tmp/xcodebuild.log
 
-          APP_PATH="$BUILD_DIR/Build/Products/Release-iphoneos/LiftKit.app"
+          APP_PATH="$CM_BUILD_DIR/build/Build/Products/Release-iphoneos/LiftKit.app"
           if [ ! -d "$APP_PATH" ]; then
-            echo "ERROR: App bundle not found at expected path: $APP_PATH"
-            echo "--- Searching for .app bundles ---"
-            find "$BUILD_DIR" -name "*.app" -maxdepth 6 2>/dev/null || true
-            grep -E "^.*(error:|Build FAILED)" /tmp/xcodebuild.log | tail -30
+            echo "ERROR: App bundle not found at: $APP_PATH"
+            grep -E "error:" /tmp/xcodebuild.log | tail -20
             exit 1
           fi
+          echo "BUILD OK: $APP_PATH"
 
-          echo "App bundle found: $APP_PATH"
-          ls -la "$APP_PATH/"
-
-      - name: Package as unsigned .ipa for AltStore
+      - name: Ad-hoc sign and package IPA
         script: |
           set -eo pipefail
-          BUILD_DIR="$CM_BUILD_DIR/build"
-          APP_PATH="$BUILD_DIR/Build/Products/Release-iphoneos/LiftKit.app"
+          APP_PATH="$CM_BUILD_DIR/build/Build/Products/Release-iphoneos/LiftKit.app"
+          IPA_PATH="$CM_BUILD_DIR/LiftKit_unsigned.ipa"
+
+          # Ad-hoc sign — creates _CodeSignature/ so AltStore can re-sign
+          echo "Ad-hoc signing..."
+          codesign --force --deep --sign - "$APP_PATH"
+          echo "Signature:"
+          codesign -dv "$APP_PATH" 2>&1 | head -5
 
           # Verify binary
-          BUNDLE_EXEC=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$APP_PATH/Info.plist" 2>/dev/null || echo "")
-          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP_PATH/Info.plist" 2>/dev/null || echo "")
+          BUNDLE_EXEC=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$APP_PATH/Info.plist")
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP_PATH/Info.plist")
           echo "CFBundleExecutable: $BUNDLE_EXEC"
           echo "CFBundleIdentifier: $BUNDLE_ID"
-          if [ -z "$BUNDLE_EXEC" ] || [ ! -f "$APP_PATH/$BUNDLE_EXEC" ]; then
-            echo "ERROR: Binary not found"
-            ls -la "$APP_PATH/"
-            exit 1
-          fi
-          echo "Binary: $APP_PATH/$BUNDLE_EXEC ($(wc -c < "$APP_PATH/$BUNDLE_EXEC") bytes)"
+          echo "Binary size: $(wc -c < "$APP_PATH/$BUNDLE_EXEC") bytes"
+          echo "App contents:"
+          ls -la "$APP_PATH/"
 
-          # Package using ditto (preserves symlinks, permissions, extended attrs)
+          # Package using ditto (preserves permissions and symlinks)
           PAYLOAD_DIR="$CM_BUILD_DIR/Payload"
-          IPA_PATH="$CM_BUILD_DIR/LiftKit_unsigned.ipa"
           rm -rf "$PAYLOAD_DIR"
           mkdir -p "$PAYLOAD_DIR"
           ditto "$APP_PATH" "$PAYLOAD_DIR/LiftKit.app"
-          ditto -c -k --sequesterRsrc --keepParent "$PAYLOAD_DIR" "$IPA_PATH"
+          ditto -c -k --keepParent "$PAYLOAD_DIR" "$IPA_PATH"
 
-          echo "IPA created: $(ls -lh "$IPA_PATH")"
-          echo "--- IPA structure ---"
-          unzip -l "$IPA_PATH" | head -20
+          echo "IPA: $(ls -lh "$IPA_PATH")"
+          echo "IPA contents:"
+          unzip -l "$IPA_PATH" | head -25
 
       - name: Run unit tests
         script: |
-          set -eo pipefail
           xcodebuild test \
             -scheme LiftKit \
             -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
