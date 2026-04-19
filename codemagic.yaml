@@ -40,6 +40,7 @@ workflows:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             PROVISIONING_PROFILE_SPECIFIER="" \
+            CODE_SIGN_ENTITLEMENTS="" \
             2>&1 | tee /tmp/xcodebuild.log
 
           APP_PATH="$CM_BUILD_DIR/build/Build/Products/Release-iphoneos/LiftKit.app"
@@ -48,39 +49,43 @@ workflows:
             grep -E "error:" /tmp/xcodebuild.log | tail -20
             exit 1
           fi
-          echo "BUILD OK: $APP_PATH"
+          echo "BUILD OK: $(ls -la "$APP_PATH")"
 
-      - name: Ad-hoc sign and package IPA
+      - name: Sign and package IPA
         script: |
+          LOG=/tmp/packaging.log
+          exec > >(tee "$LOG") 2>&1
           set -eo pipefail
+
           APP_PATH="$CM_BUILD_DIR/build/Build/Products/Release-iphoneos/LiftKit.app"
           IPA_PATH="$CM_BUILD_DIR/LiftKit_unsigned.ipa"
 
-          # Ad-hoc sign — creates _CodeSignature/ so AltStore can re-sign
-          echo "Ad-hoc signing..."
-          codesign --force --deep --sign - "$APP_PATH"
-          echo "Signature:"
-          codesign -dv "$APP_PATH" 2>&1 | head -5
-
-          # Verify binary
-          BUNDLE_EXEC=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$APP_PATH/Info.plist")
-          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP_PATH/Info.plist")
-          echo "CFBundleExecutable: $BUNDLE_EXEC"
-          echo "CFBundleIdentifier: $BUNDLE_ID"
-          echo "Binary size: $(wc -c < "$APP_PATH/$BUNDLE_EXEC") bytes"
-          echo "App contents:"
+          echo "=== App bundle contents ==="
           ls -la "$APP_PATH/"
 
-          # Package using ditto (preserves permissions and symlinks)
+          echo "=== Info.plist ==="
+          /usr/libexec/PlistBuddy -c "Print" "$APP_PATH/Info.plist"
+
+          echo "=== Ad-hoc signing (no entitlements) ==="
+          # Create empty entitlements so codesign doesn't inherit any restricted ones
+          cat > /tmp/empty.entitlements << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict/></plist>
+          EOF
+          codesign --force --deep --sign - --entitlements /tmp/empty.entitlements "$APP_PATH"
+          codesign -dv --verbose=4 "$APP_PATH" 2>&1 | head -10
+
+          echo "=== Packaging ==="
           PAYLOAD_DIR="$CM_BUILD_DIR/Payload"
           rm -rf "$PAYLOAD_DIR"
           mkdir -p "$PAYLOAD_DIR"
-          ditto "$APP_PATH" "$PAYLOAD_DIR/LiftKit.app"
-          ditto -c -k --keepParent "$PAYLOAD_DIR" "$IPA_PATH"
+          /usr/bin/ditto "$APP_PATH" "$PAYLOAD_DIR/LiftKit.app"
+          /usr/bin/ditto -c -k --keepParent "$PAYLOAD_DIR" "$IPA_PATH"
 
-          echo "IPA: $(ls -lh "$IPA_PATH")"
-          echo "IPA contents:"
-          unzip -l "$IPA_PATH" | head -25
+          echo "=== IPA created ==="
+          ls -lh "$IPA_PATH"
+          unzip -l "$IPA_PATH" | head -20
 
       - name: Run unit tests
         script: |
@@ -94,6 +99,7 @@ workflows:
     artifacts:
       - "$CM_BUILD_DIR/LiftKit_unsigned.ipa"
       - "/tmp/xcodebuild.log"
+      - "/tmp/packaging.log"
       - "/tmp/test.log"
 
     publishing:
