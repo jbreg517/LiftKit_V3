@@ -456,8 +456,7 @@ final class WorkoutViewModel {
     }
 
     private func findOrCreateExercise(name: String, equipment: Equipment, context: ModelContext) -> Exercise {
-        let lower = name.lowercased()
-        let descriptor = FetchDescriptor<Exercise>(predicate: #Predicate { $0.name.lowercased() == lower })
+        let descriptor = FetchDescriptor<Exercise>(predicate: #Predicate { $0.name == name })
         if let existing = try? context.fetch(descriptor).first { return existing }
         let ex = Exercise(name: name, equipment: equipment == .none ? nil : equipment, isCustom: true)
         context.insert(ex)

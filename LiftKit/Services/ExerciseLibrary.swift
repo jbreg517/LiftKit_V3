@@ -72,7 +72,7 @@ final class ExerciseLibrary {
         LibraryEntry(name: "Plank",                  category: .core, equipment: .bodyweight),
         LibraryEntry(name: "Crunches",               category: .core, equipment: .bodyweight),
         LibraryEntry(name: "Sit-Up",                 category: .core, equipment: .bodyweight),
-        LibraryEntry(name: "Russian Twist",          category: .core, equipment: .ball),
+        LibraryEntry(name: "Russian Twist",          category: .core, equipment: .other),
         LibraryEntry(name: "Leg Raise",              category: .core, equipment: .bodyweight),
         LibraryEntry(name: "Cable Crunch",           category: .core, equipment: .cable),
         LibraryEntry(name: "Ab Wheel Rollout",       category: .core, equipment: .other),
