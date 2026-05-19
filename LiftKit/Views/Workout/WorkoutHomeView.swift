@@ -8,7 +8,6 @@ struct WorkoutHomeView: View {
 
     @Bindable var vm: WorkoutViewModel
 
-    @State private var showSetup = false
     @State private var showCalendarPicker = false
 
     private var userProfile: UserProfile? { profiles.first }
@@ -51,9 +50,6 @@ struct WorkoutHomeView: View {
             .sheet(isPresented: $vm.showTypePicker) {
                 WorkoutTypePickerView(vm: vm)
             }
-            .sheet(isPresented: $showSetup) {
-                WorkoutSetupView(vm: vm, type: vm.selectedTimerType)
-            }
             .sheet(isPresented: $vm.showCreateWorkout) {
                 CreateWorkoutView(vm: vm)
             }
@@ -63,20 +59,9 @@ struct WorkoutHomeView: View {
             .fullScreenCover(isPresented: $vm.showActiveWorkout) {
                 ActiveWorkoutView(vm: vm)
             }
-            .onChange(of: vm.showTypePicker) { _, showing in
-                if !showing && vm.selectedTimerType != vm.selectedTimerType {
-                    // no-op placeholder
-                }
-            }
             .onAppear {
                 vm.userProfile = userProfile
                 ExerciseLibrary.shared.seedIfNeeded(context: context)
-            }
-        }
-        // Listen for type selection → show setup sheet
-        .onChange(of: vm.showTypePicker) { old, new in
-            if old == true && new == false {
-                showSetup = true
             }
         }
     }
@@ -159,21 +144,16 @@ struct WorkoutHomeView: View {
                     vm.showCreateWorkout = true
                     HapticManager.shared.buttonTap()
                 } label: {
-                    HStack {
-                        Image(systemName: "plus").foregroundColor(LKColor.accent)
+                    HStack(spacing: LKSpacing.sm) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundColor(LKColor.accent)
                         Text("Add New Workout Plan")
-                            .font(.system(size: 15, weight: .bold))
+                            .font(LKFont.bodyBold)
                             .foregroundColor(LKColor.accent)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(LKSpacing.md)
-                    .background(LKColor.surfaceElevated)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: LKRadius.medium)
-                            .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
-                            .foregroundColor(LKColor.textMuted.opacity(0.4))
-                    )
-                    .cornerRadius(LKRadius.medium)
+                    .padding(.horizontal, LKSpacing.md)
+                    .padding(.vertical, LKSpacing.sm)
                 }
                 .padding(.horizontal, LKSpacing.md)
 

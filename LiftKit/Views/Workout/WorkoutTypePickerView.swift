@@ -3,6 +3,7 @@ import SwiftUI
 struct WorkoutTypePickerView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var vm: WorkoutViewModel
+    @State private var setupType: TimerType?
 
     private let columns = [
         GridItem(.flexible(), spacing: LKSpacing.sm),
@@ -15,7 +16,6 @@ struct WorkoutTypePickerView: View {
                 let rowCount: CGFloat = 3
                 let vSpacing = LKSpacing.sm
                 let padding  = LKSpacing.md
-                // Height available for cards = total height minus top/bottom padding and inter-row gaps
                 let cardHeight = (geo.size.height - padding * 2 - vSpacing * (rowCount - 1)) / rowCount
 
                 LazyVGrid(columns: columns, spacing: vSpacing) {
@@ -23,10 +23,7 @@ struct WorkoutTypePickerView: View {
                         WorkoutTypeCard(type: type, height: cardHeight) {
                             vm.resetSetup()
                             vm.selectedTimerType = type
-                            dismiss()
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                vm.showTypePicker = false
-                            }
+                            setupType = type
                         }
                     }
                 }
@@ -40,6 +37,9 @@ struct WorkoutTypePickerView: View {
                     Button("Cancel") { dismiss() }
                         .foregroundColor(LKColor.textSecondary)
                 }
+            }
+            .navigationDestination(item: $setupType) { type in
+                WorkoutSetupView(vm: vm, type: type)
             }
         }
     }
