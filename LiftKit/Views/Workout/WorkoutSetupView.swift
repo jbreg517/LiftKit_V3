@@ -455,7 +455,7 @@ struct SessionCardView: View {
                     .foregroundColor(LKColor.textSecondary)
                 }
                 Spacer()
-                weightChip(weight: $card.weight, unit: card.weightUnit)
+                weightChip(weight: $card.weight, unit: $card.weightUnit)
             }
         }
         .padding(LKSpacing.md)
@@ -464,7 +464,7 @@ struct SessionCardView: View {
         .cornerRadius(LKRadius.large)
     }
 
-    private func weightChip(weight: Binding<Double>, unit: WeightUnit) -> some View {
+    private func weightChip(weight: Binding<Double>, unit: Binding<WeightUnit>) -> some View {
         HStack(spacing: LKSpacing.sm) {
             Button {
                 weight.wrappedValue = max(0, weight.wrappedValue - 5)
@@ -473,14 +473,28 @@ struct SessionCardView: View {
 
             Button {
                 numberEntry = NumberEntryItem(
-                    title: "Weight", message: "Enter weight (\(unit.rawValue))",
+                    title: "Weight", message: "Enter weight (\(unit.wrappedValue.rawValue))",
                     currentValue: weight.wrappedValue, minValue: 0, maxValue: 999
                 ) { weight.wrappedValue = $0 }
             } label: {
-                Text("\(Int(weight.wrappedValue)) \(unit.rawValue)")
+                Text("\(Int(weight.wrappedValue))")
                     .font(LKFont.caption)
                     .foregroundColor(LKColor.accent)
                     .underline()
+            }
+
+            // Unit toggle button
+            Button {
+                unit.wrappedValue = unit.wrappedValue == .lb ? .kg : .lb
+                HapticManager.shared.buttonTap()
+            } label: {
+                Text(unit.wrappedValue.rawValue)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(LKColor.textPrimary)
+                    .padding(.horizontal, LKSpacing.xs)
+                    .padding(.vertical, 2)
+                    .background(LKColor.accent.opacity(0.2))
+                    .cornerRadius(4)
             }
 
             Button {
@@ -616,8 +630,22 @@ struct ExerciseCardView: View {
                     currentValue: card.weight, minValue: 0, maxValue: 999
                 ) { card.weight = $0 }
             } label: {
-                Text("\(Int(card.weight)) \(card.weightUnit.rawValue)")
+                Text("\(Int(card.weight))")
                     .font(LKFont.caption).foregroundColor(LKColor.accent).underline()
+            }
+
+            // Unit toggle
+            Button {
+                card.weightUnit = card.weightUnit == .lb ? .kg : .lb
+                HapticManager.shared.buttonTap()
+            } label: {
+                Text(card.weightUnit.rawValue)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(LKColor.textPrimary)
+                    .padding(.horizontal, LKSpacing.xs)
+                    .padding(.vertical, 2)
+                    .background(LKColor.accent.opacity(0.2))
+                    .cornerRadius(4)
             }
 
             Button { card.weight = min(999, card.weight + 5); HapticManager.shared.buttonTap() }

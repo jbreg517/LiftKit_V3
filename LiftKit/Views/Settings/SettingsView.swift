@@ -1,9 +1,15 @@
 import SwiftUI
+import SwiftData
 
 struct SettingsView: View {
     @AppStorage("defaultRestSeconds") private var defaultRestSeconds: Double = 90
     @AppStorage("soundEnabled")       private var soundEnabled: Bool = true
     @AppStorage("hapticsEnabled")     private var hapticsEnabled: Bool = true
+
+    @Environment(\.modelContext) private var context
+    @Query private var profiles: [UserProfile]
+
+    private var currentProfile: UserProfile? { profiles.first }
 
     private var versionString: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
@@ -37,6 +43,39 @@ struct SettingsView: View {
                         // CSV export — future implementation
                     }
                     .foregroundColor(LKColor.accent)
+                }
+
+                if let profile = currentProfile {
+                    Section("Account") {
+                        if let name = profile.displayName, !name.isEmpty {
+                            HStack {
+                                Text("Name")
+                                Spacer()
+                                Text(name)
+                                    .foregroundColor(LKColor.textSecondary)
+                            }
+                        }
+                        if let email = profile.email, !email.isEmpty {
+                            HStack {
+                                Text("Email")
+                                Spacer()
+                                Text(email)
+                                    .foregroundColor(LKColor.textSecondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        HStack {
+                            Text("Status")
+                            Spacer()
+                            Text(profile.isPremium ? "Premium ✓" : "Free")
+                                .foregroundColor(profile.isPremium ? LKColor.accent : LKColor.textSecondary)
+                        }
+                        Button("Log Out", role: .destructive) {
+                            for p in profiles { context.delete(p) }
+                            try? context.save()
+                        }
+                        .foregroundColor(LKColor.danger)
+                    }
                 }
 
                 Section("About") {

@@ -16,6 +16,7 @@ struct ActiveWorkoutView: View {
     @State private var numberEntry: NumberEntryItem?
     @State private var showInitialCountdown = true
     @State private var initialCountdown = 10
+    @State private var countdownTimer: Timer?
 
     private var type: TimerType { vm.activeConfig.type }
 
@@ -290,6 +291,16 @@ struct ActiveWorkoutView: View {
                     .font(LKFont.timer(120))
                     .foregroundColor(LKColor.accent)
                     .contentTransition(.numericText())
+                Button("Cancel") {
+                    countdownTimer?.invalidate()
+                    countdownTimer = nil
+                    engine.stop()
+                    restEngine.stop()
+                    vm.discardWorkout(context: context)
+                }
+                .font(LKFont.bodyBold)
+                .foregroundColor(LKColor.danger)
+                .padding(.top, LKSpacing.md)
             }
         }
         .transition(.opacity)
@@ -370,15 +381,18 @@ struct ActiveWorkoutView: View {
         initialCountdown = 10
         showInitialCountdown = true
         var count = 10
-        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { t in
+        let t = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [self] timer in
             count -= 1
             withAnimation { initialCountdown = count }
             if count <= 0 {
-                t.invalidate()
+                timer.invalidate()
+                countdownTimer = nil
                 withAnimation { showInitialCountdown = false }
                 startMainTimer()
             }
         }
+        countdownTimer = t
+        RunLoop.main.add(t, forMode: .common)
     }
 
     private func startMainTimer() {
@@ -767,7 +781,7 @@ struct WorkoutCompleteOverlay: View {
                 .padding(.horizontal, LKSpacing.xl)
 
                 Button("Go Back") {
-                    vm.isShowingComplete = false
+                    vm.endWorkout(context: context)
                 }
                 .font(LKFont.body)
                 .foregroundColor(LKColor.textSecondary)

@@ -48,6 +48,35 @@ struct LoginView: View {
                 .cornerRadius(LKRadius.medium)
                 .padding(.horizontal, LKSpacing.md)
 
+                // Google Sign In
+                Button {
+                    activatePremium(provider: "google")
+                } label: {
+                    HStack(spacing: LKSpacing.sm) {
+                        // Google "G" logo approximation using SF Symbols
+                        ZStack {
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 24, height: 24)
+                            Text("G")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundColor(Color(red: 0.26, green: 0.52, blue: 0.96))
+                        }
+                        Text("Sign in with Google")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundColor(.black)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(Color.white)
+                    .cornerRadius(LKRadius.medium)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: LKRadius.medium)
+                            .stroke(Color.gray.opacity(0.4), lineWidth: 1)
+                    )
+                }
+                .padding(.horizontal, LKSpacing.md)
+
                 // Activate Premium (local)
                 Button {
                     activatePremium(provider: "local")

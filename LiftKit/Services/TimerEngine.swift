@@ -69,6 +69,8 @@ final class TimerEngine {
         UserDefaults.standard.object(forKey: "soundEnabled") as? Bool ?? true
     }
     private var audioPlayer: AVAudioPlayer?
+    /// Tracks which whole-second values have already had a countdown beep played
+    private var beepedSeconds: Set<Int> = []
     private var countdownPlayed = false
 
     init(notificationPrefix: String = UUID().uuidString) {
@@ -113,6 +115,7 @@ final class TimerEngine {
         phase = .rest
         isRunning = true
         countdownPlayed = false
+        beepedSeconds = []
         startTicker()
         ScreenSleepManager.shared.hold()
         scheduleNotifications()
@@ -167,6 +170,7 @@ final class TimerEngine {
         pausedTimeRemaining = nil
         pausedElapsed = nil
         countdownPlayed = false
+        beepedSeconds = []
         cancelNotifications()
         ScreenSleepManager.shared.release()
     }
@@ -185,7 +189,9 @@ final class TimerEngine {
         phase = .work
         isRunning = true
         countdownPlayed = false
+        beepedSeconds = []
         startTicker()
+        playPhaseBeep()
         onPhaseChange?(.work)
     }
 
@@ -219,10 +225,13 @@ final class TimerEngine {
             let remaining = max(0, endDate.timeIntervalSinceNow)
             timeRemaining = remaining
 
-            // Countdown beeps in last 3 seconds
-            if remaining <= 3 && remaining > 0 && soundEnabled && !countdownPlayed {
-                playBeep()
-                countdownPlayed = remaining <= 1
+            // Countdown beeps: play once per whole-second tick at 3, 2, 1
+            if remaining <= 3.5 && remaining > 0 && soundEnabled {
+                let sec = Int(remaining.rounded(.up))
+                if sec >= 1 && sec <= 3 && !beepedSeconds.contains(sec) {
+                    beepedSeconds.insert(sec)
+                    playCountdownBeep()
+                }
             }
 
             onTick?()
@@ -259,7 +268,9 @@ final class TimerEngine {
                 phaseEndDate = Date().addingTimeInterval(config.restDuration)
                 timeRemaining = config.restDuration
                 countdownPlayed = false
+                beepedSeconds = []
                 startTicker()
+                playPhaseBeep()
                 onPhaseChange?(.rest)
             } else {
                 // Rest finished — next round
@@ -375,9 +386,17 @@ final class TimerEngine {
 
     // MARK: - Sound
 
-    private func playBeep() {
+    /// Soft, muted tick played at 3, 2, 1 countdown
+    private func playCountdownBeep() {
         guard soundEnabled else { return }
-        // Use system sound for countdown
+        // System sound 1104 — soft "tock" (low-pitched, muted)
+        AudioServicesPlaySystemSound(1104)
+    }
+
+    /// Slightly more prominent beep played when a new phase / minute starts
+    private func playPhaseBeep() {
+        guard soundEnabled else { return }
+        // System sound 1057 — "begin recording" tone (medium pitch, more noticeable)
         AudioServicesPlaySystemSound(1057)
     }
 
