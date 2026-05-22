@@ -12,7 +12,7 @@ workflows:
         - push
         - pull_request
       branch_patterns:
-        - pattern: main
+        - pattern: master
           include: true
 
     scripts:
@@ -40,6 +40,7 @@ workflows:
             PROVISIONING_PROFILE_SPECIFIER="" \
             OTHER_CODE_SIGN_FLAGS="--timestamp=none" \
             ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES=YES \
+            ENABLE_PREVIEWS=NO \
             2>&1 | tee /tmp/xcodebuild.log
           # Verify the archive actually contains an app
           if [ ! -d "$CM_BUILD_DIR/LiftKit.xcarchive/Products/Applications" ]; then
