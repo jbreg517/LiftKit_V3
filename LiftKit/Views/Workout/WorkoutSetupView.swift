@@ -590,44 +590,43 @@ struct LKCompactCounter: View {
     }
 }
 
-// [−] [num] [+] stacked above [lb|kg] pill — compact, no Spacers
+// [−] [num] [+] [lb|kg] — all on one row, no Spacers
 struct LKCompactWeightControls: View {
     @Binding var weight: Double
     @Binding var unit: WeightUnit
     @Binding var numberEntry: NumberEntryItem?
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: LKSpacing.xs) {
-            HStack(spacing: LKSpacing.xs) {
-                Button {
-                    weight = max(0, weight - 5)
-                    HapticManager.shared.buttonTap()
-                } label: {
-                    Image(systemName: "minus.circle.fill")
-                        .font(.title3).foregroundColor(LKColor.textSecondary)
-                }
-
-                Button {
-                    numberEntry = NumberEntryItem(
-                        title: "Weight", message: "Enter weight (\(unit.rawValue))",
-                        currentValue: weight, minValue: 0, maxValue: 999
-                    ) { weight = $0 }
-                } label: {
-                    Text("\(Int(weight))")
-                        .font(.system(size: 20, weight: .bold, design: .monospaced))
-                        .foregroundColor(LKColor.accent)
-                        .frame(minWidth: 28, alignment: .center)
-                }
-
-                Button {
-                    weight = min(999, weight + 5)
-                    HapticManager.shared.buttonTap()
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title3).foregroundColor(LKColor.accent)
-                }
+        HStack(spacing: LKSpacing.xs) {
+            Button {
+                weight = max(0, weight - 5)
+                HapticManager.shared.buttonTap()
+            } label: {
+                Image(systemName: "minus.circle.fill")
+                    .font(.title3).foregroundColor(LKColor.textSecondary)
             }
 
+            Button {
+                numberEntry = NumberEntryItem(
+                    title: "Weight", message: "Enter weight (\(unit.rawValue))",
+                    currentValue: weight, minValue: 0, maxValue: 999
+                ) { weight = $0 }
+            } label: {
+                Text("\(Int(weight))")
+                    .font(.system(size: 20, weight: .bold, design: .monospaced))
+                    .foregroundColor(LKColor.accent)
+                    .frame(minWidth: 28, alignment: .center)
+            }
+
+            Button {
+                weight = min(999, weight + 5)
+                HapticManager.shared.buttonTap()
+            } label: {
+                Image(systemName: "plus.circle.fill")
+                    .font(.title3).foregroundColor(LKColor.accent)
+            }
+
+            // lb / kg inline
             HStack(spacing: 0) {
                 ForEach([WeightUnit.lb, WeightUnit.kg], id: \.self) { u in
                     Button {
@@ -636,7 +635,7 @@ struct LKCompactWeightControls: View {
                     } label: {
                         Text(u.rawValue)
                             .font(.system(size: 12, weight: .semibold))
-                            .frame(minWidth: 36)
+                            .frame(minWidth: 32)
                             .padding(.vertical, 5)
                             .background(unit == u ? LKColor.accent : Color.clear)
                             .foregroundColor(unit == u ? .black : LKColor.textMuted)
