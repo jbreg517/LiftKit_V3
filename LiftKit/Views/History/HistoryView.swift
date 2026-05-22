@@ -88,6 +88,14 @@ struct SessionRow: View {
             }
             .font(LKFont.caption)
             .foregroundColor(LKColor.textSecondary)
+
+            let names = session.sortedEntries.compactMap { $0.exercise?.name }
+            if !names.isEmpty {
+                Text(names.joined(separator: " · "))
+                    .font(LKFont.caption)
+                    .foregroundColor(LKColor.textMuted)
+                    .lineLimit(1)
+            }
         }
         .padding(.vertical, LKSpacing.xs)
     }
@@ -165,7 +173,8 @@ struct WorkoutDetailView: View {
     }
 
     private func exerciseSection(entry: WorkoutEntry) -> some View {
-        VStack(alignment: .leading, spacing: LKSpacing.sm) {
+        let sets = entry.sortedSets
+        return VStack(alignment: .leading, spacing: LKSpacing.sm) {
             HStack {
                 Text(entry.exercise?.name ?? "Exercise")
                     .font(LKFont.heading)
@@ -182,8 +191,28 @@ struct WorkoutDetailView: View {
                 }
             }
 
-            ForEach(entry.sortedSets) { set in
-                setRow(set: set)
+            if !sets.isEmpty {
+                // Summary: "3 sets · 30 reps · 95 lb"
+                let totalReps = sets.compactMap(\.reps).reduce(0, +)
+                let firstWeight = sets.first?.weight
+                let unit = sets.first?.weightUnit ?? ""
+                HStack(spacing: 4) {
+                    Text("\(sets.count) set\(sets.count == 1 ? "" : "s")")
+                    if totalReps > 0 {
+                        Text("·").foregroundColor(LKColor.textMuted)
+                        Text("\(totalReps) reps")
+                    }
+                    if let w = firstWeight, w > 0 {
+                        Text("·").foregroundColor(LKColor.textMuted)
+                        Text("\(Int(w)) \(unit)")
+                    }
+                }
+                .font(LKFont.caption)
+                .foregroundColor(LKColor.textSecondary)
+
+                ForEach(sets) { set in
+                    setRow(set: set)
+                }
             }
         }
         .lkCard()

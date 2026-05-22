@@ -159,9 +159,7 @@ struct WorkoutCalendarView: View {
             let daySchedules = schedules.filter { calendar.isDate($0.date, inSameDayAs: date) }
 
             ForEach(daySessions) { session in
-                Button {
-                    vm.showActiveWorkout = false
-                } label: {
+                NavigationLink(destination: WorkoutDetailView(session: session, vm: vm)) {
                     HStack {
                         Circle().fill(LKColor.accent).frame(width: 8, height: 8)
                         Text(session.name)

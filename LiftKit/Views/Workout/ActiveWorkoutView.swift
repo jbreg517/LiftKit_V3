@@ -788,9 +788,7 @@ struct WorkoutCompleteOverlay: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.7)
-                .ignoresSafeArea()
-                .onTapGesture { vm.endWorkout(context: context) }
+            Color.black.opacity(0.7).ignoresSafeArea()
 
             VStack(spacing: LKSpacing.lg) {
                 Image(systemName: "trophy.fill")
@@ -813,19 +811,7 @@ struct WorkoutCompleteOverlay: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, LKSpacing.xl)
 
-                Button("End Workout") {
-                    vm.endWorkout(context: context)
-                }
-                .buttonStyle(LKPrimaryButtonStyle())
-                .padding(.horizontal, LKSpacing.xl)
-
-                Button("Go Back") {
-                    vm.endWorkout(context: context)
-                }
-                .font(LKFont.body)
-                .foregroundColor(LKColor.textSecondary)
-
-                Text("Tap anywhere to dismiss")
+                Text("Tap anywhere to continue")
                     .font(LKFont.caption)
                     .foregroundColor(LKColor.textMuted)
             }
@@ -834,6 +820,7 @@ struct WorkoutCompleteOverlay: View {
             .cornerRadius(LKRadius.large)
             .padding(LKSpacing.lg)
         }
+        .onTapGesture { vm.endWorkout(context: context) }
         .transition(.opacity)
     }
 }
