@@ -28,6 +28,18 @@ final class HapticManager {
         notification.notificationOccurred(.warning)
     }
 
+    /// Short light pulse — each 3-2-1 countdown tick
+    func countdownTick() {
+        guard isEnabled else { return }
+        light.impactOccurred(intensity: 0.55)
+    }
+
+    /// Slightly heavier pulse — new phase or minute begins
+    func phaseStart() {
+        guard isEnabled else { return }
+        medium.impactOccurred(intensity: 0.75)
+    }
+
     private var isEnabled: Bool {
         UserDefaults.standard.object(forKey: "hapticsEnabled") as? Bool ?? true
     }

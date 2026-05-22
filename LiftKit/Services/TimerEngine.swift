@@ -1,6 +1,5 @@
 import Foundation
 import UserNotifications
-import AVFoundation
 
 // MARK: - Timer Config
 struct TimerConfig {
@@ -52,7 +51,7 @@ final class TimerEngine {
     private(set) var config: TimerConfig = TimerConfig(type: .manual)
 
     // Wall-clock anchors
-    private var phaseEndDate: Date?
+    private(set) var phaseEndDate: Date?
     private var pausedTimeRemaining: TimeInterval?
     private var countUpStartDate: Date?
     private var pausedElapsed: TimeInterval?
@@ -68,7 +67,6 @@ final class TimerEngine {
     private var soundEnabled: Bool {
         UserDefaults.standard.object(forKey: "soundEnabled") as? Bool ?? true
     }
-    private var audioPlayer: AVAudioPlayer?
     /// Tracks which whole-second values have already had a countdown beep played
     private var beepedSeconds: Set<Int> = []
     private var countdownPlayed = false
@@ -119,6 +117,7 @@ final class TimerEngine {
         startTicker()
         ScreenSleepManager.shared.hold()
         scheduleNotifications()
+        HapticManager.shared.phaseStart()
         onPhaseChange?(.rest)
     }
 
@@ -192,6 +191,7 @@ final class TimerEngine {
         beepedSeconds = []
         startTicker()
         playPhaseBeep()
+        HapticManager.shared.phaseStart()
         onPhaseChange?(.work)
     }
 
@@ -225,12 +225,13 @@ final class TimerEngine {
             let remaining = max(0, endDate.timeIntervalSinceNow)
             timeRemaining = remaining
 
-            // Countdown beeps: play once per whole-second tick at 3, 2, 1
-            if remaining <= 3.5 && remaining > 0 && soundEnabled {
+            // Countdown cues: play once per whole-second tick at 3, 2, 1
+            if remaining <= 3.5 && remaining > 0 {
                 let sec = Int(remaining.rounded(.up))
                 if sec >= 1 && sec <= 3 && !beepedSeconds.contains(sec) {
                     beepedSeconds.insert(sec)
                     playCountdownBeep()
+                    HapticManager.shared.countdownTick()
                 }
             }
 
@@ -271,6 +272,7 @@ final class TimerEngine {
                 beepedSeconds = []
                 startTicker()
                 playPhaseBeep()
+                HapticManager.shared.phaseStart()
                 onPhaseChange?(.rest)
             } else {
                 // Rest finished — next round
@@ -386,18 +388,14 @@ final class TimerEngine {
 
     // MARK: - Sound
 
-    /// Soft, muted tick played at 3, 2, 1 countdown
     private func playCountdownBeep() {
         guard soundEnabled else { return }
-        // System sound 1104 — soft "tock" (low-pitched, muted)
-        AudioServicesPlaySystemSound(1104)
+        SoundEngine.shared.playCountdownTick()
     }
 
-    /// Slightly more prominent beep played when a new phase / minute starts
     private func playPhaseBeep() {
         guard soundEnabled else { return }
-        // System sound 1057 — "begin recording" tone (medium pitch, more noticeable)
-        AudioServicesPlaySystemSound(1057)
+        SoundEngine.shared.playPhaseStart()
     }
 
     // MARK: - Background restore
@@ -494,5 +492,3 @@ final class TimerEngine {
     }
 }
 
-// AVFoundation system sound
-import AudioToolbox

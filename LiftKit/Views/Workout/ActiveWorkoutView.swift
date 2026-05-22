@@ -71,6 +71,7 @@ struct ActiveWorkoutView: View {
         .onDisappear {
             engine.stop()
             restEngine.stop()
+            LiveActivityManager.shared.stop()
         }
         .sheet(item: $numberEntry) { item in
             NumberEntrySheet(item: item)
@@ -376,6 +377,16 @@ struct ActiveWorkoutView: View {
         .presentationDetents([.medium])
     }
 
+    // MARK: - Live Activity helpers
+
+    private func liveActivityPhaseLabel(engine: TimerEngine) -> String {
+        switch type {
+        case .emom:      return "Minute \(engine.currentRound)"
+        case .intervals: return engine.phase == .work ? "Work" : "Rest"
+        default:         return type.rawValue
+        }
+    }
+
     // MARK: - Start helpers
     private func startInitialCountdown() {
         initialCountdown = 10
@@ -400,8 +411,36 @@ struct ActiveWorkoutView: View {
         engine.onComplete = {
             DispatchQueue.main.async {
                 vm.completeWorkout(context: context)
+                LiveActivityManager.shared.stop()
             }
         }
+        // Update the live activity whenever the timer phase changes
+        let workoutType = type
+        engine.onPhaseChange = { [engine] _ in
+            DispatchQueue.main.async {
+                let label: String
+                switch workoutType {
+                case .emom:      label = "Minute \(engine.currentRound)"
+                case .intervals: label = engine.phase == .work ? "Work" : "Rest"
+                default:         label = workoutType.rawValue
+                }
+                LiveActivityManager.shared.update(
+                    currentRound: engine.currentRound,
+                    totalRounds: engine.totalRounds,
+                    phaseLabel: label,
+                    phaseEndDate: engine.phaseEndDate
+                )
+            }
+        }
+        // Start the Live Activity (lock screen + Dynamic Island)
+        LiveActivityManager.shared.start(
+            workoutName: vm.activeSession?.name ?? type.rawValue,
+            workoutType: type.rawValue,
+            currentRound: engine.currentRound,
+            totalRounds: engine.totalRounds,
+            phaseLabel: liveActivityPhaseLabel(engine: engine),
+            phaseEndDate: engine.phaseEndDate
+        )
     }
 
     // MARK: ============================================================
