@@ -9,6 +9,7 @@ struct SessionCard: Identifiable {
     var equipment: Equipment = .none
     var weight: Double = 0
     var weightUnit: WeightUnit = .lb
+    var reps: Int = 10
 }
 
 // MARK: - Exercise Card (Reps setup)
