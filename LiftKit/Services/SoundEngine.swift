@@ -44,7 +44,7 @@ final class SoundEngine {
         for i in 0..<Int(count) {
             let t = Double(i) / sr
             let env = Float(max(0.0, 1.0 - (t / duration)))  // linear fade to avoid click
-            data[i] = sin(twoPi * hz * t) * amplitude * env
+            data[i] = Float(sin(twoPi * hz * t)) * amplitude * env
         }
         if !engine.isRunning { try? engine.start() }
         player.scheduleBuffer(buf)
