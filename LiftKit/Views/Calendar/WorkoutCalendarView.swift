@@ -33,11 +33,11 @@ struct WorkoutCalendarView: View {
         }
         .sheet(isPresented: $showScheduleEdit) {
             if let sched = editingSchedule {
-                ScheduleEditView(schedule: sched, vm: vm)
+                ScheduleEditView(schedule: sched, vm: vm, isNew: false)
             } else {
                 // New schedule for selected date
                 let newSched = WorkoutSchedule(date: selectedDate ?? Date())
-                ScheduleEditView(schedule: newSched, vm: vm)
+                ScheduleEditView(schedule: newSched, vm: vm, isNew: true)
             }
         }
     }

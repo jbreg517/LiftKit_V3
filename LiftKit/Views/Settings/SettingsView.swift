@@ -17,6 +17,7 @@ struct SettingsView: View {
 
     @State private var showPrivacyPolicy = false
     @State private var showDisclaimer    = false
+    @State private var showExportComingSoon = false
 
     var body: some View {
         NavigationStack {
@@ -40,7 +41,7 @@ struct SettingsView: View {
 
                 Section("Data") {
                     Button("Export Workout Data") {
-                        // CSV export — future implementation
+                        showExportComingSoon = true
                     }
                     .foregroundColor(LKColor.accent)
                 }
@@ -102,6 +103,11 @@ struct SettingsView: View {
             .background(LKColor.background.ignoresSafeArea())
             .sheet(isPresented: $showPrivacyPolicy) { PrivacyPolicyView() }
             .sheet(isPresented: $showDisclaimer)    { DisclaimerView() }
+            .alert("Coming Soon", isPresented: $showExportComingSoon) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("CSV export will be available in a future update.")
+            }
         }
     }
 }

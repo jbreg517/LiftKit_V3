@@ -130,6 +130,7 @@ final class WorkoutViewModel {
     var showLogin             = false
     var showActiveWorkout     = false
     var showSaveTemplate      = false
+    var showWorkoutSetup      = false
 
     // MARK: Setup state
     var selectedTimerType: TimerType = .amrap
@@ -280,6 +281,74 @@ final class WorkoutViewModel {
         showActiveWorkout = true
     }
 
+    func loadFromSession(_ session: WorkoutSession) {
+        resetSetup()
+        let type = session.timerType ?? .manual
+        selectedTimerType = type
+        workoutName = session.name
+        notes = session.notes ?? ""
+        let entries = session.sortedEntries
+        switch type {
+        case .reps:
+            exercises = entries.map { entry in
+                var card = ExerciseCard()
+                card.name = entry.exercise?.name ?? ""
+                card.equipment = entry.exercise.flatMap { $0.equipmentEnum } ?? Equipment.none
+                let sets = entry.sortedSets
+                card.sets = max(1, sets.count)
+                card.reps = sets.first?.plannedReps ?? sets.first?.reps ?? 10
+                card.weight = sets.first?.weight ?? 0
+                card.weightUnit = sets.first?.weightUnitEnum ?? .lb
+                return card
+            }
+            if exercises.isEmpty { exercises = [ExerciseCard()] }
+        case .amrap, .forTime:
+            sessions = entries.map { entry in
+                var card = SessionCard()
+                card.name = entry.exercise?.name ?? ""
+                card.equipment = entry.exercise.flatMap { $0.equipmentEnum } ?? Equipment.none
+                let sets = entry.sortedSets
+                card.reps = sets.first?.plannedReps ?? sets.first?.reps ?? 10
+                card.weight = sets.first?.weight ?? 0
+                card.weightUnit = sets.first?.weightUnitEnum ?? .lb
+                return card
+            }
+            if sessions.isEmpty { sessions = [SessionCard()] }
+        case .emom:
+            emomSessions = entries.map { entry in
+                var card = SessionCard()
+                card.name = entry.exercise?.name ?? ""
+                card.equipment = entry.exercise.flatMap { $0.equipmentEnum } ?? Equipment.none
+                let sets = entry.sortedSets
+                card.reps = sets.first?.plannedReps ?? sets.first?.reps ?? 10
+                card.weight = sets.first?.weight ?? 0
+                card.weightUnit = sets.first?.weightUnitEnum ?? .lb
+                return card
+            }
+            if emomSessions.isEmpty { emomSessions = [SessionCard()] }
+        case .intervals:
+            intervalSessions = entries.map { entry in
+                var card = SessionCard()
+                card.name = entry.exercise?.name ?? ""
+                card.equipment = entry.exercise.flatMap { $0.equipmentEnum } ?? Equipment.none
+                let sets = entry.sortedSets
+                card.weight = sets.first?.weight ?? 0
+                card.weightUnit = sets.first?.weightUnitEnum ?? .lb
+                return card
+            }
+            if intervalSessions.isEmpty { intervalSessions = [SessionCard()] }
+        case .manual:
+            manualSessions = entries.map { entry in
+                var card = SessionCard()
+                card.name = entry.exercise?.name ?? ""
+                card.equipment = entry.exercise.flatMap { $0.equipmentEnum } ?? Equipment.none
+                return card
+            }
+            if manualSessions.isEmpty { manualSessions = [SessionCard()] }
+        }
+        showWorkoutSetup = true
+    }
+
     func repeatWorkout(session: WorkoutSession, context: ModelContext) {
         let newSession = WorkoutSession(name: session.name, workoutType: session.workoutType)
         context.insert(newSession)
@@ -419,20 +488,37 @@ final class WorkoutViewModel {
         }
 
         let template = WorkoutTemplate(name: trimmed)
-        let cards = activeSessions(for: selectedTimerType)
-        for (i, card) in cards.enumerated() {
-            let te = TemplateExercise(
-                exerciseName: card.name,
-                timerType: selectedTimerType,
-                targetSets: 3,
-                targetReps: 10,
-                sortOrder: i,
-                equipment: card.equipment == .none ? nil : card.equipment,
-                targetWeight: card.weight,
-                weightUnit: card.weightUnit
-            )
-            te.template = template
-            context.insert(te)
+        if selectedTimerType == .reps {
+            for (i, card) in exercises.enumerated() {
+                let te = TemplateExercise(
+                    exerciseName: card.name,
+                    timerType: .reps,
+                    targetSets: card.sets,
+                    targetReps: card.reps,
+                    sortOrder: i,
+                    equipment: card.equipment == .none ? nil : card.equipment,
+                    targetWeight: card.weight,
+                    weightUnit: card.weightUnit
+                )
+                te.template = template
+                context.insert(te)
+            }
+        } else {
+            let cards = activeSessions(for: selectedTimerType)
+            for (i, card) in cards.enumerated() {
+                let te = TemplateExercise(
+                    exerciseName: card.name,
+                    timerType: selectedTimerType,
+                    targetSets: 3,
+                    targetReps: card.reps,
+                    sortOrder: i,
+                    equipment: card.equipment == .none ? nil : card.equipment,
+                    targetWeight: card.weight,
+                    weightUnit: card.weightUnit
+                )
+                te.template = template
+                context.insert(te)
+            }
         }
         context.insert(template)
         try? context.save()

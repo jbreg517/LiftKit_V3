@@ -32,7 +32,7 @@ struct HistoryView: View {
                             }
                             .contextMenu {
                                 Button {
-                                    vm.repeatWorkout(session: session, context: context)
+                                    vm.loadFromSession(session)
                                 } label: {
                                     Label("Do Again", systemImage: "arrow.counterclockwise")
                                 }
@@ -51,6 +51,11 @@ struct HistoryView: View {
             }
             .navigationTitle("History")
             .background(LKColor.background.ignoresSafeArea())
+        }
+        .sheet(isPresented: $vm.showWorkoutSetup) {
+            NavigationStack {
+                WorkoutSetupView(vm: vm, type: vm.selectedTimerType)
+            }
         }
         .fullScreenCover(isPresented: $vm.showActiveWorkout) {
             ActiveWorkoutView(vm: vm)
@@ -130,7 +135,7 @@ struct WorkoutDetailView: View {
                 }
                 // Do Again
                 Button {
-                    vm.repeatWorkout(session: session, context: context)
+                    vm.loadFromSession(session)
                 } label: {
                     Label("Do Again", systemImage: "arrow.counterclockwise")
                 }

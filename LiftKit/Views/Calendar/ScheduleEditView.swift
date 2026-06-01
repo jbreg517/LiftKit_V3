@@ -17,10 +17,10 @@ struct ScheduleEditView: View {
     @State private var notes: String
     @State private var showDeleteConfirm = false
 
-    init(schedule: WorkoutSchedule, vm: WorkoutViewModel) {
+    init(schedule: WorkoutSchedule, vm: WorkoutViewModel, isNew: Bool = false) {
         self.schedule = schedule
         self.vm = vm
-        self.isNew = schedule.id == UUID() // heuristic for new
+        self.isNew = isNew
         _date          = State(initialValue: schedule.date)
         _selectedTemplate = State(initialValue: schedule.template)
         _customName    = State(initialValue: schedule.customName ?? "")

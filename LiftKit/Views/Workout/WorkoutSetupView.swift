@@ -116,6 +116,7 @@ struct WorkoutSetupView: View {
             vm.selectedTimerType = type
             vm.startTimedWorkout(context: context)
             vm.showTypePicker = false
+            vm.showWorkoutSetup = false
         } label: {
             Label("Start \(type.rawValue)", systemImage: "play.fill")
         }

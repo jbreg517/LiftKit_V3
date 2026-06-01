@@ -9,6 +9,7 @@ struct LoginView: View {
 
     @State private var displayName: String = ""
     @State private var isActivating = false
+    @State private var signInError: String = ""
 
     var body: some View {
         NavigationStack {
@@ -48,34 +49,13 @@ struct LoginView: View {
                 .cornerRadius(LKRadius.medium)
                 .padding(.horizontal, LKSpacing.md)
 
-                // Google Sign In
-                Button {
-                    activatePremium(provider: "google")
-                } label: {
-                    HStack(spacing: LKSpacing.sm) {
-                        // Google "G" logo approximation using SF Symbols
-                        ZStack {
-                            Circle()
-                                .fill(Color.white)
-                                .frame(width: 24, height: 24)
-                            Text("G")
-                                .font(.system(size: 15, weight: .bold))
-                                .foregroundColor(Color(red: 0.26, green: 0.52, blue: 0.96))
-                        }
-                        Text("Sign in with Google")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(.black)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .background(Color.white)
-                    .cornerRadius(LKRadius.medium)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: LKRadius.medium)
-                            .stroke(Color.gray.opacity(0.4), lineWidth: 1)
-                    )
+                if !signInError.isEmpty {
+                    Text(signInError)
+                        .font(LKFont.caption)
+                        .foregroundColor(LKColor.danger)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, LKSpacing.md)
                 }
-                .padding(.horizontal, LKSpacing.md)
 
                 // Activate Premium (local)
                 Button {
@@ -138,8 +118,8 @@ struct LoginView: View {
                 .compactMap { $0 }.joined(separator: " ")
             let email = credential.email
             activatePremium(provider: "apple", name: name.isEmpty ? nil : name, email: email)
-        case .failure:
-            break
+        case .failure(let error):
+            signInError = "Sign in failed: \(error.localizedDescription)"
         }
     }
 }

@@ -9,7 +9,6 @@ struct WorkoutHomeView: View {
     @Bindable var vm: WorkoutViewModel
 
     @State private var showCalendarPicker = false
-    @State private var showTemplateSetup = false
 
     private var userProfile: UserProfile? { profiles.first }
     private var isPremium: Bool { userProfile?.isPremium ?? false }
@@ -54,7 +53,7 @@ struct WorkoutHomeView: View {
             .sheet(isPresented: $vm.showCreateWorkout) {
                 CreateWorkoutView(vm: vm)
             }
-            .sheet(isPresented: $showTemplateSetup) {
+            .sheet(isPresented: $vm.showWorkoutSetup) {
                 NavigationStack {
                     WorkoutSetupView(vm: vm, type: vm.selectedTimerType)
                 }
@@ -139,7 +138,7 @@ struct WorkoutHomeView: View {
                 PlanCard(template: template) {
                     vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
                     vm.markTemplateUsed(template, context: context)
-                    showTemplateSetup = true
+                    vm.showWorkoutSetup = true
                 }
                 .padding(.horizontal, LKSpacing.md)
             }
@@ -237,7 +236,6 @@ struct AllTemplatesView: View {
 
     @State private var searchText = ""
     @State private var sortOption = SortOption.recent
-    @State private var showTemplateSetup = false
 
     enum SortOption: String, CaseIterable {
         case recent = "Recent"
@@ -263,16 +261,11 @@ struct AllTemplatesView: View {
                     PlanCard(template: template) {
                         vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
                         vm.markTemplateUsed(template, context: context)
-                        showTemplateSetup = true
+                        vm.showWorkoutSetup = true
                     }
                 }
             }
             .padding(LKSpacing.md)
-        }
-        .sheet(isPresented: $showTemplateSetup) {
-            NavigationStack {
-                WorkoutSetupView(vm: vm, type: vm.selectedTimerType)
-            }
         }
         .navigationTitle("All Plans")
         .searchable(text: $searchText)

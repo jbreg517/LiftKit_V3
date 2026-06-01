@@ -69,6 +69,8 @@ struct ActiveWorkoutView: View {
             }
         }
         .onDisappear {
+            countdownTimer?.invalidate()
+            countdownTimer = nil
             engine.stop()
             restEngine.stop()
             LiveActivityManager.shared.stop()
