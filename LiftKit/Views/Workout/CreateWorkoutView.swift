@@ -83,7 +83,9 @@ struct CreateWorkoutView: View {
             card.sets = row.sets
             return card
         }
-        vm.startTimedWorkout(context: context)
-        dismiss()
+        // Close this sheet and open the full setup screen so the user can
+        // configure rest time, weight, and other timer options before starting.
+        vm.showCreateWorkout = false
+        vm.showWorkoutSetup = true
     }
 }

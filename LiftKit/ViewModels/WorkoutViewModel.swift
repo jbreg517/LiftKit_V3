@@ -421,16 +421,27 @@ final class WorkoutViewModel {
         activeExercises[exerciseIndex] = ex
     }
 
-    func adjustReps(exerciseIndex: Int, setIndex: Int, newReps: Int) {
+    func adjustReps(exerciseIndex: Int, setIndex: Int, newReps: Int, context: ModelContext? = nil) {
         guard exerciseIndex < activeExercises.count else { return }
         var ex = activeExercises[exerciseIndex]
         guard setIndex < ex.sets.count else { return }
         let clamped = max(0, newReps)
+        let wasCompleted = ex.sets[setIndex].isCompleted
         if clamped == 0 {
             ex.sets[setIndex].isCompleted = false
         }
         ex.sets[setIndex].actualReps = clamped
         activeExercises[exerciseIndex] = ex
+
+        // Update the persisted SetRecord when the set was already logged
+        if wasCompleted, let ctx = context, let session = activeSession {
+            let setNumber = setIndex + 1
+            let entry = session.sortedEntries.first { $0.exercise?.name.lowercased() == ex.name.lowercased() }
+            if let record = entry?.sortedSets.first(where: { $0.setNumber == setNumber }) {
+                record.reps = clamped > 0 ? clamped : nil
+                try? ctx.save()
+            }
+        }
     }
 
     func adjustSessionWeight(sessionIndex: Int, delta: Double) {

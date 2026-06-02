@@ -64,6 +64,8 @@ final class WorkoutSession {
             let m = mins % 60
             return "\(hrs)h \(m)m"
         }
-        return secs > 0 && mins == 0 ? "\(secs)s" : "\(mins)m"
+        if mins == 0 { return "\(secs)s" }
+        if secs == 0 { return "\(mins)m" }
+        return "\(mins)m \(secs)s"
     }
 }

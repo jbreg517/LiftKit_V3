@@ -151,7 +151,7 @@ struct PrivacyPolicyView: View {
                 policySection("Data Storage",
                     "All data is stored locally on your device using Apple's SwiftData framework. If you enable iCloud Backup, your data may be included in your personal iCloud backup, which is governed by Apple's privacy policy. We have no access to iCloud backups.")
                 policySection("Authentication",
-                    "If you choose to activate Premium using Sign in with Apple, we receive only a unique identifier and optionally your name and email address as you choose to share. We store this identifier on-device only, to recognize your premium status. We do not store passwords.")
+                    "If you choose to activate Premium using Sign in with Apple, we receive a stable unique identifier (used to recognise your account on re-login), and optionally your name and email address as you choose to share. All of this is stored on-device only to maintain your premium status. We do not store passwords.")
                 policySection("Third-Party Services",
                     "LiftKit contains no third-party SDKs, analytics libraries, advertising frameworks, or crash-reporting services. Zero data is shared with third parties.")
                 policySection("Your Rights",

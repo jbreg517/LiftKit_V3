@@ -7,21 +7,17 @@ final class WeightCache {
 
     func lookup(exerciseName: String, in context: ModelContext) -> (weight: Double, unit: WeightUnit, equipment: Equipment?)? {
         let lower = exerciseName.lowercased()
-        let descriptor = FetchDescriptor<SetRecord>(
-            sortBy: [SortDescriptor(\.completedAt, order: .reverse)]
-        )
-        guard let allSets = try? context.fetch(descriptor) else { return nil }
+        let descriptor = FetchDescriptor<Exercise>()
+        guard let allExercises = try? context.fetch(descriptor),
+              let exercise = allExercises.first(where: { $0.name.lowercased() == lower }) else { return nil }
 
-        for set in allSets {
-            guard let entry = set.entry,
-                  let exercise = entry.exercise,
-                  exercise.name.lowercased() == lower,
-                  let weight = set.weight else { continue }
-            let unit = WeightUnit(rawValue: set.weightUnit) ?? .lb
-            let equipment = entry.exercise?.equipmentEnum
-            return (weight, unit, equipment)
-        }
-        return nil
+        let recentSet = exercise.entries
+            .flatMap { $0.sets }
+            .filter { $0.weight != nil }
+            .max(by: { $0.completedAt < $1.completedAt })
+
+        guard let set = recentSet, let weight = set.weight else { return nil }
+        return (weight, WeightUnit(rawValue: set.weightUnit) ?? .lb, exercise.equipmentEnum)
     }
 
     func batchLookup(names: [String], in context: ModelContext) -> [String: (weight: Double, unit: WeightUnit, equipment: Equipment?)] {

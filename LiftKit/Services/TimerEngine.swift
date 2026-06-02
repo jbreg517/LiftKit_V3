@@ -351,6 +351,11 @@ final class TimerEngine {
                     idx += 1
                 }
             }
+        case .forTime:
+            let remaining = config.totalDuration - elapsedTime
+            if remaining > 0 {
+                notifications.append((remaining, "\(notificationPrefix)-end", "⏱ Time cap reached!"))
+            }
         default:
             break
         }

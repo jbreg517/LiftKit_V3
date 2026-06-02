@@ -88,19 +88,33 @@ struct LoginView: View {
         }
     }
 
-    private func activatePremium(provider: String, name: String? = nil, email: String? = nil) {
+    private func activatePremium(
+        provider: String,
+        name: String? = nil,
+        email: String? = nil,
+        appleIdentifier: String? = nil
+    ) {
         let descriptor = FetchDescriptor<UserProfile>()
-        if let existing = try? context.fetch(descriptor).first {
+        let profiles = (try? context.fetch(descriptor)) ?? []
+
+        // On re-login with Apple, match by stored identifier
+        let existing = appleIdentifier.flatMap { id in
+            profiles.first { $0.appleUserIdentifier == id }
+        } ?? profiles.first
+
+        if let existing {
             existing.isPremium = true
             existing.authProvider = provider
             if let n = name ?? (displayName.isEmpty ? nil : displayName) { existing.displayName = n }
             if let e = email { existing.email = e }
+            if let id = appleIdentifier { existing.appleUserIdentifier = id }
             vm.userProfile = existing
         } else {
             let profile = UserProfile(
                 displayName: name ?? (displayName.isEmpty ? nil : displayName),
                 email: email,
                 authProvider: provider,
+                appleUserIdentifier: appleIdentifier,
                 isPremium: true
             )
             context.insert(profile)
@@ -116,8 +130,12 @@ struct LoginView: View {
             guard let credential = auth.credential as? ASAuthorizationAppleIDCredential else { return }
             let name = [credential.fullName?.givenName, credential.fullName?.familyName]
                 .compactMap { $0 }.joined(separator: " ")
-            let email = credential.email
-            activatePremium(provider: "apple", name: name.isEmpty ? nil : name, email: email)
+            activatePremium(
+                provider: "apple",
+                name: name.isEmpty ? nil : name,
+                email: credential.email,
+                appleIdentifier: credential.user
+            )
         case .failure(let error):
             signInError = "Sign in failed: \(error.localizedDescription)"
         }

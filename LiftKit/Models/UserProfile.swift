@@ -7,6 +7,7 @@ final class UserProfile {
     var displayName: String?
     var email: String?
     var authProvider: String?
+    var appleUserIdentifier: String?
     var isPremium: Bool
     var createdAt: Date
 
@@ -18,6 +19,7 @@ final class UserProfile {
         displayName: String? = nil,
         email: String? = nil,
         authProvider: String? = nil,
+        appleUserIdentifier: String? = nil,
         isPremium: Bool = false,
         createdAt: Date = Date()
     ) {
@@ -25,15 +27,12 @@ final class UserProfile {
         self.displayName = displayName
         self.email = email
         self.authProvider = authProvider
+        self.appleUserIdentifier = appleUserIdentifier
         self.isPremium = isPremium
         self.createdAt = createdAt
     }
 
     var visibleTemplateLimit: Int {
         isPremium ? UserProfile.maxVisibleTemplates : UserProfile.maxFreeTemplates
-    }
-
-    var canAddTemplate: Bool {
-        isPremium
     }
 }

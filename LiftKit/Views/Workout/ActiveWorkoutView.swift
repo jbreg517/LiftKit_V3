@@ -178,8 +178,7 @@ struct ActiveWorkoutView: View {
 
             // Stop
             Button {
-                vm.completeWorkout(context: context)
-                engine.stop()
+                showEndDialog = true
                 HapticManager.shared.buttonTap()
             } label: {
                 Image(systemName: "stop.fill")
@@ -713,7 +712,7 @@ struct ActiveWorkoutView: View {
                     message: "Set \(set.setNumber) reps (0 = incomplete)",
                     currentValue: Double(set.actualReps),
                     minValue: 0, maxValue: 100
-                ) { vm.adjustReps(exerciseIndex: exIdx, setIndex: setIdx, newReps: Int($0)) }
+                ) { vm.adjustReps(exerciseIndex: exIdx, setIndex: setIdx, newReps: Int($0), context: context) }
             } else {
                 // Mark complete, start rest timer
                 vm.logSet(exerciseIndex: exIdx, setIndex: setIdx, context: context)

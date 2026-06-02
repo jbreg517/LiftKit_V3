@@ -217,6 +217,7 @@ struct ProgressView: View {
         }
 
         return exercise.entries
+            .filter { !($0.session?.isActive ?? false) }
             .flatMap { $0.sets }
             .filter { $0.completedAt >= cutoff }
             .compactMap { set -> ChartPoint? in
@@ -235,14 +236,15 @@ struct ProgressView: View {
     private func weeklyVolumeData() -> [WeekVolume] {
         let cal = Calendar.current
         let now = Date()
+        guard let currentWeekStart = cal.dateInterval(of: .weekOfYear, for: now)?.start else { return [] }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM/dd"
         return (0..<8).compactMap { weekOffset -> WeekVolume? in
-            guard let weekStart = cal.date(byAdding: .weekOfYear, value: -weekOffset, to: now),
-                  let weekEnd = cal.date(byAdding: .day, value: 7, to: weekStart) else { return nil }
+            guard let weekStart = cal.date(byAdding: .weekOfYear, value: -weekOffset, to: currentWeekStart),
+                  let weekEnd = cal.date(byAdding: .weekOfYear, value: 1, to: weekStart) else { return nil }
             let vol = sessions
                 .filter { !$0.isActive && $0.startedAt >= weekStart && $0.startedAt < weekEnd }
                 .map(\.totalVolume).reduce(0, +)
-            let formatter = DateFormatter()
-            formatter.dateFormat = "MM/dd"
             return WeekVolume(week: formatter.string(from: weekStart), volume: vol)
         }
         .reversed()
@@ -296,7 +298,7 @@ struct PRRow: View {
 
             HStack(spacing: LKSpacing.md) {
                 ForEach(PRType.allCases) { type in
-                    if let pr = prs.first(where: { $0.prType == type }) {
+                    if let pr = prs.filter({ $0.prType == type }).max(by: { $0.value < $1.value }) {
                         VStack(spacing: 2) {
                             Image(systemName: "trophy.fill")
                                 .foregroundColor(.yellow)
