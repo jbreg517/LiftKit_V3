@@ -522,7 +522,7 @@ final class WorkoutViewModel {
                 let te = TemplateExercise(
                     exerciseName: card.name,
                     timerType: selectedTimerType,
-                    targetSets: card.sets,
+                    targetSets: 3,
                     targetReps: card.reps,
                     sortOrder: i,
                     equipment: card.equipment == .none ? nil : card.equipment,
