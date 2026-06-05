@@ -411,22 +411,24 @@ struct SessionCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Row 1: workout name + reps controls
-            HStack(alignment: .center) {
-                TextField("Workout name", text: $card.name)
-                    .font(LKFont.bodyBold)
-                    .foregroundColor(LKColor.textPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                if canDelete {
-                    Button(action: onDelete) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 13))
-                            .foregroundColor(LKColor.danger)
+            HStack(alignment: .center, spacing: 8) {
+                HStack(alignment: .center, spacing: 0) {
+                    TextField("Workout name", text: $card.name)
+                        .font(LKFont.bodyBold)
+                        .foregroundColor(LKColor.textPrimary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    if canDelete {
+                        Button(action: onDelete) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 13))
+                                .foregroundColor(LKColor.danger)
+                        }
+                        .accessibilityLabel("Delete workout")
+                        .padding(.leading, 4)
                     }
-                    .accessibilityLabel("Delete workout")
-                    .padding(.leading, 4)
                 }
-                Spacer(minLength: 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 LKCardControlBlock(
                     minusAction: { card.reps = max(1, card.reps - 1) },
                     numberText: "\(card.reps)",
@@ -447,13 +449,16 @@ struct SessionCardView: View {
             .frame(height: cardRowH)
 
             // Row 2: equipment + weight controls
-            HStack(alignment: .center) {
-                LKEquipmentMenu(
-                    sfSymbol: card.equipment.sfSymbol,
-                    label: card.equipment == .none ? "Equipment" : card.equipment.rawValue,
-                    isPlaceholder: card.equipment == .none
-                ) { card.equipment = $0 }
-                Spacer(minLength: 8)
+            HStack(alignment: .center, spacing: 8) {
+                HStack(spacing: 0) {
+                    LKEquipmentMenu(
+                        sfSymbol: card.equipment.sfSymbol,
+                        label: card.equipment == .none ? "Equipment" : card.equipment.rawValue,
+                        isPlaceholder: card.equipment == .none
+                    ) { card.equipment = $0 }
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 LKCardControlBlock(
                     minusAction: { card.weight = max(0, card.weight - 5) },
                     numberText: "\(Int(card.weight))",
@@ -489,56 +494,58 @@ struct ExerciseCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Row 1: exercise name + compact sets + reps controls
-            HStack(alignment: .center) {
-                TextField("Exercise name", text: $card.name)
-                    .font(LKFont.bodyBold)
-                    .foregroundColor(LKColor.textPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .onChange(of: card.name) { _, newName in
-                        if newName.count >= 3 {
-                            if let cached = WeightCache.shared.lookup(exerciseName: newName, in: context) {
-                                if card.weight == 0 { card.weight = cached.weight }
-                                if cached.equipment != nil && card.equipment == .none {
-                                    card.equipment = cached.equipment ?? .none
+            // Row 1: exercise name + compact sets indicator + reps controls
+            HStack(alignment: .center, spacing: 8) {
+                HStack(alignment: .center, spacing: 0) {
+                    TextField("Exercise name", text: $card.name)
+                        .font(LKFont.bodyBold)
+                        .foregroundColor(LKColor.textPrimary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .onChange(of: card.name) { _, newName in
+                            if newName.count >= 3 {
+                                if let cached = WeightCache.shared.lookup(exerciseName: newName, in: context) {
+                                    if card.weight == 0 { card.weight = cached.weight }
+                                    if cached.equipment != nil && card.equipment == .none {
+                                        card.equipment = cached.equipment ?? .none
+                                    }
                                 }
                             }
                         }
+                    if canDelete {
+                        Button(action: onDelete) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 13))
+                                .foregroundColor(LKColor.danger)
+                        }
+                        .padding(.leading, 4)
                     }
-                if canDelete {
-                    Button(action: onDelete) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 13))
-                            .foregroundColor(LKColor.danger)
+                    // Compact sets counter — muted to distinguish from main controls
+                    HStack(spacing: 3) {
+                        Button { card.sets = max(1, card.sets - 1); HapticManager.shared.buttonTap() } label: {
+                            Image(systemName: "minus.circle")
+                                .font(.system(size: 14))
+                                .foregroundColor(LKColor.textMuted)
+                        }
+                        Button {
+                            numberEntry = NumberEntryItem(
+                                title: "Sets", message: "Number of sets",
+                                currentValue: Double(card.sets), minValue: 1, maxValue: 20
+                            ) { card.sets = Int($0) }
+                        } label: {
+                            Text("\(card.sets)×")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(LKColor.textMuted)
+                        }
+                        Button { card.sets = min(20, card.sets + 1); HapticManager.shared.buttonTap() } label: {
+                            Image(systemName: "plus.circle")
+                                .font(.system(size: 14))
+                                .foregroundColor(LKColor.textMuted)
+                        }
                     }
-                    .padding(.leading, 4)
+                    .padding(.leading, 6)
                 }
-                // Compact sets counter — muted to distinguish from main controls
-                HStack(spacing: 3) {
-                    Button { card.sets = max(1, card.sets - 1); HapticManager.shared.buttonTap() } label: {
-                        Image(systemName: "minus.circle")
-                            .font(.system(size: 14))
-                            .foregroundColor(LKColor.textMuted)
-                    }
-                    Button {
-                        numberEntry = NumberEntryItem(
-                            title: "Sets", message: "Number of sets",
-                            currentValue: Double(card.sets), minValue: 1, maxValue: 20
-                        ) { card.sets = Int($0) }
-                    } label: {
-                        Text("\(card.sets)×")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(LKColor.textMuted)
-                    }
-                    Button { card.sets = min(20, card.sets + 1); HapticManager.shared.buttonTap() } label: {
-                        Image(systemName: "plus.circle")
-                            .font(.system(size: 14))
-                            .foregroundColor(LKColor.textMuted)
-                    }
-                }
-                .padding(.leading, 6)
-                Spacer(minLength: 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 LKCardControlBlock(
                     minusAction: { card.reps = max(1, card.reps - 1) },
                     numberText: "\(card.reps)",
@@ -559,13 +566,16 @@ struct ExerciseCardView: View {
             .frame(height: cardRowH)
 
             // Row 2: equipment + weight controls
-            HStack(alignment: .center) {
-                LKEquipmentMenu(
-                    sfSymbol: card.equipment.sfSymbol,
-                    label: card.equipment == .none ? "Equipment" : card.equipment.rawValue,
-                    isPlaceholder: card.equipment == .none
-                ) { card.equipment = $0 }
-                Spacer(minLength: 8)
+            HStack(alignment: .center, spacing: 8) {
+                HStack(spacing: 0) {
+                    LKEquipmentMenu(
+                        sfSymbol: card.equipment.sfSymbol,
+                        label: card.equipment == .none ? "Equipment" : card.equipment.rawValue,
+                        isPlaceholder: card.equipment == .none
+                    ) { card.equipment = $0 }
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 LKCardControlBlock(
                     minusAction: { card.weight = max(0, card.weight - 5) },
                     numberText: "\(Int(card.weight))",

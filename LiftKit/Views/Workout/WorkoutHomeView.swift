@@ -9,6 +9,8 @@ struct WorkoutHomeView: View {
     @Bindable var vm: WorkoutViewModel
 
     @State private var showCalendarPicker = false
+    @State private var showRecurringSchedule = false
+    @State private var scheduleTemplate: WorkoutTemplate?
 
     private var userProfile: UserProfile? { profiles.first }
     private var isPremium: Bool { userProfile?.isPremium ?? false }
@@ -47,27 +49,32 @@ struct WorkoutHomeView: View {
             .background(LKColor.background.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarContent }
-            .sheet(isPresented: $vm.showTypePicker) {
-                WorkoutTypePickerView(vm: vm)
-            }
-            .sheet(isPresented: $vm.showCreateWorkout) {
-                CreateWorkoutView(vm: vm)
-            }
-            .sheet(isPresented: $vm.showWorkoutSetup) {
-                NavigationStack {
-                    WorkoutSetupView(vm: vm, type: vm.selectedTimerType)
-                }
-            }
-            .sheet(isPresented: $vm.showLogin) {
-                LoginView(vm: vm)
-            }
-            .fullScreenCover(isPresented: $vm.showActiveWorkout) {
-                ActiveWorkoutView(vm: vm)
-            }
             .onAppear {
                 vm.userProfile = userProfile
                 ExerciseLibrary.shared.seedIfNeeded(context: context)
             }
+        }
+        .sheet(isPresented: $vm.showTypePicker) {
+            WorkoutTypePickerView(vm: vm)
+        }
+        .sheet(isPresented: $vm.showCreateWorkout) {
+            CreateWorkoutView(vm: vm)
+        }
+        .sheet(isPresented: $vm.showWorkoutSetup) {
+            NavigationStack {
+                WorkoutSetupView(vm: vm, type: vm.selectedTimerType)
+            }
+        }
+        .sheet(isPresented: $vm.showLogin) {
+            LoginView(vm: vm)
+        }
+        .sheet(isPresented: $showRecurringSchedule) {
+            if let t = scheduleTemplate {
+                RecurringScheduleSheet(template: t)
+            }
+        }
+        .fullScreenCover(isPresented: $vm.showActiveWorkout) {
+            ActiveWorkoutView(vm: vm)
         }
     }
 
@@ -139,6 +146,9 @@ struct WorkoutHomeView: View {
                     vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
                     vm.markTemplateUsed(template, context: context)
                     vm.showWorkoutSetup = true
+                } onSchedule: {
+                    scheduleTemplate = template
+                    showRecurringSchedule = true
                 }
                 .padding(.horizontal, LKSpacing.md)
             }
@@ -192,39 +202,53 @@ struct WorkoutHomeView: View {
 struct PlanCard: View {
     let template: WorkoutTemplate
     let onTap: () -> Void
+    let onSchedule: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            HStack {
-                VStack(alignment: .leading, spacing: LKSpacing.xs) {
-                    Text(template.name)
-                        .font(LKFont.bodyBold)
-                        .foregroundColor(LKColor.textPrimary)
-                    Text("\(template.exercises.count) exercises")
-                        .font(LKFont.caption)
-                        .foregroundColor(LKColor.textMuted)
+        HStack(spacing: 0) {
+            Button(action: onTap) {
+                HStack {
+                    VStack(alignment: .leading, spacing: LKSpacing.xs) {
+                        Text(template.name)
+                            .font(LKFont.bodyBold)
+                            .foregroundColor(LKColor.textPrimary)
+                        Text("\(template.exercises.count) exercises")
+                            .font(LKFont.caption)
+                            .foregroundColor(LKColor.textMuted)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: LKSpacing.xs) {
+                        Text(template.lastUsedAt.relativeFormatted)
+                            .font(.system(size: 12))
+                            .foregroundColor(LKColor.textSecondary)
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundColor(LKColor.textMuted)
+                    }
                 }
-                Spacer()
-                VStack(alignment: .trailing, spacing: LKSpacing.xs) {
-                    Text(template.lastUsedAt.relativeFormatted)
-                        .font(.system(size: 12))
-                        .foregroundColor(LKColor.textSecondary)
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundColor(LKColor.textMuted)
-                }
+                .padding(LKSpacing.md)
+                .frame(maxWidth: .infinity)
             }
-            .padding(LKSpacing.md)
-            .background(LKColor.surface)
-            .overlay(
-                RoundedRectangle(cornerRadius: LKRadius.large)
-                    .strokeBorder(LKColor.surfaceElevated, lineWidth: 1)
-            )
-            .cornerRadius(LKRadius.large)
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(template.name), \(template.exercises.count) exercises")
+            .accessibilityHint("Double tap to start this workout")
+
+            Button(action: onSchedule) {
+                Image(systemName: "calendar.badge.plus")
+                    .font(.system(size: 16))
+                    .foregroundColor(LKColor.textMuted)
+                    .padding(.horizontal, LKSpacing.md)
+                    .frame(maxHeight: .infinity)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Schedule \(template.name)")
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(template.name), \(template.exercises.count) exercises")
-        .accessibilityHint("Double tap to start this workout")
+        .background(LKColor.surface)
+        .overlay(
+            RoundedRectangle(cornerRadius: LKRadius.large)
+                .strokeBorder(LKColor.surfaceElevated, lineWidth: 1)
+        )
+        .cornerRadius(LKRadius.large)
     }
 }
 
@@ -236,6 +260,8 @@ struct AllTemplatesView: View {
 
     @State private var searchText = ""
     @State private var sortOption = SortOption.recent
+    @State private var showRecurringSchedule = false
+    @State private var scheduleTemplate: WorkoutTemplate?
 
     enum SortOption: String, CaseIterable {
         case recent = "Recent"
@@ -262,6 +288,9 @@ struct AllTemplatesView: View {
                         vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
                         vm.markTemplateUsed(template, context: context)
                         vm.showWorkoutSetup = true
+                    } onSchedule: {
+                        scheduleTemplate = template
+                        showRecurringSchedule = true
                     }
                 }
             }
@@ -278,6 +307,132 @@ struct AllTemplatesView: View {
             }
         }
         .background(LKColor.background.ignoresSafeArea())
+        .sheet(isPresented: $showRecurringSchedule) {
+            if let t = scheduleTemplate {
+                RecurringScheduleSheet(template: t)
+            }
+        }
+    }
+}
+
+// MARK: - Recurring Schedule Sheet
+
+struct RecurringScheduleSheet: View {
+    let template: WorkoutTemplate
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+
+    @State private var selectedWeekdays: Set<Int> = []
+    @State private var startDate = Date()
+    @State private var endDate = Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date()
+
+    private let cal = Calendar.current
+    // weekday 1=Sun … 7=Sat, labels align to that
+    private let weekdayLabels = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: LKSpacing.lg) {
+
+                // Day toggles
+                VStack(alignment: .leading, spacing: LKSpacing.sm) {
+                    Text("REPEAT ON")
+                        .font(LKFont.caption)
+                        .foregroundColor(LKColor.textMuted)
+                        .tracking(1.5)
+
+                    HStack(spacing: LKSpacing.xs) {
+                        ForEach(1...7, id: \.self) { weekday in
+                            let label    = weekdayLabels[weekday - 1]
+                            let selected = selectedWeekdays.contains(weekday)
+                            Button {
+                                if selected { selectedWeekdays.remove(weekday) }
+                                else        { selectedWeekdays.insert(weekday) }
+                                HapticManager.shared.buttonTap()
+                            } label: {
+                                Text(label)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, LKSpacing.sm)
+                                    .background(selected ? LKColor.accent : LKColor.surfaceElevated)
+                                    .foregroundColor(selected ? .black : LKColor.textSecondary)
+                                    .cornerRadius(LKRadius.small)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                // Date range
+                VStack(spacing: 0) {
+                    DatePicker("Start", selection: $startDate, displayedComponents: .date)
+                        .tint(LKColor.accent)
+                        .padding(.vertical, LKSpacing.sm)
+                    Divider()
+                    DatePicker("End", selection: $endDate, in: startDate..., displayedComponents: .date)
+                        .tint(LKColor.accent)
+                        .padding(.vertical, LKSpacing.sm)
+                }
+                .padding(.horizontal, LKSpacing.md)
+                .background(LKColor.surface)
+                .cornerRadius(LKRadius.large)
+
+                // Count hint
+                let count = occurrenceCount
+                Text(
+                    selectedWeekdays.isEmpty ? "Select days above" :
+                    count == 0              ? "No occurrences in this range" :
+                    "\(count) workout\(count == 1 ? "" : "s") will be scheduled"
+                )
+                .font(LKFont.caption)
+                .foregroundColor(LKColor.textMuted)
+
+                Button("Schedule") { createSchedules() }
+                    .buttonStyle(LKPrimaryButtonStyle())
+                    .disabled(count == 0)
+
+                Spacer()
+            }
+            .padding(LKSpacing.md)
+            .background(LKColor.background.ignoresSafeArea())
+            .navigationTitle(template.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .foregroundColor(LKColor.textSecondary)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private var occurrenceCount: Int {
+        guard !selectedWeekdays.isEmpty else { return 0 }
+        var count = 0
+        var current = cal.startOfDay(for: startDate)
+        let end = cal.startOfDay(for: endDate)
+        while current <= end {
+            if selectedWeekdays.contains(cal.component(.weekday, from: current)) { count += 1 }
+            guard let next = cal.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+        return count
+    }
+
+    private func createSchedules() {
+        var current = cal.startOfDay(for: startDate)
+        let end = cal.startOfDay(for: endDate)
+        while current <= end {
+            if selectedWeekdays.contains(cal.component(.weekday, from: current)) {
+                let sched = WorkoutSchedule(date: current, template: template)
+                context.insert(sched)
+            }
+            guard let next = cal.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+        try? context.save()
+        dismiss()
     }
 }
 

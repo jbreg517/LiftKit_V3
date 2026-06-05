@@ -499,6 +499,8 @@ final class WorkoutViewModel {
         }
 
         let template = WorkoutTemplate(name: trimmed)
+        context.insert(template)
+
         if selectedTimerType == .reps {
             for (i, card) in exercises.enumerated() {
                 let te = TemplateExercise(
@@ -520,7 +522,7 @@ final class WorkoutViewModel {
                 let te = TemplateExercise(
                     exerciseName: card.name,
                     timerType: selectedTimerType,
-                    targetSets: 3,
+                    targetSets: card.sets,
                     targetReps: card.reps,
                     sortOrder: i,
                     equipment: card.equipment == .none ? nil : card.equipment,
@@ -531,7 +533,6 @@ final class WorkoutViewModel {
                 context.insert(te)
             }
         }
-        context.insert(template)
         try? context.save()
         return true
     }
