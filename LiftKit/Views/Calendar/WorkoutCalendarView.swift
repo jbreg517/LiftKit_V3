@@ -79,9 +79,10 @@ struct WorkoutCalendarView: View {
 
     // MARK: - Day of Week Row
     private var dayOfWeekRow: some View {
-        HStack(spacing: 0) {
-            ForEach(calendar.veryShortWeekdaySymbols, id: \.self) { symbol in
-                Text(symbol)
+        let symbols = calendar.veryShortWeekdaySymbols
+        return HStack(spacing: 0) {
+            ForEach(symbols.indices, id: \.self) { i in
+                Text(symbols[i])
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(LKColor.textMuted)
                     .frame(maxWidth: .infinity)
@@ -92,7 +93,7 @@ struct WorkoutCalendarView: View {
     // MARK: - Calendar Grid
     private var calendarGrid: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 4) {
-            ForEach(daysInMonth, id: \.self) { date in
+            ForEach(Array(daysInMonth.enumerated()), id: \.offset) { _, date in
                 if let date = date {
                     dayCell(date: date)
                 } else {
@@ -244,9 +245,7 @@ struct WorkoutCalendarView: View {
         var current = monthFirstWeek.start
 
         while current < monthInterval.end || days.count % 7 != 0 {
-            if calendar.isDate(current, equalTo: monthInterval.start, toGranularity: .month) ||
-               calendar.isDate(current, equalTo: monthInterval.end, toGranularity: .month) ||
-               (current >= monthInterval.start && current < monthInterval.end) {
+            if current >= monthInterval.start && current < monthInterval.end {
                 days.append(current)
             } else {
                 days.append(nil)

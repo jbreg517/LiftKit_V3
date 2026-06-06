@@ -88,14 +88,13 @@ struct ScheduleEditView: View {
     }
 
     private func save() {
+        if isNew {
+            context.insert(schedule)
+        }
         schedule.date = date
         schedule.template = selectedTemplate
         schedule.customName = customName.isEmpty ? nil : customName
         schedule.notes = notes.isEmpty ? nil : notes
-
-        if isNew {
-            context.insert(schedule)
-        }
         try? context.save()
         dismiss()
     }
