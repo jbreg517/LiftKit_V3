@@ -9,7 +9,6 @@ struct WorkoutHomeView: View {
     @Bindable var vm: WorkoutViewModel
 
     @State private var showCalendarPicker = false
-    @State private var showRecurringSchedule = false
     @State private var scheduleTemplate: WorkoutTemplate?
 
     private var userProfile: UserProfile? { profiles.first }
@@ -68,10 +67,8 @@ struct WorkoutHomeView: View {
         .sheet(isPresented: $vm.showLogin) {
             LoginView(vm: vm)
         }
-        .sheet(isPresented: $showRecurringSchedule) {
-            if let t = scheduleTemplate {
-                RecurringScheduleSheet(template: t)
-            }
+        .sheet(item: $scheduleTemplate) { template in
+            RecurringScheduleSheet(template: template)
         }
         .fullScreenCover(isPresented: $vm.showActiveWorkout) {
             ActiveWorkoutView(vm: vm)
@@ -142,13 +139,17 @@ struct WorkoutHomeView: View {
                 .padding(.horizontal, LKSpacing.md)
 
             ForEach(visibleTemplates) { template in
-                PlanCard(template: template) {
-                    vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
-                    vm.markTemplateUsed(template, context: context)
-                    vm.showWorkoutSetup = true
-                } onSchedule: {
-                    scheduleTemplate = template
-                    showRecurringSchedule = true
+                SwipeToDeleteRow(enabled: true, onDelete: {
+                    context.delete(template)
+                    try? context.save()
+                }) {
+                    PlanCard(template: template) {
+                        vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
+                        vm.markTemplateUsed(template, context: context)
+                        vm.showWorkoutSetup = true
+                    } onSchedule: {
+                        scheduleTemplate = template
+                    }
                 }
                 .padding(.horizontal, LKSpacing.md)
             }
@@ -156,7 +157,7 @@ struct WorkoutHomeView: View {
             // Add button or upgrade prompt
             if isPremium || templates.count < UserProfile.maxFreeTemplates {
                 Button {
-                    vm.showCreateWorkout = true
+                    vm.showTypePicker = true
                     HapticManager.shared.buttonTap()
                 } label: {
                     HStack(spacing: LKSpacing.sm) {
@@ -260,7 +261,6 @@ struct AllTemplatesView: View {
 
     @State private var searchText = ""
     @State private var sortOption = SortOption.recent
-    @State private var showRecurringSchedule = false
     @State private var scheduleTemplate: WorkoutTemplate?
 
     enum SortOption: String, CaseIterable {
@@ -284,13 +284,17 @@ struct AllTemplatesView: View {
         ScrollView {
             VStack(spacing: LKSpacing.sm) {
                 ForEach(filtered) { template in
-                    PlanCard(template: template) {
-                        vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
-                        vm.markTemplateUsed(template, context: context)
-                        vm.showWorkoutSetup = true
-                    } onSchedule: {
-                        scheduleTemplate = template
-                        showRecurringSchedule = true
+                    SwipeToDeleteRow(enabled: true, onDelete: {
+                        context.delete(template)
+                        try? context.save()
+                    }) {
+                        PlanCard(template: template) {
+                            vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
+                            vm.markTemplateUsed(template, context: context)
+                            vm.showWorkoutSetup = true
+                        } onSchedule: {
+                            scheduleTemplate = template
+                        }
                     }
                 }
             }
@@ -307,10 +311,8 @@ struct AllTemplatesView: View {
             }
         }
         .background(LKColor.background.ignoresSafeArea())
-        .sheet(isPresented: $showRecurringSchedule) {
-            if let t = scheduleTemplate {
-                RecurringScheduleSheet(template: t)
-            }
+        .sheet(item: $scheduleTemplate) { template in
+            RecurringScheduleSheet(template: template)
         }
     }
 }

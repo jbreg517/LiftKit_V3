@@ -12,6 +12,7 @@ struct WorkoutSetupView: View {
     @State private var templateError = ""
     @State private var notesExpanded = false
     @State private var didApplyProgression = false
+    @State private var showUpdatedAlert = false
 
     let type: TimerType
 
@@ -23,6 +24,7 @@ struct WorkoutSetupView: View {
                 typeControls
                 notesSection
                 startButton
+                saveButtons
             }
             .padding(LKSpacing.md)
         }
@@ -40,17 +42,48 @@ struct WorkoutSetupView: View {
                     .font(LKFont.bodyBold)
                     .foregroundColor(LKColor.danger)
             }
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button("Save") { showSaveTemplate = true }
-                    .font(LKFont.bodyBold)
-                    .foregroundColor(LKColor.accent)
-            }
         }
         .sheet(item: $numberEntry) { item in
             NumberEntrySheet(item: item)
                 .presentationDetents([.height(280)])
         }
         .sheet(isPresented: $showSaveTemplate) { saveTemplateSheet }
+        .alert("Workout Plan Updated", isPresented: $showUpdatedAlert) {
+            Button("OK", role: .cancel) {}
+        }
+    }
+
+    // MARK: - Save buttons (under Start)
+
+    @ViewBuilder
+    private var saveButtons: some View {
+        if vm.editingTemplate != nil {
+            Button {
+                HapticManager.shared.buttonTap()
+                showSaveTemplate = true
+            } label: {
+                Label("Save as New", systemImage: "plus.square.on.square")
+            }
+            .buttonStyle(LKSecondaryButtonStyle())
+
+            Button {
+                if vm.updateTemplate(context: context) {
+                    HapticManager.shared.setLogged()
+                    showUpdatedAlert = true
+                }
+            } label: {
+                Label("Update Workout", systemImage: "arrow.triangle.2.circlepath")
+            }
+            .buttonStyle(LKSecondaryButtonStyle())
+        } else {
+            Button {
+                HapticManager.shared.buttonTap()
+                showSaveTemplate = true
+            } label: {
+                Label("Save as Template", systemImage: "square.and.arrow.down")
+            }
+            .buttonStyle(LKSecondaryButtonStyle())
+        }
     }
 
     // MARK: - Header
@@ -297,12 +330,15 @@ struct WorkoutSetupView: View {
     private func sessionsList(cards: Binding<[SessionCard]>, label: String) -> some View {
         VStack(alignment: .leading, spacing: LKSpacing.xs) {
             LKSectionLabel(text: label)
-            ForEach(cards.indices, id: \.self) { i in
+            // Iterate by identity (not index) and bind by id. Index-based ForEach
+            // crashes when a card is deleted because remaining rows reference a
+            // now-out-of-range index.
+            ForEach(cards.wrappedValue) { card in
                 SessionCardView(
-                    card: cards[i],
+                    card: sessionBinding(cards: cards, card: card),
                     canDelete: cards.wrappedValue.count > 1,
                     numberEntry: $numberEntry,
-                    onDelete: { cards.wrappedValue.remove(at: i) }
+                    onDelete: { cards.wrappedValue.removeAll { $0.id == card.id } }
                 )
             }
             plainAddButton("Add Workout") {
@@ -311,19 +347,37 @@ struct WorkoutSetupView: View {
         }
     }
 
+    /// Delete-safe binding to a single session card, resolved by id each access.
+    private func sessionBinding(cards: Binding<[SessionCard]>, card: SessionCard) -> Binding<SessionCard> {
+        Binding(
+            get: { cards.wrappedValue.first(where: { $0.id == card.id }) ?? card },
+            set: { newValue in
+                if let idx = cards.wrappedValue.firstIndex(where: { $0.id == card.id }) {
+                    cards.wrappedValue[idx] = newValue
+                }
+            }
+        )
+    }
+
     // MARK: - Exercises list
 
     private var exercisesList: some View {
         VStack(alignment: .leading, spacing: LKSpacing.xs) {
             LKSectionLabel(text: "EXERCISES")
-            ForEach($vm.exercises) { $card in
-                ExerciseCardView(
-                    card: $card,
-                    canDelete: vm.exercises.count > 1,
-                    numberEntry: $numberEntry,
-                    context: context,
+            // Iterate by identity and bind by id. A binding-over-collection
+            // ForEach ($vm.exercises) crashes when an element is removed from
+            // within a row (stale element binding -> index out of range).
+            ForEach(vm.exercises) { card in
+                SwipeToDeleteRow(
+                    enabled: vm.exercises.count > 1,
                     onDelete: { vm.exercises.removeAll { $0.id == card.id } }
-                )
+                ) {
+                    ExerciseCardView(
+                        card: exerciseBinding(for: card),
+                        numberEntry: $numberEntry,
+                        context: context
+                    )
+                }
             }
             if vm.exercises.count < 20 {
                 plainAddButton("Add Exercise") {
@@ -331,6 +385,18 @@ struct WorkoutSetupView: View {
                 }
             }
         }
+    }
+
+    /// Delete-safe binding to a single exercise card, resolved by id each access.
+    private func exerciseBinding(for card: ExerciseCard) -> Binding<ExerciseCard> {
+        Binding(
+            get: { vm.exercises.first(where: { $0.id == card.id }) ?? card },
+            set: { newValue in
+                if let idx = vm.exercises.firstIndex(where: { $0.id == card.id }) {
+                    vm.exercises[idx] = newValue
+                }
+            }
+        )
     }
 
     private func plainAddButton(_ label: String, action: @escaping () -> Void) -> some View {
@@ -352,7 +418,7 @@ struct WorkoutSetupView: View {
     private var saveTemplateSheet: some View {
         NavigationStack {
             VStack(spacing: LKSpacing.lg) {
-                Text("Save as Template")
+                Text(vm.editingTemplate != nil ? "Save as New Template" : "Save as Template")
                     .font(LKFont.heading).foregroundColor(LKColor.textPrimary)
 
                 VStack(alignment: .leading, spacing: LKSpacing.xs) {
@@ -402,9 +468,64 @@ struct WorkoutSetupView: View {
 // MARK: - Card layout constants (shared across card views)
 
 private let cardBtnW: CGFloat = 28
-private let cardNumW: CGFloat = 36
+private let cardNumW: CGFloat = 48   // wide enough for 3 digits (e.g. 100 reps, 999 lb)
 private let cardTagW: CGFloat = 56
 private let cardRowH: CGFloat = 44
+
+// MARK: - Swipe-to-delete row
+// Swipe a card to the right to reveal a delete button, then tap to remove.
+// Used because the setup screen is a ScrollView, where List `.swipeActions`
+// isn't available. Disabled (no swipe) when `enabled` is false.
+struct SwipeToDeleteRow<Content: View>: View {
+    let enabled: Bool
+    let onDelete: () -> Void
+    let content: Content
+
+    @State private var offset: CGFloat = 0
+    private let revealWidth: CGFloat = 84
+
+    init(enabled: Bool, onDelete: @escaping () -> Void, @ViewBuilder content: () -> Content) {
+        self.enabled = enabled
+        self.onDelete = onDelete
+        self.content = content()
+    }
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            Button {
+                onDelete()
+                HapticManager.shared.buttonTap()
+            } label: {
+                Image(systemName: "trash.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: revealWidth)
+                    .frame(maxHeight: .infinity)
+                    .background(LKColor.danger)
+                    .clipShape(RoundedRectangle(cornerRadius: LKRadius.large))
+            }
+            .opacity(offset > 1 ? 1 : 0)
+            .accessibilityLabel("Delete")
+
+            content
+                .offset(x: offset)
+                .gesture(dragGesture, including: enabled ? .all : .subviews)
+        }
+    }
+
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 18)
+            .onChanged { value in
+                guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                offset = max(0, min(value.translation.width, revealWidth))
+            }
+            .onEnded { value in
+                withAnimation(.easeOut(duration: 0.2)) {
+                    offset = value.translation.width > revealWidth * 0.5 ? revealWidth : 0
+                }
+            }
+    }
+}
 
 // MARK: - Session Card View
 // Two aligned rows: [name | reps] / [equipment | weight]
@@ -494,76 +615,41 @@ struct SessionCardView: View {
 
 struct ExerciseCardView: View {
     @Binding var card: ExerciseCard
-    let canDelete: Bool
     @Binding var numberEntry: NumberEntryItem?
     let context: ModelContext
-    let onDelete: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Row 1: exercise name + compact sets indicator + reps controls
+            // Row 1: exercise name + sets dropdown + reps/time controls
             HStack(alignment: .center, spacing: 8) {
-                HStack(alignment: .center, spacing: 0) {
-                    TextField("Exercise name", text: $card.name)
-                        .font(LKFont.bodyBold)
-                        .foregroundColor(LKColor.textPrimary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .onChange(of: card.name) { _, newName in
-                            let trimmed = newName.trimmingCharacters(in: .whitespaces)
-                            guard trimmed.count >= 3 else { return }
-                            if ExerciseLibrary.isTimedByDefault(trimmed) { card.isTimed = true }
-                            if let prog = ProgressionService.shared.suggest(exerciseName: trimmed, in: context) {
-                                if card.weight == 0 {
-                                    card.weight = prog.weight
-                                    card.weightUnit = prog.unit
-                                }
-                                if prog.equipment != nil && card.equipment == .none {
-                                    card.equipment = prog.equipment ?? .none
-                                }
-                                card.progressionNote = prog.note
-                                card.progressionReason = prog.reason
-                            } else if let cached = WeightCache.shared.lookup(exerciseName: trimmed, in: context) {
-                                if card.weight == 0 { card.weight = cached.weight }
-                                if cached.equipment != nil && card.equipment == .none {
-                                    card.equipment = cached.equipment ?? .none
-                                }
+                TextField("Exercise name", text: $card.name)
+                    .font(LKFont.bodyBold)
+                    .foregroundColor(LKColor.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onChange(of: card.name) { _, newName in
+                        let trimmed = newName.trimmingCharacters(in: .whitespaces)
+                        guard trimmed.count >= 3 else { return }
+                        if ExerciseLibrary.isTimedByDefault(trimmed) { card.isTimed = true }
+                        if let prog = ProgressionService.shared.suggest(exerciseName: trimmed, in: context) {
+                            if card.weight == 0 {
+                                card.weight = prog.weight
+                                card.weightUnit = prog.unit
+                            }
+                            if prog.equipment != nil && card.equipment == .none {
+                                card.equipment = prog.equipment ?? .none
+                            }
+                            card.progressionNote = prog.note
+                            card.progressionReason = prog.reason
+                        } else if let cached = WeightCache.shared.lookup(exerciseName: trimmed, in: context) {
+                            if card.weight == 0 { card.weight = cached.weight }
+                            if cached.equipment != nil && card.equipment == .none {
+                                card.equipment = cached.equipment ?? .none
                             }
                         }
-                    if canDelete {
-                        Button(action: onDelete) {
-                            Image(systemName: "trash")
-                                .font(.system(size: 13))
-                                .foregroundColor(LKColor.danger)
-                        }
-                        .padding(.leading, 4)
                     }
-                    // Compact sets counter — muted to distinguish from main controls
-                    HStack(spacing: 3) {
-                        Button { card.sets = max(1, card.sets - 1); HapticManager.shared.buttonTap() } label: {
-                            Image(systemName: "minus.circle")
-                                .font(.system(size: 14))
-                                .foregroundColor(LKColor.textMuted)
-                        }
-                        Button {
-                            numberEntry = NumberEntryItem(
-                                title: "Sets", message: "Number of sets",
-                                currentValue: Double(card.sets), minValue: 1, maxValue: 20
-                            ) { card.sets = Int($0) }
-                        } label: {
-                            Text("\(card.sets)×")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(LKColor.textMuted)
-                        }
-                        Button { card.sets = min(20, card.sets + 1); HapticManager.shared.buttonTap() } label: {
-                            Image(systemName: "plus.circle")
-                                .font(.system(size: 14))
-                                .foregroundColor(LKColor.textMuted)
-                        }
-                    }
-                    .padding(.leading, 6)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                setsDropdown
                 if card.isTimed {
                     LKCardControlBlock(
                         minusAction: { card.durationSeconds = max(5, card.durationSeconds - 5) },
@@ -637,6 +723,33 @@ struct ExerciseCardView: View {
         .background(LKColor.surface)
         .overlay(RoundedRectangle(cornerRadius: LKRadius.large).strokeBorder(LKColor.surfaceElevated, lineWidth: 1))
         .cornerRadius(LKRadius.large)
+    }
+
+    // Sets dropdown selector (replaces the old +/- stepper).
+    private var setsDropdown: some View {
+        Menu {
+            Picker("Sets", selection: $card.sets) {
+                ForEach(1...20, id: \.self) { n in
+                    Text("\(n) set\(n == 1 ? "" : "s")").tag(n)
+                }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Text("\(card.sets)")
+                    .font(.system(size: 15, weight: .bold, design: .monospaced))
+                    .foregroundColor(LKColor.accent)
+                Text("sets")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(LKColor.textMuted)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(LKColor.textMuted)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(LKColor.surfaceElevated)
+            .cornerRadius(LKRadius.small)
+        }
     }
 
     // Reps / Time mode toggle, sized to match the "Reps" tag column width.

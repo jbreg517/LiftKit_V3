@@ -1,6 +1,14 @@
 import SwiftUI
 import SwiftData
 
+// Identifies what the schedule-edit sheet should show. Building the target at
+// tap time (not inside the sheet builder) makes presentation reliable.
+struct ScheduleEditTarget: Identifiable {
+    let id = UUID()
+    let schedule: WorkoutSchedule
+    let isNew: Bool
+}
+
 struct WorkoutCalendarView: View {
     @Bindable var vm: WorkoutViewModel
     @Environment(\.modelContext) private var context
@@ -11,8 +19,7 @@ struct WorkoutCalendarView: View {
     @State private var currentMonth = Date()
     @State private var selectedDate: Date?
     @State private var showDatePicker = false
-    @State private var showScheduleEdit = false
-    @State private var editingSchedule: WorkoutSchedule?
+    @State private var scheduleEditTarget: ScheduleEditTarget?
 
     private let calendar = Calendar.current
 
@@ -31,14 +38,8 @@ struct WorkoutCalendarView: View {
         .sheet(isPresented: $showDatePicker) {
             datePickerSheet
         }
-        .sheet(isPresented: $showScheduleEdit) {
-            if let sched = editingSchedule {
-                ScheduleEditView(schedule: sched, vm: vm, isNew: false)
-            } else {
-                // New schedule for selected date
-                let newSched = WorkoutSchedule(date: selectedDate ?? Date())
-                ScheduleEditView(schedule: newSched, vm: vm, isNew: true)
-            }
+        .sheet(item: $scheduleEditTarget) { target in
+            ScheduleEditView(schedule: target.schedule, vm: vm, isNew: target.isNew)
         }
     }
 
@@ -177,8 +178,7 @@ struct WorkoutCalendarView: View {
 
             ForEach(daySchedules) { sched in
                 Button {
-                    editingSchedule = sched
-                    showScheduleEdit = true
+                    scheduleEditTarget = ScheduleEditTarget(schedule: sched, isNew: false)
                 } label: {
                     HStack {
                         Circle().fill(LKColor.work).frame(width: 8, height: 8)
@@ -200,8 +200,9 @@ struct WorkoutCalendarView: View {
 
             if daySessions.isEmpty && daySchedules.isEmpty {
                 Button {
-                    editingSchedule = nil
-                    showScheduleEdit = true
+                    scheduleEditTarget = ScheduleEditTarget(
+                        schedule: WorkoutSchedule(date: date), isNew: true
+                    )
                 } label: {
                     Label("Schedule Workout", systemImage: "plus")
                         .font(LKFont.caption)

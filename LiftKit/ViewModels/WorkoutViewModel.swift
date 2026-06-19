@@ -189,6 +189,9 @@ final class WorkoutViewModel {
     // Template saving
     var templateName: String = ""
     var templateNameError: String = ""
+    /// Set when the current setup was loaded from an existing plan/template,
+    /// enabling "Save as New" + "Update Workout". nil for a fresh workout.
+    var editingTemplate: WorkoutTemplate?
 
     // User profile cache
     var userProfile: UserProfile?
@@ -196,8 +199,11 @@ final class WorkoutViewModel {
     // MARK: - Setup helpers
 
     func loadFromTemplate(_ template: WorkoutTemplate, type: TimerType) {
+        editingTemplate = template
         selectedTimerType = type
         workoutName = template.name
+        // Templates don't store rest time, so seed it from the Settings default.
+        restBetweenSets = Int(UserDefaults.standard.object(forKey: "defaultRestSeconds") as? Double ?? 90)
         let sorted = template.sortedExercises
         exercises = sorted.map { ex in
             var card = ExerciseCard()
@@ -618,6 +624,57 @@ final class WorkoutViewModel {
         return true
     }
 
+    /// Overwrites the exercises (and name) of the template the setup was loaded
+    /// from with the current setup. Used by the "Update Workout" button.
+    @discardableResult
+    func updateTemplate(context: ModelContext) -> Bool {
+        guard let template = editingTemplate else { return false }
+
+        // Update the plan name from the setup field when provided.
+        let trimmed = workoutName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { template.name = trimmed }
+
+        // Replace the stored exercises with the current setup.
+        for te in Array(template.exercises) { context.delete(te) }
+
+        if selectedTimerType == .reps {
+            for (i, card) in exercises.enumerated() {
+                let te = TemplateExercise(
+                    exerciseName: card.name,
+                    timerType: card.isTimed ? .forTime : .reps,
+                    targetSets: card.sets,
+                    targetReps: card.reps,
+                    targetDuration: card.isTimed ? card.durationSeconds : 0,
+                    sortOrder: i,
+                    equipment: card.equipment == .none ? nil : card.equipment,
+                    targetWeight: card.weight,
+                    weightUnit: card.weightUnit
+                )
+                te.template = template
+                context.insert(te)
+            }
+        } else {
+            let cards = activeSessions(for: selectedTimerType)
+            for (i, card) in cards.enumerated() {
+                let te = TemplateExercise(
+                    exerciseName: card.name,
+                    timerType: selectedTimerType,
+                    targetSets: 3,
+                    targetReps: card.reps,
+                    sortOrder: i,
+                    equipment: card.equipment == .none ? nil : card.equipment,
+                    targetWeight: card.weight,
+                    weightUnit: card.weightUnit
+                )
+                te.template = template
+                context.insert(te)
+            }
+        }
+        template.lastUsedAt = Date()
+        try? context.save()
+        return true
+    }
+
     func markTemplateUsed(_ template: WorkoutTemplate, context: ModelContext) {
         template.lastUsedAt = Date()
         try? context.save()
@@ -644,6 +701,7 @@ final class WorkoutViewModel {
     }
 
     func resetSetup() {
+        editingTemplate = nil
         workoutName = ""
         notes = ""
         timeLimitMinutes = 10
@@ -655,7 +713,8 @@ final class WorkoutViewModel {
         restSeconds = 20
         intervalRounds = 8
         intervalSessions = [SessionCard()]
-        restBetweenSets = 90
+        // Seed rest-between-sets from the user's Settings default (falls back to 90s).
+        restBetweenSets = Int(UserDefaults.standard.object(forKey: "defaultRestSeconds") as? Double ?? 90)
         exercises = [ExerciseCard()]
         manualSessions = [SessionCard()]
     }
