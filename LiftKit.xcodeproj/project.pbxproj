@@ -35,7 +35,6 @@
 		A7000000000000000000001E /* WorkoutTypePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6000000000000000000001E /* WorkoutTypePickerView.swift */; };
 		A7000000000000000000001F /* WorkoutSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6000000000000000000001F /* WorkoutSetupView.swift */; };
 		A70000000000000000000020 /* ActiveWorkoutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000020 /* ActiveWorkoutView.swift */; };
-		A70000000000000000000021 /* CreateWorkoutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000021 /* CreateWorkoutView.swift */; };
 		A70000000000000000000022 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000022 /* HistoryView.swift */; };
 		A70000000000000000000023 /* ProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000023 /* ProgressView.swift */; };
 		A70000000000000000000024 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000024 /* SettingsView.swift */; };
@@ -109,7 +108,6 @@
 		A6000000000000000000001E /* WorkoutTypePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutTypePickerView.swift; sourceTree = "<group>"; };
 		A6000000000000000000001F /* WorkoutSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSetupView.swift; sourceTree = "<group>"; };
 		A60000000000000000000020 /* ActiveWorkoutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveWorkoutView.swift; sourceTree = "<group>"; };
-		A60000000000000000000021 /* CreateWorkoutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateWorkoutView.swift; sourceTree = "<group>"; };
 		A60000000000000000000022 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		A60000000000000000000023 /* ProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressView.swift; sourceTree = "<group>"; };
 		A60000000000000000000024 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -279,7 +277,6 @@
 				A6000000000000000000001E /* WorkoutTypePickerView.swift */,
 				A6000000000000000000001F /* WorkoutSetupView.swift */,
 				A60000000000000000000020 /* ActiveWorkoutView.swift */,
-				A60000000000000000000021 /* CreateWorkoutView.swift */,
 			);
 			path = Workout;
 			sourceTree = "<group>";
@@ -514,7 +511,6 @@
 				A7000000000000000000001E /* WorkoutTypePickerView.swift in Sources */,
 				A7000000000000000000001F /* WorkoutSetupView.swift in Sources */,
 				A70000000000000000000020 /* ActiveWorkoutView.swift in Sources */,
-				A70000000000000000000021 /* CreateWorkoutView.swift in Sources */,
 				A70000000000000000000022 /* HistoryView.swift in Sources */,
 				A70000000000000000000023 /* ProgressView.swift in Sources */,
 				A70000000000000000000024 /* SettingsView.swift in Sources */,

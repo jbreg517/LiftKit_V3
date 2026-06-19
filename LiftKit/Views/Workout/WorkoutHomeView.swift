@@ -56,9 +56,6 @@ struct WorkoutHomeView: View {
         .sheet(isPresented: $vm.showTypePicker) {
             WorkoutTypePickerView(vm: vm)
         }
-        .sheet(isPresented: $vm.showCreateWorkout) {
-            CreateWorkoutView(vm: vm)
-        }
         .sheet(isPresented: $vm.showWorkoutSetup) {
             NavigationStack {
                 WorkoutSetupView(vm: vm, type: vm.selectedTimerType)

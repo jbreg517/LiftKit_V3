@@ -47,8 +47,7 @@ LiftKit/
 │       │   ├── WorkoutHomeView.swift       ← Tab 1: hero button, calendar, plans
 │       │   ├── WorkoutTypePickerView.swift ← 2-column type grid sheet
 │       │   ├── WorkoutSetupView.swift      ← Type-specific setup + session/exercise cards
-│       │   ├── ActiveWorkoutView.swift     ← Full-screen active workout (all 6 types)
-│       │   └── CreateWorkoutView.swift     ← Quick workout creation form
+│       │   └── ActiveWorkoutView.swift     ← Full-screen active workout (all 6 types)
 │       ├── History/
 │       │   └── HistoryView.swift           ← Session list + WorkoutDetailView
 │       ├── Progress/

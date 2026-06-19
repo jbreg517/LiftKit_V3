@@ -140,7 +140,6 @@ let completionMessages: [String] = [
 final class WorkoutViewModel {
     // MARK: Navigation state
     var showTypePicker        = false
-    var showCreateWorkout     = false
     var showLogin             = false
     var showActiveWorkout     = false
     var showSaveTemplate      = false
