@@ -21,14 +21,23 @@ struct ExerciseCard: Identifiable {
     var weightUnit: WeightUnit = .lb
     var sets: Int = 3
     var reps: Int = 10
+    /// Track hold time (e.g. planks) instead of reps.
+    var isTimed: Bool = false
+    var durationSeconds: Int = 60
+    // Transient progression hint shown in setup (not persisted).
+    var progressionNote: String? = nil
+    var progressionReason: ProgressionService.Reason? = nil
 }
 
 // MARK: - Active Set State
 struct ActiveSet: Identifiable {
     var id: UUID
     var setNumber: Int
+    var isTimed: Bool
     var plannedReps: Int
     var actualReps: Int
+    var plannedDuration: Int   // seconds
+    var actualDuration: Int    // seconds
     var isCompleted: Bool = false
     var weight: Double
     var weightUnit: WeightUnit
@@ -41,6 +50,7 @@ struct ActiveExercise: Identifiable {
     var equipment: Equipment
     var weight: Double
     var weightUnit: WeightUnit
+    var isTimed: Bool
     var sets: [ActiveSet]
 
     init(from card: ExerciseCard) {
@@ -48,12 +58,16 @@ struct ActiveExercise: Identifiable {
         self.equipment = card.equipment
         self.weight = card.weight
         self.weightUnit = card.weightUnit
+        self.isTimed = card.isTimed
         self.sets = (0..<card.sets).map { i in
             ActiveSet(
                 id: UUID(),
                 setNumber: i + 1,
+                isTimed: card.isTimed,
                 plannedReps: card.reps,
                 actualReps: card.reps,
+                plannedDuration: card.durationSeconds,
+                actualDuration: card.durationSeconds,
                 weight: card.weight,
                 weightUnit: card.weightUnit
             )
@@ -193,6 +207,8 @@ final class WorkoutViewModel {
             card.weightUnit = ex.weightUnit
             card.sets = ex.targetSets
             card.reps = ex.targetReps
+            card.isTimed = ex.timerType == .forTime
+            card.durationSeconds = ex.targetDuration > 0 ? ex.targetDuration : 60
             return card
         }
         sessions = sorted.map { ex in
@@ -202,6 +218,23 @@ final class WorkoutViewModel {
             card.weight = ex.targetWeight
             card.weightUnit = ex.weightUnit
             return card
+        }
+    }
+
+    /// Applies Stronglifts-style weight progression to the current rep-based
+    /// exercise cards, overriding the working weight with the next suggested
+    /// weight when prior history exists. Used when entering setup from a
+    /// template or a repeated session.
+    func applyProgression(context: ModelContext) {
+        for i in exercises.indices {
+            let name = exercises[i].name.trimmingCharacters(in: .whitespaces)
+            guard !name.isEmpty, !exercises[i].isTimed else { continue }
+            if let prog = ProgressionService.shared.suggest(exerciseName: name, in: context) {
+                exercises[i].weight = prog.weight
+                exercises[i].weightUnit = prog.unit
+                exercises[i].progressionNote = prog.note
+                exercises[i].progressionReason = prog.reason
+            }
         }
     }
 
@@ -259,7 +292,11 @@ final class WorkoutViewModel {
             for (i, card) in exercises.enumerated() {
                 let exName = card.name.isEmpty ? "Exercise \(i + 1)" : card.name
                 let exercise = findOrCreateExercise(name: exName, equipment: card.equipment, context: context)
-                let entry = WorkoutEntry(timerType: .reps, sortOrder: i)
+                let entry = WorkoutEntry(
+                    timerType: card.isTimed ? .forTime : .reps,
+                    sortOrder: i,
+                    plannedSets: card.sets
+                )
                 entry.session = session
                 entry.exercise = exercise
                 context.insert(entry)
@@ -295,10 +332,12 @@ final class WorkoutViewModel {
                 card.name = entry.exercise?.name ?? ""
                 card.equipment = entry.exercise.flatMap { $0.equipmentEnum } ?? Equipment.none
                 let sets = entry.sortedSets
-                card.sets = max(1, sets.count)
+                card.sets = max(1, entry.plannedSets > 0 ? entry.plannedSets : sets.count)
                 card.reps = sets.first?.plannedReps ?? sets.first?.reps ?? 10
                 card.weight = sets.first?.weight ?? 0
                 card.weightUnit = sets.first?.weightUnitEnum ?? .lb
+                card.isTimed = entry.timerType == .forTime
+                if let dur = sets.first?.duration { card.durationSeconds = Int(dur) }
                 return card
             }
             if exercises.isEmpty { exercises = [ExerciseCard()] }
@@ -379,25 +418,41 @@ final class WorkoutViewModel {
 
         ex.sets[setIndex].isCompleted = true
         activeExercises[exerciseIndex] = ex
+        let set = ex.sets[setIndex]
 
         // Persist set record
         guard let session = activeSession else { return }
         let entry = session.sortedEntries.first { $0.exercise?.name.lowercased() == ex.name.lowercased() }
 
-        let record = SetRecord(
-            setNumber: setIndex + 1,
-            weight: ex.sets[setIndex].weight,
-            weightUnit: ex.sets[setIndex].weightUnit,
-            reps: ex.sets[setIndex].actualReps,
-            plannedWeight: ex.sets[setIndex].weight,
-            plannedReps: ex.sets[setIndex].plannedReps
-        )
+        let record: SetRecord
+        if set.isTimed {
+            let usesWeight = set.weight > 0
+            record = SetRecord(
+                setNumber: setIndex + 1,
+                weight: usesWeight ? set.weight : nil,
+                weightUnit: set.weightUnit,
+                reps: nil,
+                duration: TimeInterval(set.actualDuration),
+                plannedWeight: usesWeight ? set.weight : nil,
+                plannedReps: nil,
+                plannedDuration: set.plannedDuration
+            )
+        } else {
+            record = SetRecord(
+                setNumber: setIndex + 1,
+                weight: set.weight,
+                weightUnit: set.weightUnit,
+                reps: set.actualReps,
+                plannedWeight: set.weight,
+                plannedReps: set.plannedReps
+            )
+        }
         record.entry = entry
         context.insert(record)
         try? context.save()
 
-        // PR detection
-        if let exercise = entry?.exercise {
+        // PR detection (rep-based only; timed holds don't produce weight/rep/volume PRs)
+        if !set.isTimed, let exercise = entry?.exercise {
             let prs = PRDetectionService.shared.checkAndRecord(set: record, exercise: exercise, context: context)
             if !prs.isEmpty {
                 newPRTypes = prs
@@ -410,6 +465,8 @@ final class WorkoutViewModel {
             } else {
                 HapticManager.shared.setLogged()
             }
+        } else {
+            HapticManager.shared.setLogged()
         }
     }
 
@@ -439,6 +496,29 @@ final class WorkoutViewModel {
             let entry = session.sortedEntries.first { $0.exercise?.name.lowercased() == ex.name.lowercased() }
             if let record = entry?.sortedSets.first(where: { $0.setNumber == setNumber }) {
                 record.reps = clamped > 0 ? clamped : nil
+                try? ctx.save()
+            }
+        }
+    }
+
+    func adjustDuration(exerciseIndex: Int, setIndex: Int, newDuration: Int, context: ModelContext? = nil) {
+        guard exerciseIndex < activeExercises.count else { return }
+        var ex = activeExercises[exerciseIndex]
+        guard setIndex < ex.sets.count else { return }
+        let clamped = max(0, newDuration)
+        let wasCompleted = ex.sets[setIndex].isCompleted
+        if clamped == 0 {
+            ex.sets[setIndex].isCompleted = false
+        }
+        ex.sets[setIndex].actualDuration = clamped
+        activeExercises[exerciseIndex] = ex
+
+        // Update the persisted SetRecord when the set was already logged
+        if wasCompleted, let ctx = context, let session = activeSession {
+            let setNumber = setIndex + 1
+            let entry = session.sortedEntries.first { $0.exercise?.name.lowercased() == ex.name.lowercased() }
+            if let record = entry?.sortedSets.first(where: { $0.setNumber == setNumber }) {
+                record.duration = clamped > 0 ? TimeInterval(clamped) : nil
                 try? ctx.save()
             }
         }
@@ -505,9 +585,10 @@ final class WorkoutViewModel {
             for (i, card) in exercises.enumerated() {
                 let te = TemplateExercise(
                     exerciseName: card.name,
-                    timerType: .reps,
+                    timerType: card.isTimed ? .forTime : .reps,
                     targetSets: card.sets,
                     targetReps: card.reps,
+                    targetDuration: card.isTimed ? card.durationSeconds : 0,
                     sortOrder: i,
                     equipment: card.equipment == .none ? nil : card.equipment,
                     targetWeight: card.weight,

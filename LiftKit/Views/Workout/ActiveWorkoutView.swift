@@ -1,6 +1,12 @@
 import SwiftUI
 import SwiftData
 
+// Identifies the currently-running timed set within the active exercise list.
+struct TimedSetKey: Equatable {
+    let exIdx: Int
+    let setIdx: Int
+}
+
 // MARK: - Active Workout View
 struct ActiveWorkoutView: View {
     @Environment(\.modelContext) private var context
@@ -17,6 +23,11 @@ struct ActiveWorkoutView: View {
     @State private var showInitialCountdown = true
     @State private var initialCountdown = 10
     @State private var countdownTimer: Timer?
+
+    // Per-set hold timer (timed exercises, e.g. planks)
+    @State private var timedSet: TimedSetKey?
+    @State private var timedRemaining = 0
+    @State private var timedSetTimer: Timer?
 
     private var type: TimerType { vm.activeConfig.type }
 
@@ -71,6 +82,8 @@ struct ActiveWorkoutView: View {
         .onDisappear {
             countdownTimer?.invalidate()
             countdownTimer = nil
+            timedSetTimer?.invalidate()
+            timedSetTimer = nil
             engine.stop()
             restEngine.stop()
             LiveActivityManager.shared.stop()
@@ -704,8 +717,11 @@ struct ActiveWorkoutView: View {
     }
 
     private func setCircle(exIdx: Int, setIdx: Int, set: ActiveSet) -> some View {
-        Button {
-            if set.isCompleted {
+        let isRunning = timedSet == TimedSetKey(exIdx: exIdx, setIdx: setIdx)
+        return Button {
+            if set.isTimed {
+                handleTimedSetTap(exIdx: exIdx, setIdx: setIdx, set: set, isRunning: isRunning)
+            } else if set.isCompleted {
                 // Tap completed → adjust reps
                 numberEntry = NumberEntryItem(
                     title: "Adjust Reps",
@@ -716,23 +732,98 @@ struct ActiveWorkoutView: View {
             } else {
                 // Mark complete, start rest timer
                 vm.logSet(exerciseIndex: exIdx, setIndex: setIdx, context: context)
-                let rest = Double(vm.activeConfig.restBetweenSets)
-                if rest > 0 {
-                    restEngine.startRestTimer(rest)
-                }
+                startRestIfNeeded()
                 HapticManager.shared.setLogged()
             }
         } label: {
             ZStack {
                 Circle()
-                    .fill(set.isCompleted ? LKColor.success : LKColor.surfaceElevated)
+                    .fill(setCircleFill(set: set, isRunning: isRunning))
                     .frame(width: 48, height: 48)
-                Text("\(set.actualReps)")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(set.isCompleted ? .white : LKColor.textPrimary)
+                Text(setCircleLabel(set: set, isRunning: isRunning))
+                    .font(.system(size: set.isTimed ? 13 : 14, weight: .bold))
+                    .foregroundColor(setCircleTextColor(set: set, isRunning: isRunning))
+                    .contentTransition(.numericText())
             }
         }
-        .accessibilityLabel("Set \(set.setNumber), \(set.actualReps) reps, \(set.isCompleted ? "completed" : "incomplete")")
+        .accessibilityLabel(setCircleAccessibility(set: set, isRunning: isRunning))
+    }
+
+    private func setCircleFill(set: ActiveSet, isRunning: Bool) -> Color {
+        if isRunning { return LKColor.accent }
+        return set.isCompleted ? LKColor.success : LKColor.surfaceElevated
+    }
+
+    private func setCircleTextColor(set: ActiveSet, isRunning: Bool) -> Color {
+        if isRunning { return LKColor.background }      // dark text on gold
+        return set.isCompleted ? .white : LKColor.textPrimary
+    }
+
+    private func setCircleLabel(set: ActiveSet, isRunning: Bool) -> String {
+        if set.isTimed {
+            return isRunning ? "\(timedRemaining)s" : "\(set.actualDuration)s"
+        }
+        return "\(set.actualReps)"
+    }
+
+    private func setCircleAccessibility(set: ActiveSet, isRunning: Bool) -> String {
+        if set.isTimed {
+            if isRunning { return "Set \(set.setNumber), \(timedRemaining) seconds remaining" }
+            return "Set \(set.setNumber), \(set.actualDuration) second hold, \(set.isCompleted ? "completed" : "tap to start")"
+        }
+        return "Set \(set.setNumber), \(set.actualReps) reps, \(set.isCompleted ? "completed" : "incomplete")"
+    }
+
+    private func startRestIfNeeded() {
+        let rest = Double(vm.activeConfig.restBetweenSets)
+        if rest > 0 { restEngine.startRestTimer(rest) }
+    }
+
+    // MARK: - Timed set (hold) handling
+
+    private func handleTimedSetTap(exIdx: Int, setIdx: Int, set: ActiveSet, isRunning: Bool) {
+        if isRunning {
+            // Stop early: log the elapsed hold time
+            let elapsed = max(0, set.plannedDuration - timedRemaining)
+            finishTimedSet(exIdx: exIdx, setIdx: setIdx, actual: elapsed)
+        } else if set.isCompleted {
+            numberEntry = NumberEntryItem(
+                title: "Adjust Hold",
+                message: "Set \(set.setNumber) seconds (0 = incomplete)",
+                currentValue: Double(set.actualDuration),
+                minValue: 0, maxValue: 600
+            ) { vm.adjustDuration(exerciseIndex: exIdx, setIndex: setIdx, newDuration: Int($0), context: context) }
+        } else if timedSet == nil {
+            startTimedSet(exIdx: exIdx, setIdx: setIdx, planned: set.plannedDuration)
+        }
+    }
+
+    private func startTimedSet(exIdx: Int, setIdx: Int, planned: Int) {
+        timedSetTimer?.invalidate()
+        timedSet = TimedSetKey(exIdx: exIdx, setIdx: setIdx)
+        timedRemaining = planned
+        HapticManager.shared.phaseStart()
+        let t = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [self] _ in
+            if timedRemaining > 1 {
+                withAnimation { timedRemaining -= 1 }
+                if timedRemaining <= 3 { HapticManager.shared.countdownTick() }
+            } else {
+                finishTimedSet(exIdx: exIdx, setIdx: setIdx, actual: planned)
+            }
+        }
+        timedSetTimer = t
+        RunLoop.main.add(t, forMode: .common)
+    }
+
+    private func finishTimedSet(exIdx: Int, setIdx: Int, actual: Int) {
+        timedSetTimer?.invalidate()
+        timedSetTimer = nil
+        timedSet = nil
+        guard exIdx < vm.activeExercises.count, setIdx < vm.activeExercises[exIdx].sets.count else { return }
+        vm.activeExercises[exIdx].sets[setIdx].actualDuration = actual
+        vm.logSet(exerciseIndex: exIdx, setIndex: setIdx, context: context)
+        HapticManager.shared.setLogged()
+        startRestIfNeeded()
     }
 
     // MARK: - Manual

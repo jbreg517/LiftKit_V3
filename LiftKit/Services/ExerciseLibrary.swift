@@ -5,6 +5,16 @@ final class ExerciseLibrary {
     static let shared = ExerciseLibrary()
     private init() {}
 
+    /// Exercises that are tracked by hold time rather than reps by default.
+    static let timedExerciseNames: Set<String> = [
+        "plank", "side plank", "wall sit", "dead hang", "hollow hold", "l-sit",
+    ]
+
+    /// Whether a freshly named exercise should default to time-based tracking.
+    static func isTimedByDefault(_ name: String) -> Bool {
+        timedExerciseNames.contains(name.lowercased().trimmingCharacters(in: .whitespaces))
+    }
+
     func seedIfNeeded(context: ModelContext) {
         let descriptor = FetchDescriptor<Exercise>(predicate: #Predicate { !$0.isCustom })
         guard let existing = try? context.fetch(descriptor), existing.isEmpty else { return }
@@ -78,6 +88,9 @@ final class ExerciseLibrary {
         LibraryEntry(name: "Ab Wheel Rollout",       category: .core, equipment: .other),
         LibraryEntry(name: "Hanging Leg Raise",      category: .core, equipment: .bodyweight),
         LibraryEntry(name: "Side Plank",             category: .core, equipment: .bodyweight),
+        LibraryEntry(name: "Wall Sit",               category: .core, equipment: .bodyweight),
+        LibraryEntry(name: "Dead Hang",              category: .core, equipment: .bodyweight),
+        LibraryEntry(name: "Hollow Hold",            category: .core, equipment: .bodyweight),
         // Cardio
         LibraryEntry(name: "Burpees",                category: .cardio, equipment: .bodyweight),
         LibraryEntry(name: "Box Jump",               category: .cardio, equipment: .other),

@@ -40,6 +40,8 @@ final class TemplateExercise {
     var timerConfigData: Data?
     var targetSets: Int
     var targetReps: Int
+    /// Hold time in seconds for timed exercises (e.g. planks). 0 = rep-based.
+    var targetDuration: Int = 0
     var sortOrder: Int
     var exerciseName: String
     var equipmentRaw: String?
@@ -54,6 +56,7 @@ final class TemplateExercise {
         timerType: TimerType = .reps,
         targetSets: Int = 3,
         targetReps: Int = 10,
+        targetDuration: Int = 0,
         sortOrder: Int = 0,
         equipment: Equipment? = nil,
         targetWeight: Double = 0,
@@ -64,6 +67,7 @@ final class TemplateExercise {
         self.timerTypeRaw = timerType.rawValue
         self.targetSets = targetSets
         self.targetReps = targetReps
+        self.targetDuration = targetDuration
         self.sortOrder = sortOrder
         self.equipmentRaw = equipment?.rawValue
         self.targetWeight = targetWeight

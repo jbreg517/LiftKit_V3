@@ -13,6 +13,7 @@ final class SetRecord {
     var notes: String?
     var plannedWeight: Double?
     var plannedReps: Int?
+    var plannedDuration: Int?
 
     var entry: WorkoutEntry?
 
@@ -26,7 +27,8 @@ final class SetRecord {
         completedAt: Date = Date(),
         notes: String? = nil,
         plannedWeight: Double? = nil,
-        plannedReps: Int? = nil
+        plannedReps: Int? = nil,
+        plannedDuration: Int? = nil
     ) {
         self.id = id
         self.setNumber = setNumber
@@ -38,7 +40,11 @@ final class SetRecord {
         self.notes = notes
         self.plannedWeight = plannedWeight
         self.plannedReps = plannedReps
+        self.plannedDuration = plannedDuration
     }
+
+    /// True when this set tracks a hold time rather than reps.
+    var isTimed: Bool { duration != nil && reps == nil }
 
     var weightUnitEnum: WeightUnit {
         WeightUnit(rawValue: weightUnit) ?? .lb

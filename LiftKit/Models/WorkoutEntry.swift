@@ -7,6 +7,9 @@ final class WorkoutEntry {
     var timerTypeRaw: String
     var sortOrder: Int
     var notes: String?
+    /// Number of sets prescribed at setup time. Used by progression to know
+    /// whether every planned set was completed. 0 = unknown (legacy data).
+    var plannedSets: Int = 0
 
     var exercise: Exercise?
     var session: WorkoutSession?
@@ -18,12 +21,14 @@ final class WorkoutEntry {
         id: UUID = UUID(),
         timerType: TimerType = .reps,
         sortOrder: Int = 0,
-        notes: String? = nil
+        notes: String? = nil,
+        plannedSets: Int = 0
     ) {
         self.id = id
         self.timerTypeRaw = timerType.rawValue
         self.sortOrder = sortOrder
         self.notes = notes
+        self.plannedSets = plannedSets
         self.sets = []
     }
 

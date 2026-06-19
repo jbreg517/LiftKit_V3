@@ -224,6 +224,11 @@ struct WorkoutDetailView: View {
         .padding(.horizontal, LKSpacing.md)
     }
 
+    /// Formats a hold time: "45s" under a minute, "1:30" otherwise.
+    static func durationLabel(_ seconds: Int) -> String {
+        seconds < 60 ? "\(seconds)s" : String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+
     private func setRow(set: SetRecord) -> some View {
         HStack {
             Text("Set \(set.setNumber)")
@@ -250,6 +255,15 @@ struct WorkoutDetailView: View {
                     .foregroundColor(LKColor.textPrimary)
                 if let planned = set.plannedReps, planned != reps {
                     Text("(\(planned))")
+                        .font(LKFont.caption)
+                        .foregroundColor(LKColor.textSecondary)
+                }
+            } else if let duration = set.duration {
+                Text(Self.durationLabel(Int(duration)))
+                    .font(LKFont.body)
+                    .foregroundColor(LKColor.textPrimary)
+                if let planned = set.plannedDuration, planned != Int(duration) {
+                    Text("(\(Self.durationLabel(planned)))")
                         .font(LKFont.caption)
                         .foregroundColor(LKColor.textSecondary)
                 }

@@ -11,6 +11,7 @@ struct WorkoutSetupView: View {
     @State private var templateName = ""
     @State private var templateError = ""
     @State private var notesExpanded = false
+    @State private var didApplyProgression = false
 
     let type: TimerType
 
@@ -26,6 +27,12 @@ struct WorkoutSetupView: View {
             .padding(LKSpacing.md)
         }
         .background(LKColor.background.ignoresSafeArea())
+        .onAppear {
+            if !didApplyProgression && type == .reps {
+                vm.applyProgression(context: context)
+                didApplyProgression = true
+            }
+        }
         .navigationBarBackButtonHidden()
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
@@ -503,12 +510,23 @@ struct ExerciseCardView: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .onChange(of: card.name) { _, newName in
-                            if newName.count >= 3 {
-                                if let cached = WeightCache.shared.lookup(exerciseName: newName, in: context) {
-                                    if card.weight == 0 { card.weight = cached.weight }
-                                    if cached.equipment != nil && card.equipment == .none {
-                                        card.equipment = cached.equipment ?? .none
-                                    }
+                            let trimmed = newName.trimmingCharacters(in: .whitespaces)
+                            guard trimmed.count >= 3 else { return }
+                            if ExerciseLibrary.isTimedByDefault(trimmed) { card.isTimed = true }
+                            if let prog = ProgressionService.shared.suggest(exerciseName: trimmed, in: context) {
+                                if card.weight == 0 {
+                                    card.weight = prog.weight
+                                    card.weightUnit = prog.unit
+                                }
+                                if prog.equipment != nil && card.equipment == .none {
+                                    card.equipment = prog.equipment ?? .none
+                                }
+                                card.progressionNote = prog.note
+                                card.progressionReason = prog.reason
+                            } else if let cached = WeightCache.shared.lookup(exerciseName: trimmed, in: context) {
+                                if card.weight == 0 { card.weight = cached.weight }
+                                if cached.equipment != nil && card.equipment == .none {
+                                    card.equipment = cached.equipment ?? .none
                                 }
                             }
                         }
@@ -546,21 +564,30 @@ struct ExerciseCardView: View {
                     .padding(.leading, 6)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                LKCardControlBlock(
-                    minusAction: { card.reps = max(1, card.reps - 1) },
-                    numberText: "\(card.reps)",
-                    numberAction: {
-                        numberEntry = NumberEntryItem(
-                            title: "Reps", message: "Reps per set",
-                            currentValue: Double(card.reps), minValue: 1, maxValue: 100
-                        ) { card.reps = Int($0) }
-                    },
-                    plusAction: { card.reps = min(100, card.reps + 1) }
-                ) {
-                    Text("Reps")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(LKColor.textSecondary)
-                        .frame(width: cardTagW, alignment: .leading)
+                if card.isTimed {
+                    LKCardControlBlock(
+                        minusAction: { card.durationSeconds = max(5, card.durationSeconds - 5) },
+                        numberText: "\(card.durationSeconds)",
+                        numberAction: {
+                            numberEntry = NumberEntryItem(
+                                title: "Duration", message: "Hold time (seconds)",
+                                currentValue: Double(card.durationSeconds), minValue: 5, maxValue: 600
+                            ) { card.durationSeconds = Int($0) }
+                        },
+                        plusAction: { card.durationSeconds = min(600, card.durationSeconds + 5) }
+                    ) { modeTag }
+                } else {
+                    LKCardControlBlock(
+                        minusAction: { card.reps = max(1, card.reps - 1) },
+                        numberText: "\(card.reps)",
+                        numberAction: {
+                            numberEntry = NumberEntryItem(
+                                title: "Reps", message: "Reps per set",
+                                currentValue: Double(card.reps), minValue: 1, maxValue: 100
+                            ) { card.reps = Int($0) }
+                        },
+                        plusAction: { card.reps = min(100, card.reps + 1) }
+                    ) { modeTag }
                 }
             }
             .frame(height: cardRowH)
@@ -591,11 +618,58 @@ struct ExerciseCardView: View {
                 }
             }
             .frame(height: cardRowH)
+
+            // Progression hint (Stronglifts-style auto weight suggestion)
+            if let note = card.progressionNote {
+                HStack(spacing: 4) {
+                    Image(systemName: progressionIcon)
+                        .font(.system(size: 10, weight: .bold))
+                    Text(note)
+                        .font(.system(size: 11, weight: .medium))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                .foregroundColor(progressionColor)
+                .padding(.bottom, LKSpacing.xs)
+            }
         }
         .padding(.horizontal, LKSpacing.md)
         .background(LKColor.surface)
         .overlay(RoundedRectangle(cornerRadius: LKRadius.large).strokeBorder(LKColor.surfaceElevated, lineWidth: 1))
         .cornerRadius(LKRadius.large)
+    }
+
+    // Reps / Time mode toggle, sized to match the "Reps" tag column width.
+    private var modeTag: some View {
+        Menu {
+            Button { card.isTimed = false } label: { Label("Reps", systemImage: "repeat") }
+            Button { card.isTimed = true }  label: { Label("Time", systemImage: "timer") }
+        } label: {
+            HStack(spacing: 2) {
+                Text(card.isTimed ? "Time" : "Reps")
+                    .font(.system(size: 12, weight: .semibold))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+            }
+            .foregroundColor(LKColor.textSecondary)
+            .frame(width: cardTagW, alignment: .leading)
+        }
+    }
+
+    private var progressionColor: Color {
+        switch card.progressionReason {
+        case .increase?: return LKColor.success
+        case .deload?:   return LKColor.danger
+        default:         return LKColor.textMuted
+        }
+    }
+
+    private var progressionIcon: String {
+        switch card.progressionReason {
+        case .increase?: return "arrow.up.circle.fill"
+        case .deload?:   return "arrow.down.circle.fill"
+        default:         return "equal.circle.fill"
+        }
     }
 }
 

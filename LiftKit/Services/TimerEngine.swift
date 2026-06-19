@@ -108,6 +108,10 @@ final class TimerEngine {
     }
 
     func startRestTimer(_ duration: TimeInterval) {
+        // The rest engine is created with a default `.manual` config, which makes
+        // `tick()` count up. Force a countdown config so the rest timer actually
+        // ticks down and completes (advancePhase → completePhase for `.reps`).
+        config = TimerConfig(type: .reps)
         phaseEndDate = Date().addingTimeInterval(duration)
         timeRemaining = duration
         phase = .rest
