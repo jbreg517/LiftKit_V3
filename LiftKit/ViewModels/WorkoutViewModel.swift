@@ -5,6 +5,8 @@ import SwiftUI
 // MARK: - Session Card (used in setup screen)
 struct SessionCard: Identifiable {
     var id = UUID()
+    /// The chosen library/custom Exercise's stable id (Option C). nil until picked.
+    var exerciseID: UUID? = nil
     var name: String = ""
     var equipment: Equipment = .none
     var weight: Double = 0
@@ -236,7 +238,10 @@ final class WorkoutViewModel {
         for i in exercises.indices {
             let name = exercises[i].name.trimmingCharacters(in: .whitespaces)
             guard !name.isEmpty, !exercises[i].isTimed else { continue }
-            if let prog = ProgressionService.shared.suggest(exerciseName: name, in: context) {
+            if let prog = ProgressionService.shared.suggest(
+                exerciseID: exercises[i].exerciseID, exerciseName: name,
+                equipment: exercises[i].equipment, in: context
+            ) {
                 exercises[i].weight = prog.weight
                 exercises[i].weightUnit = prog.unit
                 exercises[i].progressionNote = prog.note
@@ -288,8 +293,9 @@ final class WorkoutViewModel {
         let cards = activeSessions(for: selectedTimerType)
         for (i, card) in cards.enumerated() {
             let exName = card.name.isEmpty ? "Workout \(i + 1)" : card.name
-            let exercise = findOrCreateExercise(name: exName, equipment: card.equipment, context: context)
+            let exercise = findOrCreateExercise(id: card.exerciseID, name: exName, equipment: card.equipment, context: context)
             let entry = WorkoutEntry(timerType: selectedTimerType, sortOrder: i)
+            entry.equipmentRaw = card.equipment == .none ? nil : card.equipment.rawValue
             entry.session = session
             entry.exercise = exercise
             context.insert(entry)
@@ -304,6 +310,7 @@ final class WorkoutViewModel {
                     sortOrder: i,
                     plannedSets: card.sets
                 )
+                entry.equipmentRaw = card.equipment == .none ? nil : card.equipment.rawValue
                 entry.session = session
                 entry.exercise = exercise
                 context.insert(entry)

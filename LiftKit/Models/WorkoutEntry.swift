@@ -10,6 +10,10 @@ final class WorkoutEntry {
     /// Number of sets prescribed at setup time. Used by progression to know
     /// whether every planned set was completed. 0 = unknown (legacy data).
     var plannedSets: Int = 0
+    /// Equipment used for this exercise instance. Weight memory/progression is
+    /// keyed by exercise + equipment so e.g. kettlebell and barbell front squats
+    /// track separately. nil = unspecified (legacy data).
+    var equipmentRaw: String? = nil
 
     var exercise: Exercise?
     var session: WorkoutSession?
@@ -35,6 +39,11 @@ final class WorkoutEntry {
     var timerType: TimerType {
         get { TimerType(rawValue: timerTypeRaw) ?? .reps }
         set { timerTypeRaw = newValue.rawValue }
+    }
+
+    var equipmentEnum: Equipment? {
+        guard let e = equipmentRaw else { return nil }
+        return Equipment(rawValue: e)
     }
 
     var sortedSets: [SetRecord] {

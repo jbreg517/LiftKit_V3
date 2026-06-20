@@ -27,19 +27,17 @@ final class ProgressionService {
         let note: String       // short hint for the UI
     }
 
-    /// Returns a weight suggestion for the next time this exercise is performed,
-    /// or `nil` when there's no rep-based history to base it on.
-    func suggest(exerciseName: String, in context: ModelContext) -> Suggestion? {
-        let lower = exerciseName.lowercased().trimmingCharacters(in: .whitespaces)
-        guard !lower.isEmpty else { return nil }
+    /// Returns a weight suggestion for the next time this exercise is performed
+    /// with the given equipment, or `nil` when there's no matching rep-based
+    /// history. Keyed by exercise identity AND equipment so e.g. kettlebell vs
+    /// barbell front squats progress independently.
+    func suggest(exerciseID: UUID?, exerciseName: String, equipment: Equipment, in context: ModelContext) -> Suggestion? {
+        guard let exercise = ExerciseLookup.resolve(id: exerciseID, name: exerciseName, in: context) else { return nil }
 
-        let descriptor = FetchDescriptor<Exercise>()
-        guard let all = try? context.fetch(descriptor),
-              let exercise = all.first(where: { $0.name.lowercased() == lower }) else { return nil }
-
-        // One past performance per entry (an exercise within a single session).
+        // One past performance per entry, restricted to matching equipment.
         let performances = exercise.entries
-            .compactMap { performance(for: $0, equipment: exercise.equipmentEnum) }
+            .filter { ExerciseLookup.matches($0, equipment: equipment, exerciseDefault: exercise.equipmentEnum) }
+            .compactMap { performance(for: $0, exerciseDefault: exercise.equipmentEnum) }
             .sorted { $0.date > $1.date }   // newest first
 
         guard let last = performances.first else { return nil }
@@ -89,7 +87,7 @@ final class ProgressionService {
 
     /// Reduces a single entry to a pass/fail at a working weight.
     /// Skips timed entries and entries without weighted sets.
-    private func performance(for entry: WorkoutEntry, equipment: Equipment?) -> Performance? {
+    private func performance(for entry: WorkoutEntry, exerciseDefault: Equipment?) -> Performance? {
         if entry.timerType == .forTime { return nil }
         let sets = entry.sets.filter { $0.weight != nil }
         guard !sets.isEmpty else { return nil }
@@ -107,7 +105,8 @@ final class ProgressionService {
 
         return Performance(
             date: date, weight: weight, unit: unit,
-            equipment: equipment, success: completedAllSets && hitAllReps
+            equipment: ExerciseLookup.entryEquipment(entry, exerciseDefault: exerciseDefault),
+            success: completedAllSets && hitAllReps
         )
     }
 
@@ -126,5 +125,31 @@ final class ProgressionService {
 
     private func fmt(_ v: Double) -> String {
         v == v.rounded() ? String(Int(v)) : String(format: "%.1f", v)
+    }
+}
+
+/// Shared exercise resolution + equipment matching, used by both
+/// ProgressionService and WeightCache so weight memory is keyed by
+/// exercise identity AND equipment.
+enum ExerciseLookup {
+    /// Resolve an exercise by stable id first, then by case-insensitive/trimmed name.
+    static func resolve(id: UUID?, name: String, in context: ModelContext) -> Exercise? {
+        let all = (try? context.fetch(FetchDescriptor<Exercise>())) ?? []
+        if let id, let found = all.first(where: { $0.id == id }) { return found }
+        let lower = name.lowercased().trimmingCharacters(in: .whitespaces)
+        guard !lower.isEmpty else { return nil }
+        return all.first(where: { $0.name.lowercased() == lower })
+    }
+
+    /// Equipment recorded for an entry, falling back to the exercise's default
+    /// for legacy entries that predate per-entry equipment tracking.
+    static func entryEquipment(_ entry: WorkoutEntry, exerciseDefault: Equipment?) -> Equipment? {
+        entry.equipmentEnum ?? exerciseDefault
+    }
+
+    /// Whether an entry's equipment matches the requested equipment.
+    static func matches(_ entry: WorkoutEntry, equipment: Equipment, exerciseDefault: Equipment?) -> Bool {
+        let target: Equipment? = equipment == .none ? nil : equipment
+        return entryEquipment(entry, exerciseDefault: exerciseDefault) == target
     }
 }

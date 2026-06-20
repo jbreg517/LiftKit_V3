@@ -5,28 +5,19 @@ final class WeightCache {
     static let shared = WeightCache()
     private init() {}
 
-    func lookup(exerciseName: String, in context: ModelContext) -> (weight: Double, unit: WeightUnit, equipment: Equipment?)? {
-        let lower = exerciseName.lowercased()
-        let descriptor = FetchDescriptor<Exercise>()
-        guard let allExercises = try? context.fetch(descriptor),
-              let exercise = allExercises.first(where: { $0.name.lowercased() == lower }) else { return nil }
+    /// Most recent weight logged for an exercise with the given equipment.
+    /// Keyed by exercise identity AND equipment (see ExerciseLookup), so e.g.
+    /// kettlebell and barbell variants don't bleed into each other.
+    func lookup(exerciseID: UUID?, exerciseName: String, equipment: Equipment, in context: ModelContext) -> (weight: Double, unit: WeightUnit, equipment: Equipment?)? {
+        guard let exercise = ExerciseLookup.resolve(id: exerciseID, name: exerciseName, in: context) else { return nil }
 
         let recentSet = exercise.entries
+            .filter { ExerciseLookup.matches($0, equipment: equipment, exerciseDefault: exercise.equipmentEnum) }
             .flatMap { $0.sets }
             .filter { $0.weight != nil }
             .max(by: { $0.completedAt < $1.completedAt })
 
         guard let set = recentSet, let weight = set.weight else { return nil }
         return (weight, WeightUnit(rawValue: set.weightUnit) ?? .lb, exercise.equipmentEnum)
-    }
-
-    func batchLookup(names: [String], in context: ModelContext) -> [String: (weight: Double, unit: WeightUnit, equipment: Equipment?)] {
-        var result: [String: (weight: Double, unit: WeightUnit, equipment: Equipment?)] = [:]
-        for name in names {
-            if let found = lookup(exerciseName: name, in: context) {
-                result[name.lowercased()] = found
-            }
-        }
-        return result
     }
 }

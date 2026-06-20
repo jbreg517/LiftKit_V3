@@ -4,7 +4,7 @@ import SwiftData
 /// App version, bumped on every commit/push so the running build is
 /// identifiable in Settings. Increment by 0.01 each push.
 enum AppVersion {
-    static let current = "0.01"
+    static let current = "0.02"
 }
 
 struct SettingsView: View {

@@ -340,7 +340,8 @@ struct WorkoutSetupView: View {
                 ) {
                     SessionCardView(
                         card: sessionBinding(cards: cards, card: card),
-                        numberEntry: $numberEntry
+                        numberEntry: $numberEntry,
+                        context: context
                     )
                 }
             }
@@ -538,17 +539,29 @@ struct SwipeToDeleteRow<Content: View>: View {
 struct SessionCardView: View {
     @Binding var card: SessionCard
     @Binding var numberEntry: NumberEntryItem?
+    let context: ModelContext
+
+    @State private var showPicker = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Row 1: workout name + reps controls
+            // Row 1: exercise name (opens picker) + reps controls
             HStack(alignment: .center, spacing: 8) {
-                TextField("Workout name", text: $card.name)
-                    .font(LKFont.bodyBold)
-                    .foregroundColor(LKColor.textPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button { showPicker = true } label: {
+                    HStack(spacing: LKSpacing.xs) {
+                        Text(card.name.isEmpty ? "Select exercise" : card.name)
+                            .font(LKFont.bodyBold)
+                            .foregroundColor(card.name.isEmpty ? LKColor.textMuted : LKColor.textPrimary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(LKColor.textMuted)
+                        Spacer(minLength: 0)
+                    }
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 LKCardControlBlock(
                     minusAction: { card.reps = max(1, card.reps - 1) },
                     numberText: "\(card.reps)",
@@ -575,7 +588,7 @@ struct SessionCardView: View {
                         sfSymbol: card.equipment.sfSymbol,
                         label: card.equipment == .none ? "Equipment" : card.equipment.rawValue,
                         isPlaceholder: card.equipment == .none
-                    ) { card.equipment = $0 }
+                    ) { card.equipment = $0; prefillWeight() }
                     Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -599,6 +612,29 @@ struct SessionCardView: View {
         .background(LKColor.surface)
         .overlay(RoundedRectangle(cornerRadius: LKRadius.large).strokeBorder(LKColor.surfaceElevated, lineWidth: 1))
         .cornerRadius(LKRadius.large)
+        .sheet(isPresented: $showPicker) {
+            ExercisePickerView { applySelection($0) }
+        }
+    }
+
+    private func applySelection(_ ex: Exercise) {
+        card.exerciseID = ex.id
+        card.name = ex.name
+        card.equipment = ex.equipmentEnum ?? .none
+        prefillWeight()
+    }
+
+    /// Prefill last-used weight for this exercise + equipment (no progression for
+    /// non-rep workout types).
+    private func prefillWeight() {
+        let name = card.name.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        if let cached = WeightCache.shared.lookup(
+            exerciseID: card.exerciseID, exerciseName: name, equipment: card.equipment, in: context
+        ) {
+            card.weight = cached.weight
+            card.weightUnit = cached.unit
+        }
     }
 }
 
@@ -656,7 +692,7 @@ struct ExerciseCardView: View {
                     sfSymbol: card.equipment.sfSymbol,
                     label: card.equipment == .none ? "Equipment" : card.equipment.rawValue,
                     isPlaceholder: card.equipment == .none
-                ) { card.equipment = $0 }
+                ) { card.equipment = $0; refreshSuggestion(resetWeightIfNone: true) }
                 Spacer(minLength: LKSpacing.md)
                 LKCardControlBlock(
                     minusAction: { card.weight = max(0, card.weight - 5) },
@@ -719,19 +755,33 @@ struct ExerciseCardView: View {
     private func applySelection(_ ex: Exercise) {
         card.exerciseID = ex.id
         card.name = ex.name
-        if let eq = ex.equipmentEnum, eq != .none { card.equipment = eq }
+        card.equipment = ex.equipmentEnum ?? .none
         card.isTimed = ExerciseLibrary.isTimedByDefault(ex.name)
-        if let prog = ProgressionService.shared.suggest(exerciseName: ex.name, in: context) {
+        refreshSuggestion(resetWeightIfNone: true)
+    }
+
+    /// Re-runs progression/weight memory for the card's current exercise + equipment.
+    /// Called when the exercise is picked and whenever equipment changes, so e.g.
+    /// kettlebell vs barbell front squats prefill independently.
+    private func refreshSuggestion(resetWeightIfNone: Bool) {
+        let name = card.name.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        if let prog = ProgressionService.shared.suggest(
+            exerciseID: card.exerciseID, exerciseName: name, equipment: card.equipment, in: context
+        ) {
             card.weight = prog.weight
             card.weightUnit = prog.unit
             card.progressionNote = prog.note
             card.progressionReason = prog.reason
-        } else if let cached = WeightCache.shared.lookup(exerciseName: ex.name, in: context) {
+        } else if let cached = WeightCache.shared.lookup(
+            exerciseID: card.exerciseID, exerciseName: name, equipment: card.equipment, in: context
+        ) {
             card.weight = cached.weight
             card.weightUnit = cached.unit
             card.progressionNote = nil
             card.progressionReason = nil
         } else {
+            if resetWeightIfNone { card.weight = 0 }
             card.progressionNote = nil
             card.progressionReason = nil
         }

@@ -16,14 +16,16 @@ workflows:
           include: true
 
     scripts:
-      - name: Set build number from git commit count
+      - name: Set version and build number
         script: |
           set -eo pipefail
           BUILD=$(git rev-list --count HEAD)
-          echo "Setting CFBundleVersion to $BUILD"
+          VERSION=$(grep -oE 'static let current = "[0-9.]+"' LiftKit/Views/Settings/SettingsView.swift | grep -oE '[0-9]+\.[0-9]+' | head -1)
+          echo "Version $VERSION, build $BUILD"
           PLIST="LiftKit/Info.plist"
           if [ -f "$PLIST" ]; then
             /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$PLIST"
+            [ -n "$VERSION" ] && /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
           fi
 
       - name: Build unsigned archive
@@ -62,14 +64,20 @@ workflows:
           file "$APP_PATH/$(basename "$APP_PATH" .app)"
           mkdir -p "$CM_BUILD_DIR/Payload"
           cp -r "$APP_PATH" "$CM_BUILD_DIR/Payload/"
+          # Unique, identifiable filename so re-downloads never collide:
+          # LiftKit_v<AppVersion>_b<commitCount>.ipa
+          BUILD=$(git rev-list --count HEAD)
+          VERSION=$(grep -oE 'static let current = "[0-9.]+"' LiftKit/Views/Settings/SettingsView.swift | grep -oE '[0-9]+\.[0-9]+' | head -1)
+          [ -z "$VERSION" ] && VERSION="0.00"
+          IPA_NAME="LiftKit_v${VERSION}_b${BUILD}.ipa"
           # Use ditto instead of zip — avoids __MACOSX metadata that breaks AltStore's IPA parser
           ditto -c -k --sequesterRsrc --keepParent \
             "$CM_BUILD_DIR/Payload" \
-            "$CM_BUILD_DIR/LiftKit_unsigned.ipa"
-          echo "IPA created: $CM_BUILD_DIR/LiftKit_unsigned.ipa"
-          ls -lh "$CM_BUILD_DIR/LiftKit_unsigned.ipa"
+            "$CM_BUILD_DIR/$IPA_NAME"
+          echo "IPA created: $CM_BUILD_DIR/$IPA_NAME"
+          ls -lh "$CM_BUILD_DIR/$IPA_NAME"
           # Confirm Payload/ is at the root of the zip (AltStore requirement)
-          unzip -l "$CM_BUILD_DIR/LiftKit_unsigned.ipa" | head -5
+          unzip -l "$CM_BUILD_DIR/$IPA_NAME" | head -5
 
       - name: Run unit tests
         script: |
@@ -82,7 +90,7 @@ workflows:
         ignore_failure: true
 
     artifacts:
-      - "$CM_BUILD_DIR/LiftKit_unsigned.ipa"
+      - "$CM_BUILD_DIR/LiftKit_v*_b*.ipa"
       - "$CM_BUILD_DIR/LiftKit.xcarchive"
       - "/tmp/xcodebuild.log"
       - "/tmp/test.log"
