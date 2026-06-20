@@ -721,49 +721,7 @@ struct ActiveWorkoutView: View {
                     .font(LKFont.heading)
                     .foregroundColor(LKColor.textPrimary)
                 Spacer()
-                // Equipment + weight chip
-                HStack(spacing: LKSpacing.sm) {
-                    if ex.equipment != .none {
-                        Label(ex.equipment.rawValue, systemImage: ex.equipment.sfSymbol)
-                            .font(LKFont.caption)
-                            .foregroundColor(LKColor.textSecondary)
-                            .padding(.horizontal, LKSpacing.sm)
-                            .padding(.vertical, LKSpacing.xs)
-                            .background(LKColor.surfaceElevated)
-                            .clipShape(Capsule())
-                    }
-                    HStack(spacing: LKSpacing.sm) {
-                        Button {
-                            vm.adjustWeight(exerciseIndex: exIdx, delta: -weightIncrement)
-                            HapticManager.shared.buttonTap()
-                        } label: { Text("−\(incLabel)").font(LKFont.caption).foregroundColor(LKColor.textSecondary) }
-
-                        Button {
-                            numberEntry = NumberEntryItem(
-                                title: "Weight", message: "Enter weight",
-                                currentValue: ex.weight, minValue: 0, maxValue: 999
-                            ) { vm.activeExercises[exIdx].weight = $0 }
-                        } label: {
-                            Text("\(Int(ex.weight)) \(ex.weightUnit.rawValue)")
-                                .font(LKFont.caption).foregroundColor(LKColor.accent).underline()
-                        }
-
-                        Button {
-                            vm.adjustWeight(exerciseIndex: exIdx, delta: weightIncrement)
-                            HapticManager.shared.buttonTap()
-                        } label: { Text("+\(incLabel)").font(LKFont.caption).foregroundColor(LKColor.textSecondary) }
-                    }
-                    .padding(.horizontal, LKSpacing.sm)
-                    .padding(.vertical, LKSpacing.xs)
-                    .background(LKColor.surfaceElevated)
-                    .clipShape(Capsule())
-                    if ex.equipment == .barbell {
-                        plateButton(weight: ex.weight, unit: ex.weightUnit)
-                    }
-                    if !ex.isTimed && ex.weight > 0 {
-                        warmupButton(weight: ex.weight, unit: ex.weightUnit)
-                    }
-                }
+                weightChip(exIdx: exIdx, ex: ex)
             }
 
             if let last = ex.previousSummary {
@@ -781,6 +739,53 @@ struct ActiveWorkoutView: View {
             }
         }
         .lkCard()
+    }
+
+    @ViewBuilder
+    private func weightChip(exIdx: Int, ex: ActiveExercise) -> some View {
+        HStack(spacing: LKSpacing.sm) {
+            if ex.equipment != .none {
+                Label(ex.equipment.rawValue, systemImage: ex.equipment.sfSymbol)
+                    .font(LKFont.caption)
+                    .foregroundColor(LKColor.textSecondary)
+                    .padding(.horizontal, LKSpacing.sm)
+                    .padding(.vertical, LKSpacing.xs)
+                    .background(LKColor.surfaceElevated)
+                    .clipShape(Capsule())
+            }
+            HStack(spacing: LKSpacing.sm) {
+                Button {
+                    vm.adjustWeight(exerciseIndex: exIdx, delta: -weightIncrement)
+                    HapticManager.shared.buttonTap()
+                } label: { Text("−\(incLabel)").font(LKFont.caption).foregroundColor(LKColor.textSecondary) }
+
+                Button {
+                    numberEntry = NumberEntryItem(
+                        title: "Weight", message: "Enter weight",
+                        currentValue: ex.weight, minValue: 0, maxValue: 999
+                    ) { vm.activeExercises[exIdx].weight = $0 }
+                } label: {
+                    Text("\(Int(ex.weight)) \(ex.weightUnit.rawValue)")
+                        .font(LKFont.caption).foregroundColor(LKColor.accent).underline()
+                }
+
+                Button {
+                    vm.adjustWeight(exerciseIndex: exIdx, delta: weightIncrement)
+                    HapticManager.shared.buttonTap()
+                } label: { Text("+\(incLabel)").font(LKFont.caption).foregroundColor(LKColor.textSecondary) }
+            }
+            .padding(.horizontal, LKSpacing.sm)
+            .padding(.vertical, LKSpacing.xs)
+            .background(LKColor.surfaceElevated)
+            .clipShape(Capsule())
+
+            if ex.equipment == .barbell {
+                plateButton(weight: ex.weight, unit: ex.weightUnit)
+            }
+            if !ex.isTimed && ex.weight > 0 {
+                warmupButton(weight: ex.weight, unit: ex.weightUnit)
+            }
+        }
     }
 
     private func plateButton(weight: Double, unit: WeightUnit) -> some View {

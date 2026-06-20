@@ -5,7 +5,7 @@ import UIKit
 /// App version, bumped on every commit/push so the running build is
 /// identifiable in Settings. Increment by 0.01 each push.
 enum AppVersion {
-    static let current = "0.04"
+    static let current = "0.05"
 }
 
 struct SettingsView: View {
@@ -142,19 +142,22 @@ enum CSVExport {
                 let exName = entry.exercise?.name ?? ""
                 let equip = entry.equipmentEnum?.rawValue ?? entry.exercise?.equipmentEnum?.rawValue ?? ""
                 for set in entry.sortedSets {
-                    let cols = [
-                        df.string(from: set.completedAt),
-                        esc(session.name),
-                        session.workoutType ?? "",
-                        esc(exName),
-                        esc(equip),
-                        "\(set.setNumber)",
-                        set.weight.map { "\(Int($0))" } ?? "",
-                        set.weightUnit,
-                        set.reps.map { "\($0)" } ?? "",
-                        set.duration.map { "\(Int($0))" } ?? "",
-                        set.rpe.map { $0 == $0.rounded() ? "\(Int($0))" : String(format: "%.1f", $0) } ?? "",
-                        set.setType == .normal ? "" : set.setType.rawValue,
+                    // Build each column as an explicitly-typed String so the
+                    // type-checker doesn't choke on one giant array literal.
+                    let dateStr: String = df.string(from: set.completedAt)
+                    let typeStr: String = session.workoutType ?? ""
+                    let setNumStr: String = String(set.setNumber)
+                    let weightStr: String = set.weight.map { String(Int($0)) } ?? ""
+                    let repsStr: String = set.reps.map { String($0) } ?? ""
+                    let durStr: String = set.duration.map { String(Int($0)) } ?? ""
+                    var rpeStr = ""
+                    if let r = set.rpe {
+                        rpeStr = r == r.rounded() ? String(Int(r)) : String(format: "%.1f", r)
+                    }
+                    let setTypeStr: String = set.setType == .normal ? "" : set.setType.rawValue
+                    let cols: [String] = [
+                        dateStr, esc(session.name), typeStr, esc(exName), esc(equip),
+                        setNumStr, weightStr, set.weightUnit, repsStr, durStr, rpeStr, setTypeStr,
                     ]
                     rows.append(cols.joined(separator: ","))
                 }
