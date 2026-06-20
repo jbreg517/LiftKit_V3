@@ -334,12 +334,15 @@ struct WorkoutSetupView: View {
             // crashes when a card is deleted because remaining rows reference a
             // now-out-of-range index.
             ForEach(cards.wrappedValue) { card in
-                SessionCardView(
-                    card: sessionBinding(cards: cards, card: card),
-                    canDelete: cards.wrappedValue.count > 1,
-                    numberEntry: $numberEntry,
+                SwipeToDeleteRow(
+                    enabled: cards.wrappedValue.count > 1,
                     onDelete: { cards.wrappedValue.removeAll { $0.id == card.id } }
-                )
+                ) {
+                    SessionCardView(
+                        card: sessionBinding(cards: cards, card: card),
+                        numberEntry: $numberEntry
+                    )
+                }
             }
             plainAddButton("Add Workout") {
                 cards.wrappedValue.append(SessionCard())
@@ -509,7 +512,9 @@ struct SwipeToDeleteRow<Content: View>: View {
 
             content
                 .offset(x: offset)
-                .gesture(dragGesture, including: enabled ? .all : .subviews)
+                // simultaneousGesture (not .gesture) so the enclosing ScrollView
+                // doesn't swallow the horizontal swipe.
+                .simultaneousGesture(dragGesture, including: enabled ? .all : .subviews)
         }
     }
 
@@ -532,31 +537,18 @@ struct SwipeToDeleteRow<Content: View>: View {
 
 struct SessionCardView: View {
     @Binding var card: SessionCard
-    let canDelete: Bool
     @Binding var numberEntry: NumberEntryItem?
-    let onDelete: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Row 1: workout name + reps controls
             HStack(alignment: .center, spacing: 8) {
-                HStack(alignment: .center, spacing: 0) {
-                    TextField("Workout name", text: $card.name)
-                        .font(LKFont.bodyBold)
-                        .foregroundColor(LKColor.textPrimary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                    if canDelete {
-                        Button(action: onDelete) {
-                            Image(systemName: "trash")
-                                .font(.system(size: 13))
-                                .foregroundColor(LKColor.danger)
-                        }
-                        .accessibilityLabel("Delete workout")
-                        .padding(.leading, 4)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                TextField("Workout name", text: $card.name)
+                    .font(LKFont.bodyBold)
+                    .foregroundColor(LKColor.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 LKCardControlBlock(
                     minusAction: { card.reps = max(1, card.reps - 1) },
                     numberText: "\(card.reps)",
