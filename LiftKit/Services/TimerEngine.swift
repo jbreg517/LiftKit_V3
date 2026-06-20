@@ -184,6 +184,15 @@ final class TimerEngine {
         completePhase()
     }
 
+    /// Adds/subtracts time from a running rest timer (e.g. −15s / +15s).
+    func adjustRest(by delta: TimeInterval) {
+        guard phase == .rest, let end = phaseEndDate else { return }
+        let newEnd = max(Date(), end.addingTimeInterval(delta))
+        phaseEndDate = newEnd
+        timeRemaining = max(0, newEnd.timeIntervalSinceNow)
+        beepedSeconds = []
+    }
+
     // MARK: - Internal
 
     private func startWorkPhase(duration: TimeInterval) {

@@ -4,11 +4,12 @@ import SwiftData
 /// App version, bumped on every commit/push so the running build is
 /// identifiable in Settings. Increment by 0.01 each push.
 enum AppVersion {
-    static let current = "0.02"
+    static let current = "0.03"
 }
 
 struct SettingsView: View {
     @AppStorage("defaultRestSeconds") private var defaultRestSeconds: Double = 90
+    @AppStorage("weightIncrement")    private var weightIncrement: Double = 5
     @AppStorage("soundEnabled")       private var soundEnabled: Bool = true
     @AppStorage("hapticsEnabled")     private var hapticsEnabled: Bool = true
 
@@ -36,6 +37,13 @@ struct SettingsView: View {
                             .tint(LKColor.accent)
                     }
                     .padding(.vertical, LKSpacing.xs)
+
+                    Picker("Weight Increment", selection: $weightIncrement) {
+                        ForEach([1.0, 2.5, 5.0, 10.0], id: \.self) { v in
+                            Text(v == v.rounded() ? "\(Int(v))" : String(format: "%.1f", v)).tag(v)
+                        }
+                    }
+                    .tint(LKColor.accent)
                 }
 
                 Section("Feedback") {

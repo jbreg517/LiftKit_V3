@@ -231,8 +231,31 @@ struct WorkoutSetupView: View {
                 .padding(LKSpacing.md)
                 .background(LKColor.surface)
                 .cornerRadius(LKRadius.large)
+
+                // Quick presets
+                HStack(spacing: LKSpacing.sm) {
+                    intervalPreset("Tabata", work: 20, rest: 10, rounds: 8)
+                    intervalPreset("EMOM-style", work: 50, rest: 10, rounds: 10)
+                }
             }
             sessionsList(cards: $vm.intervalSessions, label: "WORKOUTS")
+        }
+    }
+
+    private func intervalPreset(_ name: String, work: Int, rest: Int, rounds: Int) -> some View {
+        Button {
+            vm.workSeconds = work
+            vm.restSeconds = rest
+            vm.intervalRounds = rounds
+            HapticManager.shared.buttonTap()
+        } label: {
+            Text("\(name) (\(work)/\(rest)×\(rounds))")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(LKColor.accent)
+                .padding(.horizontal, LKSpacing.sm)
+                .padding(.vertical, LKSpacing.xs)
+                .background(LKColor.surfaceElevated)
+                .clipShape(Capsule())
         }
     }
 
@@ -540,6 +563,7 @@ struct SessionCardView: View {
     @Binding var card: SessionCard
     @Binding var numberEntry: NumberEntryItem?
     let context: ModelContext
+    @AppStorage("weightIncrement") private var weightIncrement: Double = 5
 
     @State private var showPicker = false
 
@@ -593,7 +617,7 @@ struct SessionCardView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 LKCardControlBlock(
-                    minusAction: { card.weight = max(0, card.weight - 5) },
+                    minusAction: { card.weight = max(0, card.weight - weightIncrement) },
                     numberText: "\(Int(card.weight))",
                     numberAction: {
                         numberEntry = NumberEntryItem(
@@ -601,7 +625,7 @@ struct SessionCardView: View {
                             currentValue: card.weight, minValue: 0, maxValue: 999
                         ) { card.weight = $0 }
                     },
-                    plusAction: { card.weight = min(999, card.weight + 5) }
+                    plusAction: { card.weight = min(999, card.weight + weightIncrement) }
                 ) {
                     LKUnitToggle(unit: $card.weightUnit)
                 }
@@ -647,6 +671,7 @@ struct ExerciseCardView: View {
     @Binding var card: ExerciseCard
     @Binding var numberEntry: NumberEntryItem?
     let context: ModelContext
+    @AppStorage("weightIncrement") private var weightIncrement: Double = 5
 
     @State private var showPicker = false
 
@@ -695,7 +720,7 @@ struct ExerciseCardView: View {
                 ) { card.equipment = $0; refreshSuggestion(resetWeightIfNone: true) }
                 Spacer(minLength: LKSpacing.md)
                 LKCardControlBlock(
-                    minusAction: { card.weight = max(0, card.weight - 5) },
+                    minusAction: { card.weight = max(0, card.weight - weightIncrement) },
                     numberText: "\(Int(card.weight))",
                     numberAction: {
                         numberEntry = NumberEntryItem(
@@ -703,7 +728,7 @@ struct ExerciseCardView: View {
                             currentValue: card.weight, minValue: 0, maxValue: 999
                         ) { card.weight = $0 }
                     },
-                    plusAction: { card.weight = min(999, card.weight + 5) }
+                    plusAction: { card.weight = min(999, card.weight + weightIncrement) }
                 ) {
                     LKUnitToggle(unit: $card.weightUnit)
                 }

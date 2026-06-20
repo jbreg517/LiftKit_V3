@@ -56,6 +56,8 @@ struct ActiveExercise: Identifiable {
     var weightUnit: WeightUnit
     var isTimed: Bool
     var sets: [ActiveSet]
+    /// "Last: 135×5 · 135×5" from the previous session, computed once at start.
+    var previousSummary: String? = nil
 
     init(from card: ExerciseCard) {
         self.name = card.name.isEmpty ? "Exercise" : card.name
@@ -324,6 +326,13 @@ final class WorkoutViewModel {
         activeSessionCards = cards
         if selectedTimerType == .reps {
             activeExercises = exercises.map { ActiveExercise(from: $0) }
+            // Cache each exercise's previous-session summary once (avoids per-render fetches).
+            for (i, card) in exercises.enumerated() where i < activeExercises.count {
+                activeExercises[i].previousSummary = WeightCache.shared.previousSummary(
+                    exerciseID: card.exerciseID, exerciseName: activeExercises[i].name,
+                    equipment: card.equipment, excluding: session.id, in: context
+                )
+            }
         }
         currentSessionIndex = 0
         completedRounds = 0

@@ -127,6 +127,20 @@ struct ProgressView: View {
                         .pickerStyle(.segmented)
                         .padding(.horizontal, LKSpacing.md)
 
+                        // Estimated 1RM (Epley) from the best set in range
+                        if let e1rm = data.map({ $0.weight * (1 + Double($0.reps) / 30.0) }).max(), e1rm > 0 {
+                            HStack {
+                                Text("Est. 1RM")
+                                    .font(LKFont.caption)
+                                    .foregroundColor(LKColor.textMuted)
+                                Spacer()
+                                Text("\(Int(e1rm.rounded())) lb")
+                                    .font(LKFont.bodyBold)
+                                    .foregroundColor(LKColor.accent)
+                            }
+                            .padding(.horizontal, LKSpacing.md)
+                        }
+
                         // Weight chart
                         Chart {
                             ForEach(data, id: \.date) { point in

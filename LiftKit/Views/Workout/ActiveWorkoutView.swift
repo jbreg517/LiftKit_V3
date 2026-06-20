@@ -11,6 +11,7 @@ struct TimedSetKey: Equatable {
 struct ActiveWorkoutView: View {
     @Environment(\.modelContext) private var context
     @Bindable var vm: WorkoutViewModel
+    @AppStorage("weightIncrement") private var weightIncrement: Double = 5
 
     @State private var engine = TimerEngine(notificationPrefix: "main")
     @State private var restEngine = TimerEngine(notificationPrefix: "rest")
@@ -20,6 +21,7 @@ struct ActiveWorkoutView: View {
     @State private var templateError = ""
     @State private var soundOn = true
     @State private var numberEntry: NumberEntryItem?
+    @State private var plateTarget: PlateTarget?
     @State private var showInitialCountdown = true
     @State private var initialCountdown = 10
     @State private var countdownTimer: Timer?
@@ -92,6 +94,7 @@ struct ActiveWorkoutView: View {
             NumberEntrySheet(item: item)
                 .presentationDetents([.height(280)])
         }
+        .sheet(item: $plateTarget) { PlateCalculatorView(target: $0) }
         .sheet(isPresented: $showSaveTemplate) { saveTemplateSheet }
         .confirmationDialog("End Workout?", isPresented: $showEndDialog, titleVisibility: .visible) {
             Button("Save & End")  { vm.endWorkout(context: context) }
@@ -661,13 +664,33 @@ struct ActiveWorkoutView: View {
                 .font(LKFont.bodyBold)
                 .foregroundColor(LKColor.accent)
             }
-            Text(restEngine.formattedTime)
-                .font(LKFont.timer(48))
-                .foregroundColor(restEngine.phase == .rest ? LKColor.textPrimary : LKColor.work)
-                .contentTransition(.numericText())
+            HStack(spacing: LKSpacing.md) {
+                restAdjustButton(label: "−15", delta: -15)
+                Text(restEngine.formattedTime)
+                    .font(LKFont.timer(48))
+                    .foregroundColor(restEngine.phase == .rest ? LKColor.textPrimary : LKColor.work)
+                    .contentTransition(.numericText())
+                    .frame(minWidth: 110)
+                restAdjustButton(label: "+15", delta: 15)
+            }
         }
         .padding(LKSpacing.md)
         .background(LKColor.surface)
+    }
+
+    private func restAdjustButton(label: String, delta: TimeInterval) -> some View {
+        Button {
+            restEngine.adjustRest(by: delta)
+            HapticManager.shared.buttonTap()
+        } label: {
+            Text(label)
+                .font(LKFont.bodyBold)
+                .foregroundColor(LKColor.textSecondary)
+                .frame(width: 52, height: 40)
+                .background(LKColor.surfaceElevated)
+                .clipShape(Capsule())
+        }
+        .accessibilityLabel(delta < 0 ? "Subtract 15 seconds" : "Add 15 seconds")
     }
 
     private func exerciseCard(exIdx: Int, ex: ActiveExercise) -> some View {
@@ -690,9 +713,9 @@ struct ActiveWorkoutView: View {
                     }
                     HStack(spacing: LKSpacing.sm) {
                         Button {
-                            vm.adjustWeight(exerciseIndex: exIdx, delta: -5)
+                            vm.adjustWeight(exerciseIndex: exIdx, delta: -weightIncrement)
                             HapticManager.shared.buttonTap()
-                        } label: { Text("−5").font(LKFont.caption).foregroundColor(LKColor.textSecondary) }
+                        } label: { Text("−\(incLabel)").font(LKFont.caption).foregroundColor(LKColor.textSecondary) }
 
                         Button {
                             numberEntry = NumberEntryItem(
@@ -705,15 +728,25 @@ struct ActiveWorkoutView: View {
                         }
 
                         Button {
-                            vm.adjustWeight(exerciseIndex: exIdx, delta: 5)
+                            vm.adjustWeight(exerciseIndex: exIdx, delta: weightIncrement)
                             HapticManager.shared.buttonTap()
-                        } label: { Text("+5").font(LKFont.caption).foregroundColor(LKColor.textSecondary) }
+                        } label: { Text("+\(incLabel)").font(LKFont.caption).foregroundColor(LKColor.textSecondary) }
                     }
                     .padding(.horizontal, LKSpacing.sm)
                     .padding(.vertical, LKSpacing.xs)
                     .background(LKColor.surfaceElevated)
                     .clipShape(Capsule())
+                    if ex.equipment == .barbell {
+                        plateButton(weight: ex.weight, unit: ex.weightUnit)
+                    }
                 }
+            }
+
+            if let last = ex.previousSummary {
+                Text(last)
+                    .font(LKFont.caption)
+                    .foregroundColor(LKColor.textMuted)
+                    .lineLimit(1)
             }
 
             // Set circles
@@ -724,6 +757,27 @@ struct ActiveWorkoutView: View {
             }
         }
         .lkCard()
+    }
+
+    private func plateButton(weight: Double, unit: WeightUnit) -> some View {
+        Button {
+            plateTarget = PlateTarget(weight: weight, unit: unit)
+            HapticManager.shared.buttonTap()
+        } label: {
+            Image(systemName: "circle.grid.2x2.fill")
+                .font(LKFont.caption)
+                .foregroundColor(LKColor.textSecondary)
+                .padding(.horizontal, LKSpacing.sm)
+                .padding(.vertical, LKSpacing.xs)
+                .background(LKColor.surfaceElevated)
+                .clipShape(Capsule())
+        }
+        .accessibilityLabel("Plate calculator")
+    }
+
+    /// Whole-number increment label ("5", "2.5", …) for the ± weight buttons.
+    private var incLabel: String {
+        weightIncrement == weightIncrement.rounded() ? "\(Int(weightIncrement))" : String(format: "%.1f", weightIncrement)
     }
 
     private func setCircle(exIdx: Int, setIdx: Int, set: ActiveSet) -> some View {
@@ -924,5 +978,100 @@ struct WorkoutCompleteOverlay: View {
         }
         .onTapGesture { vm.endWorkout(context: context) }
         .transition(.opacity)
+    }
+}
+
+// MARK: - Plate Calculator
+
+struct PlateTarget: Identifiable {
+    let id = UUID()
+    let weight: Double
+    let unit: WeightUnit
+}
+
+enum PlateMath {
+    /// Plates to load per side of a standard barbell (45 lb / 20 kg) for a target
+    /// total weight, largest first, plus any per-side remainder that can't be loaded.
+    static func platesPerSide(target: Double, unit: WeightUnit) -> (bar: Double, plates: [Double], leftover: Double) {
+        let bar: Double = unit == .lb ? 45 : 20
+        guard target > bar else { return (bar, [], 0) }
+        var perSide = (target - bar) / 2
+        let sizes: [Double] = unit == .lb ? [45, 35, 25, 10, 5, 2.5] : [25, 20, 15, 10, 5, 2.5, 1.25]
+        var plates: [Double] = []
+        for s in sizes {
+            while perSide >= s - 0.0001 {
+                plates.append(s)
+                perSide -= s
+            }
+        }
+        return (bar, plates, max(0, perSide))
+    }
+}
+
+struct PlateCalculatorView: View {
+    @Environment(\.dismiss) private var dismiss
+    let target: PlateTarget
+
+    private func fmt(_ v: Double) -> String {
+        v == v.rounded() ? "\(Int(v))" : String(format: "%.2f", v)
+    }
+
+    var body: some View {
+        let r = PlateMath.platesPerSide(target: target.weight, unit: target.unit)
+        let sizes = Set(r.plates).sorted(by: >)
+        return NavigationStack {
+            VStack(spacing: LKSpacing.lg) {
+                Text("\(fmt(target.weight)) \(target.unit.rawValue)")
+                    .font(LKFont.title)
+                    .foregroundColor(LKColor.textPrimary)
+                Text("\(fmt(r.bar)) \(target.unit.rawValue) bar + per side:")
+                    .font(LKFont.caption)
+                    .foregroundColor(LKColor.textMuted)
+
+                if r.plates.isEmpty {
+                    Text("Just the bar")
+                        .font(LKFont.heading)
+                        .foregroundColor(LKColor.textSecondary)
+                } else {
+                    VStack(spacing: LKSpacing.sm) {
+                        ForEach(sizes, id: \.self) { size in
+                            let count = r.plates.filter { $0 == size }.count
+                            HStack {
+                                Text("\(fmt(size)) \(target.unit.rawValue)")
+                                    .font(LKFont.bodyBold)
+                                    .foregroundColor(LKColor.textPrimary)
+                                Spacer()
+                                Text("× \(count)")
+                                    .font(LKFont.body)
+                                    .foregroundColor(LKColor.accent)
+                            }
+                            .padding(.horizontal, LKSpacing.md)
+                            .padding(.vertical, LKSpacing.sm)
+                            .background(LKColor.surface)
+                            .cornerRadius(LKRadius.medium)
+                        }
+                    }
+                    .padding(.horizontal, LKSpacing.lg)
+                }
+
+                if r.leftover > 0.01 {
+                    Text("+\(fmt(r.leftover)) \(target.unit.rawValue) per side not loadable")
+                        .font(LKFont.caption)
+                        .foregroundColor(LKColor.danger)
+                }
+                Spacer()
+            }
+            .padding(.top, LKSpacing.xl)
+            .frame(maxWidth: .infinity)
+            .background(LKColor.background.ignoresSafeArea())
+            .navigationTitle("Plate Calculator")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }.foregroundColor(LKColor.accent)
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
