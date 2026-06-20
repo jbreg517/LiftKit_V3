@@ -1,6 +1,12 @@
 import SwiftUI
 import SwiftData
 
+/// App version, bumped on every commit/push so the running build is
+/// identifiable in Settings. Increment by 0.01 each push.
+enum AppVersion {
+    static let current = "0.01"
+}
+
 struct SettingsView: View {
     @AppStorage("defaultRestSeconds") private var defaultRestSeconds: Double = 90
     @AppStorage("soundEnabled")       private var soundEnabled: Bool = true
@@ -11,8 +17,8 @@ struct SettingsView: View {
 
     private var currentProfile: UserProfile? { profiles.first }
 
-    private var versionString: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
+    private var buildString: String {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
     }
 
     @State private var showPrivacyPolicy = false
@@ -83,7 +89,7 @@ struct SettingsView: View {
                     HStack {
                         Text("Version")
                         Spacer()
-                        Text(versionString)
+                        Text("v\(AppVersion.current) (build \(buildString))")
                             .foregroundColor(LKColor.textSecondary)
                     }
 
