@@ -630,6 +630,16 @@ struct ActiveWorkoutView: View {
                     ForEach(Array(vm.activeExercises.enumerated()), id: \.element.id) { (exIdx, ex) in
                         exerciseCard(exIdx: exIdx, ex: ex)
                     }
+
+                    Button {
+                        vm.completeWorkout(context: context)
+                        HapticManager.shared.buttonTap()
+                    } label: {
+                        Label(vm.activeRepsAllComplete ? "Finish Workout" : "Finish Early",
+                              systemImage: "checkmark.circle.fill")
+                    }
+                    .buttonStyle(LKPrimaryButtonStyle())
+                    .padding(.top, LKSpacing.sm)
                 }
                 .padding(LKSpacing.md)
             }
@@ -730,9 +740,9 @@ struct ActiveWorkoutView: View {
                     minValue: 0, maxValue: 100
                 ) { vm.adjustReps(exerciseIndex: exIdx, setIndex: setIdx, newReps: Int($0), context: context) }
             } else {
-                // Mark complete, start rest timer
+                // Mark complete, start rest timer (unless that was the last set)
                 vm.logSet(exerciseIndex: exIdx, setIndex: setIdx, context: context)
-                startRestIfNeeded()
+                if !vm.isShowingComplete { startRestIfNeeded() }
                 HapticManager.shared.setLogged()
             }
         } label: {
@@ -823,7 +833,7 @@ struct ActiveWorkoutView: View {
         vm.activeExercises[exIdx].sets[setIdx].actualDuration = actual
         vm.logSet(exerciseIndex: exIdx, setIndex: setIdx, context: context)
         HapticManager.shared.setLogged()
-        startRestIfNeeded()
+        if !vm.isShowingComplete { startRestIfNeeded() }
     }
 
     // MARK: - Manual

@@ -15,6 +15,8 @@ struct SessionCard: Identifiable {
 // MARK: - Exercise Card (Reps setup)
 struct ExerciseCard: Identifiable {
     var id = UUID()
+    /// The chosen library/custom Exercise's stable id (Option C). nil until picked.
+    var exerciseID: UUID? = nil
     var name: String = ""
     var equipment: Equipment = .none
     var weight: Double = 0
@@ -296,7 +298,7 @@ final class WorkoutViewModel {
         if selectedTimerType == .reps {
             for (i, card) in exercises.enumerated() {
                 let exName = card.name.isEmpty ? "Exercise \(i + 1)" : card.name
-                let exercise = findOrCreateExercise(name: exName, equipment: card.equipment, context: context)
+                let exercise = findOrCreateExercise(id: card.exerciseID, name: exName, equipment: card.equipment, context: context)
                 let entry = WorkoutEntry(
                     timerType: card.isTimed ? .forTime : .reps,
                     sortOrder: i,
@@ -334,6 +336,7 @@ final class WorkoutViewModel {
         case .reps:
             exercises = entries.map { entry in
                 var card = ExerciseCard()
+                card.exerciseID = entry.exercise?.id
                 card.name = entry.exercise?.name ?? ""
                 card.equipment = entry.exercise.flatMap { $0.equipmentEnum } ?? Equipment.none
                 let sets = entry.sortedSets
@@ -472,6 +475,18 @@ final class WorkoutViewModel {
             }
         } else {
             HapticManager.shared.setLogged()
+        }
+
+        // Auto-finish the reps workout once every set has been completed.
+        if !isShowingComplete && activeRepsAllComplete {
+            completeWorkout(context: context)
+        }
+    }
+
+    /// True when a reps workout has every set of every exercise completed.
+    var activeRepsAllComplete: Bool {
+        !activeExercises.isEmpty && activeExercises.allSatisfy { ex in
+            !ex.sets.isEmpty && ex.sets.allSatisfy(\.isCompleted)
         }
     }
 
@@ -691,10 +706,20 @@ final class WorkoutViewModel {
         }
     }
 
-    private func findOrCreateExercise(name: String, equipment: Equipment, context: ModelContext) -> Exercise {
-        let descriptor = FetchDescriptor<Exercise>(predicate: #Predicate { $0.name == name })
-        if let existing = try? context.fetch(descriptor).first { return existing }
-        let ex = Exercise(name: name, equipment: equipment == .none ? nil : equipment, isCustom: true)
+    private func findOrCreateExercise(id: UUID? = nil, name: String, equipment: Equipment, context: ModelContext) -> Exercise {
+        let all = (try? context.fetch(FetchDescriptor<Exercise>())) ?? []
+        // 1) Exact id match — the user picked this from the library/custom list.
+        if let id, let found = all.first(where: { $0.id == id }) { return found }
+        // 2) Normalized name match (case-insensitive, trimmed) so typed variants
+        //    like "bench press" / "Bench Press " don't fork the history.
+        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = normalized.lowercased()
+        if !lower.isEmpty, let existing = all.first(where: { $0.name.lowercased() == lower }) {
+            return existing
+        }
+        // 3) Create a new custom exercise.
+        let ex = Exercise(name: normalized.isEmpty ? name : normalized,
+                          equipment: equipment == .none ? nil : equipment, isCustom: true)
         context.insert(ex)
         return ex
     }

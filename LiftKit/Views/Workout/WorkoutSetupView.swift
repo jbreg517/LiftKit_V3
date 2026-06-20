@@ -603,45 +603,26 @@ struct SessionCardView: View {
 }
 
 // MARK: - Exercise Card View
-// Two aligned rows: [name + sets indicator | reps] / [equipment | weight]
+// Roomy layout: [ exercise name (opens picker) ]
+//               [ sets        ·        reps/time ]
+//               [ equipment   ·          weight  ]
 
 struct ExerciseCardView: View {
     @Binding var card: ExerciseCard
     @Binding var numberEntry: NumberEntryItem?
     let context: ModelContext
 
+    @State private var showPicker = false
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Row 1: exercise name + sets dropdown + reps/time controls
-            HStack(alignment: .center, spacing: 8) {
-                TextField("Exercise name", text: $card.name)
-                    .font(LKFont.bodyBold)
-                    .foregroundColor(LKColor.textPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .onChange(of: card.name) { _, newName in
-                        let trimmed = newName.trimmingCharacters(in: .whitespaces)
-                        guard trimmed.count >= 3 else { return }
-                        if ExerciseLibrary.isTimedByDefault(trimmed) { card.isTimed = true }
-                        if let prog = ProgressionService.shared.suggest(exerciseName: trimmed, in: context) {
-                            if card.weight == 0 {
-                                card.weight = prog.weight
-                                card.weightUnit = prog.unit
-                            }
-                            if prog.equipment != nil && card.equipment == .none {
-                                card.equipment = prog.equipment ?? .none
-                            }
-                            card.progressionNote = prog.note
-                            card.progressionReason = prog.reason
-                        } else if let cached = WeightCache.shared.lookup(exerciseName: trimmed, in: context) {
-                            if card.weight == 0 { card.weight = cached.weight }
-                            if cached.equipment != nil && card.equipment == .none {
-                                card.equipment = cached.equipment ?? .none
-                            }
-                        }
-                    }
+        VStack(alignment: .leading, spacing: LKSpacing.lg) {
+            // Name — opens the exercise library picker (Option C)
+            nameButton
+
+            // Sets + reps/time
+            HStack(spacing: LKSpacing.md) {
                 setsDropdown
+                Spacer(minLength: LKSpacing.md)
                 if card.isTimed {
                     LKCardControlBlock(
                         minusAction: { card.durationSeconds = max(5, card.durationSeconds - 5) },
@@ -668,19 +649,15 @@ struct ExerciseCardView: View {
                     ) { modeTag }
                 }
             }
-            .frame(height: cardRowH)
 
-            // Row 2: equipment + weight controls
-            HStack(alignment: .center, spacing: 8) {
-                HStack(spacing: 0) {
-                    LKEquipmentMenu(
-                        sfSymbol: card.equipment.sfSymbol,
-                        label: card.equipment == .none ? "Equipment" : card.equipment.rawValue,
-                        isPlaceholder: card.equipment == .none
-                    ) { card.equipment = $0 }
-                    Spacer(minLength: 0)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+            // Equipment + weight
+            HStack(spacing: LKSpacing.md) {
+                LKEquipmentMenu(
+                    sfSymbol: card.equipment.sfSymbol,
+                    label: card.equipment == .none ? "Equipment" : card.equipment.rawValue,
+                    isPlaceholder: card.equipment == .none
+                ) { card.equipment = $0 }
+                Spacer(minLength: LKSpacing.md)
                 LKCardControlBlock(
                     minusAction: { card.weight = max(0, card.weight - 5) },
                     numberText: "\(Int(card.weight))",
@@ -695,26 +672,69 @@ struct ExerciseCardView: View {
                     LKUnitToggle(unit: $card.weightUnit)
                 }
             }
-            .frame(height: cardRowH)
 
             // Progression hint (Stronglifts-style auto weight suggestion)
             if let note = card.progressionNote {
                 HStack(spacing: 4) {
                     Image(systemName: progressionIcon)
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(size: 11, weight: .bold))
                     Text(note)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: 12, weight: .medium))
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
                 .foregroundColor(progressionColor)
-                .padding(.bottom, LKSpacing.xs)
             }
         }
-        .padding(.horizontal, LKSpacing.md)
+        .padding(LKSpacing.lg)
         .background(LKColor.surface)
         .overlay(RoundedRectangle(cornerRadius: LKRadius.large).strokeBorder(LKColor.surfaceElevated, lineWidth: 1))
         .cornerRadius(LKRadius.large)
+        .sheet(isPresented: $showPicker) {
+            ExercisePickerView { applySelection($0) }
+        }
+    }
+
+    private var nameButton: some View {
+        Button { showPicker = true } label: {
+            HStack(spacing: LKSpacing.sm) {
+                Text(card.name.isEmpty ? "Select exercise" : card.name)
+                    .font(LKFont.bodyBold)
+                    .foregroundColor(card.name.isEmpty ? LKColor.textMuted : LKColor.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: 0)
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(LKColor.textMuted)
+            }
+            .padding(.horizontal, LKSpacing.md)
+            .padding(.vertical, LKSpacing.sm + 2)
+            .background(LKColor.surfaceElevated)
+            .cornerRadius(LKRadius.medium)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func applySelection(_ ex: Exercise) {
+        card.exerciseID = ex.id
+        card.name = ex.name
+        if let eq = ex.equipmentEnum, eq != .none { card.equipment = eq }
+        card.isTimed = ExerciseLibrary.isTimedByDefault(ex.name)
+        if let prog = ProgressionService.shared.suggest(exerciseName: ex.name, in: context) {
+            card.weight = prog.weight
+            card.weightUnit = prog.unit
+            card.progressionNote = prog.note
+            card.progressionReason = prog.reason
+        } else if let cached = WeightCache.shared.lookup(exerciseName: ex.name, in: context) {
+            card.weight = cached.weight
+            card.weightUnit = cached.unit
+            card.progressionNote = nil
+            card.progressionReason = nil
+        } else {
+            card.progressionNote = nil
+            card.progressionReason = nil
+        }
     }
 
     // Sets dropdown selector (replaces the old +/- stepper).

@@ -9,6 +9,7 @@ final class Exercise {
     var equipment: String?
     var notes: String?
     var isCustom: Bool
+    var isFavorite: Bool = false
     var createdAt: Date
 
     @Relationship(deleteRule: .nullify, inverse: \WorkoutEntry.exercise)
