@@ -1,6 +1,29 @@
 import Foundation
 import SwiftData
 
+/// Optional tag for a logged set (Strong/Hevy-style).
+enum SetType: String, CaseIterable, Identifiable {
+    case normal, warmup, drop, failure
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .normal:  return "Normal"
+        case .warmup:  return "Warm-up"
+        case .drop:    return "Drop"
+        case .failure: return "Failure"
+        }
+    }
+    /// Single-letter chip shown next to the set; nil for normal.
+    var badge: String? {
+        switch self {
+        case .normal:  return nil
+        case .warmup:  return "W"
+        case .drop:    return "D"
+        case .failure: return "F"
+        }
+    }
+}
+
 @Model
 final class SetRecord {
     var id: UUID
@@ -14,6 +37,8 @@ final class SetRecord {
     var plannedWeight: Double?
     var plannedReps: Int?
     var plannedDuration: Int?
+    var setTypeRaw: String?
+    var rpe: Double?
 
     var entry: WorkoutEntry?
 
@@ -28,7 +53,9 @@ final class SetRecord {
         notes: String? = nil,
         plannedWeight: Double? = nil,
         plannedReps: Int? = nil,
-        plannedDuration: Int? = nil
+        plannedDuration: Int? = nil,
+        setType: SetType = .normal,
+        rpe: Double? = nil
     ) {
         self.id = id
         self.setNumber = setNumber
@@ -41,6 +68,13 @@ final class SetRecord {
         self.plannedWeight = plannedWeight
         self.plannedReps = plannedReps
         self.plannedDuration = plannedDuration
+        self.setTypeRaw = setType == .normal ? nil : setType.rawValue
+        self.rpe = rpe
+    }
+
+    var setType: SetType {
+        get { setTypeRaw.flatMap { SetType(rawValue: $0) } ?? .normal }
+        set { setTypeRaw = newValue == .normal ? nil : newValue.rawValue }
     }
 
     /// True when this set tracks a hold time rather than reps.

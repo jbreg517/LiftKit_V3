@@ -117,6 +117,25 @@ struct WorkoutDetailView: View {
             VStack(spacing: LKSpacing.md) {
                 // Summary
                 summarySection
+                // Splits (AMRAP rounds / For Time checkpoints)
+                if !session.splits.isEmpty {
+                    VStack(alignment: .leading, spacing: LKSpacing.xs) {
+                        LKSectionLabel(text: "SPLITS")
+                        ForEach(Array(session.splits.enumerated()), id: \.offset) { i, s in
+                            HStack {
+                                Text("\(i + 1)")
+                                    .font(LKFont.caption)
+                                    .foregroundColor(LKColor.textMuted)
+                                Spacer()
+                                Text(TimerEngine.format(s))
+                                    .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                                    .foregroundColor(LKColor.textPrimary)
+                            }
+                        }
+                    }
+                    .lkCard()
+                    .padding(.horizontal, LKSpacing.md)
+                }
                 // Exercises
                 ForEach(session.sortedEntries) { entry in
                     exerciseSection(entry: entry)
@@ -236,6 +255,15 @@ struct WorkoutDetailView: View {
                 .foregroundColor(LKColor.textMuted)
                 .frame(width: 44, alignment: .leading)
 
+            if let badge = set.setType.badge {
+                Text(badge)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.black)
+                    .frame(width: 16, height: 16)
+                    .background(set.setType == .failure ? LKColor.danger : LKColor.accent)
+                    .clipShape(Circle())
+            }
+
             if let weight = set.weight {
                 Text("\(Int(weight)) \(set.weightUnit)")
                     .font(LKFont.body)
@@ -269,6 +297,11 @@ struct WorkoutDetailView: View {
                 }
             }
             Spacer()
+            if let rpe = set.rpe {
+                Text("RPE \(rpe == rpe.rounded() ? "\(Int(rpe))" : String(format: "%.1f", rpe))")
+                    .font(LKFont.caption)
+                    .foregroundColor(LKColor.textMuted)
+            }
         }
     }
 }

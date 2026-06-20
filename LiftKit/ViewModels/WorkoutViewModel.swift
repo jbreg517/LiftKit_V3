@@ -45,6 +45,8 @@ struct ActiveSet: Identifiable {
     var isCompleted: Bool = false
     var weight: Double
     var weightUnit: WeightUnit
+    var setType: SetType = .normal
+    var rpe: Double? = nil
 }
 
 // MARK: - Active Exercise State
@@ -459,7 +461,9 @@ final class WorkoutViewModel {
                 duration: TimeInterval(set.actualDuration),
                 plannedWeight: usesWeight ? set.weight : nil,
                 plannedReps: nil,
-                plannedDuration: set.plannedDuration
+                plannedDuration: set.plannedDuration,
+                setType: set.setType,
+                rpe: set.rpe
             )
         } else {
             record = SetRecord(
@@ -468,7 +472,9 @@ final class WorkoutViewModel {
                 weightUnit: set.weightUnit,
                 reps: set.actualReps,
                 plannedWeight: set.weight,
-                plannedReps: set.plannedReps
+                plannedReps: set.plannedReps,
+                setType: set.setType,
+                rpe: set.rpe
             )
         }
         record.entry = entry
@@ -512,6 +518,37 @@ final class WorkoutViewModel {
         ex.weight = max(0, min(999, ex.weight + delta))
         for i in ex.sets.indices { ex.sets[i].weight = ex.weight }
         activeExercises[exerciseIndex] = ex
+    }
+
+    /// Updates a logged set's reps/duration, RPE and set type, persisting to the SetRecord.
+    func updateSet(exerciseIndex: Int, setIndex: Int, repsOrDuration: Int, rpe: Double?, setType: SetType, context: ModelContext) {
+        guard exerciseIndex < activeExercises.count else { return }
+        var ex = activeExercises[exerciseIndex]
+        guard setIndex < ex.sets.count else { return }
+        let clamped = max(0, repsOrDuration)
+        if ex.sets[setIndex].isTimed {
+            ex.sets[setIndex].actualDuration = clamped
+        } else {
+            ex.sets[setIndex].actualReps = clamped
+        }
+        if clamped == 0 { ex.sets[setIndex].isCompleted = false }
+        ex.sets[setIndex].rpe = rpe
+        ex.sets[setIndex].setType = setType
+        let isTimed = ex.sets[setIndex].isTimed
+        activeExercises[exerciseIndex] = ex
+
+        let setNumber = setIndex + 1
+        let entry = activeSession?.sortedEntries.first { $0.exercise?.name.lowercased() == ex.name.lowercased() }
+        if let record = entry?.sortedSets.first(where: { $0.setNumber == setNumber }) {
+            if isTimed {
+                record.duration = clamped > 0 ? TimeInterval(clamped) : nil
+            } else {
+                record.reps = clamped > 0 ? clamped : nil
+            }
+            record.rpe = rpe
+            record.setType = setType
+            try? context.save()
+        }
     }
 
     func adjustReps(exerciseIndex: Int, setIndex: Int, newReps: Int, context: ModelContext? = nil) {
@@ -564,6 +601,13 @@ final class WorkoutViewModel {
         guard sessionIndex < activeSessionCards.count else { return }
         let current = activeSessionCards[sessionIndex].weight
         activeSessionCards[sessionIndex].weight = max(0, min(999, current + delta))
+    }
+
+    /// Records an elapsed-time split (AMRAP round / For Time checkpoint).
+    func recordSplit(_ seconds: TimeInterval, context: ModelContext) {
+        guard let session = activeSession, seconds > 0 else { return }
+        session.splits = session.splits + [seconds]   // reassign so SwiftData persists the change
+        try? context.save()
     }
 
     // MARK: - Complete workout

@@ -1,10 +1,11 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 /// App version, bumped on every commit/push so the running build is
 /// identifiable in Settings. Increment by 0.01 each push.
 enum AppVersion {
-    static let current = "0.03"
+    static let current = "0.04"
 }
 
 struct SettingsView: View {
@@ -15,6 +16,7 @@ struct SettingsView: View {
 
     @Environment(\.modelContext) private var context
     @Query private var profiles: [UserProfile]
+    @Query(sort: \WorkoutSession.startedAt) private var sessions: [WorkoutSession]
 
     private var currentProfile: UserProfile? { profiles.first }
 
@@ -24,7 +26,7 @@ struct SettingsView: View {
 
     @State private var showPrivacyPolicy = false
     @State private var showDisclaimer    = false
-    @State private var showExportComingSoon = false
+    @State private var exportFile: ExportFile?
 
     var body: some View {
         NavigationStack {
@@ -54,8 +56,10 @@ struct SettingsView: View {
                 }
 
                 Section("Data") {
-                    Button("Export Workout Data") {
-                        showExportComingSoon = true
+                    Button("Export Workout Data (CSV)") {
+                        if let url = CSVExport.write(sessions: sessions) {
+                            exportFile = ExportFile(url: url)
+                        }
                     }
                     .foregroundColor(LKColor.accent)
                 }
@@ -117,13 +121,67 @@ struct SettingsView: View {
             .background(LKColor.background.ignoresSafeArea())
             .sheet(isPresented: $showPrivacyPolicy) { PrivacyPolicyView() }
             .sheet(isPresented: $showDisclaimer)    { DisclaimerView() }
-            .alert("Coming Soon", isPresented: $showExportComingSoon) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("CSV export will be available in a future update.")
-            }
+            .sheet(item: $exportFile) { ShareSheet(items: [$0.url]) }
         }
     }
+}
+
+// MARK: - CSV export
+
+struct ExportFile: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+enum CSVExport {
+    static func write(sessions: [WorkoutSession]) -> URL? {
+        var rows = ["Date,Workout,Type,Exercise,Equipment,Set,Weight,Unit,Reps,Duration,RPE,SetType"]
+        let df = ISO8601DateFormatter()
+        for session in sessions.filter({ !$0.isActive }).sorted(by: { $0.startedAt < $1.startedAt }) {
+            for entry in session.sortedEntries {
+                let exName = entry.exercise?.name ?? ""
+                let equip = entry.equipmentEnum?.rawValue ?? entry.exercise?.equipmentEnum?.rawValue ?? ""
+                for set in entry.sortedSets {
+                    let cols = [
+                        df.string(from: set.completedAt),
+                        esc(session.name),
+                        session.workoutType ?? "",
+                        esc(exName),
+                        esc(equip),
+                        "\(set.setNumber)",
+                        set.weight.map { "\(Int($0))" } ?? "",
+                        set.weightUnit,
+                        set.reps.map { "\($0)" } ?? "",
+                        set.duration.map { "\(Int($0))" } ?? "",
+                        set.rpe.map { $0 == $0.rounded() ? "\(Int($0))" : String(format: "%.1f", $0) } ?? "",
+                        set.setType == .normal ? "" : set.setType.rawValue,
+                    ]
+                    rows.append(cols.joined(separator: ","))
+                }
+            }
+        }
+        let csv = rows.joined(separator: "\n")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("LiftKit_export.csv")
+        do {
+            try csv.write(to: url, atomically: true, encoding: .utf8)
+            return url
+        } catch {
+            return nil
+        }
+    }
+
+    private static func esc(_ s: String) -> String {
+        guard s.contains(",") || s.contains("\"") || s.contains("\n") else { return s }
+        return "\"" + s.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+    }
+}
+
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+    func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
 }
 
 // MARK: - Privacy Policy

@@ -9,6 +9,8 @@ final class WorkoutSession {
     var completedAt: Date?
     var notes: String?
     var workoutType: String?
+    /// Elapsed seconds at each recorded split (AMRAP round / For Time checkpoint).
+    var splits: [Double] = []
 
     @Relationship(deleteRule: .cascade, inverse: \WorkoutEntry.session)
     var entries: [WorkoutEntry]

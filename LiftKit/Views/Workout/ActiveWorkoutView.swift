@@ -22,6 +22,8 @@ struct ActiveWorkoutView: View {
     @State private var soundOn = true
     @State private var numberEntry: NumberEntryItem?
     @State private var plateTarget: PlateTarget?
+    @State private var warmupTarget: PlateTarget?
+    @State private var editingSet: SetEditTarget?
     @State private var showInitialCountdown = true
     @State private var initialCountdown = 10
     @State private var countdownTimer: Timer?
@@ -95,6 +97,22 @@ struct ActiveWorkoutView: View {
                 .presentationDetents([.height(280)])
         }
         .sheet(item: $plateTarget) { PlateCalculatorView(target: $0) }
+        .sheet(item: $warmupTarget) { WarmupView(target: $0) }
+        .sheet(item: $editingSet) { t in
+            if t.exIdx < vm.activeExercises.count, t.setIdx < vm.activeExercises[t.exIdx].sets.count {
+                let s = vm.activeExercises[t.exIdx].sets[t.setIdx]
+                SetEditSheet(
+                    isTimed: s.isTimed,
+                    setNumber: s.setNumber,
+                    value: s.isTimed ? s.actualDuration : s.actualReps,
+                    rpe: s.rpe,
+                    setType: s.setType
+                ) { value, rpe, type in
+                    vm.updateSet(exerciseIndex: t.exIdx, setIndex: t.setIdx,
+                                 repsOrDuration: value, rpe: rpe, setType: type, context: context)
+                }
+            }
+        }
         .sheet(isPresented: $showSaveTemplate) { saveTemplateSheet }
         .confirmationDialog("End Workout?", isPresented: $showEndDialog, titleVisibility: .visible) {
             Button("Save & End")  { vm.endWorkout(context: context) }
@@ -503,6 +521,8 @@ struct ActiveWorkoutView: View {
                     }
                     Button {
                         vm.completedRounds += 1
+                        // Record the split (elapsed = total − remaining) for this round.
+                        vm.recordSplit(vm.activeConfig.totalDuration - engine.timeRemaining, context: context)
                         HapticManager.shared.buttonTap()
                     } label: {
                         Image(systemName: "plus.circle.fill")
@@ -579,6 +599,7 @@ struct ActiveWorkoutView: View {
             activeWeightChip(sessionIndex: vm.currentSessionIndex)
             // Mark Complete
             Button {
+                vm.recordSplit(engine.elapsedTime, context: context)
                 let nextIdx = vm.currentSessionIndex + 1
                 if nextIdx < vm.activeSessionCards.count {
                     vm.currentSessionIndex = nextIdx
@@ -739,6 +760,9 @@ struct ActiveWorkoutView: View {
                     if ex.equipment == .barbell {
                         plateButton(weight: ex.weight, unit: ex.weightUnit)
                     }
+                    if !ex.isTimed && ex.weight > 0 {
+                        warmupButton(weight: ex.weight, unit: ex.weightUnit)
+                    }
                 }
             }
 
@@ -775,6 +799,22 @@ struct ActiveWorkoutView: View {
         .accessibilityLabel("Plate calculator")
     }
 
+    private func warmupButton(weight: Double, unit: WeightUnit) -> some View {
+        Button {
+            warmupTarget = PlateTarget(weight: weight, unit: unit)
+            HapticManager.shared.buttonTap()
+        } label: {
+            Image(systemName: "flame.fill")
+                .font(LKFont.caption)
+                .foregroundColor(LKColor.textSecondary)
+                .padding(.horizontal, LKSpacing.sm)
+                .padding(.vertical, LKSpacing.xs)
+                .background(LKColor.surfaceElevated)
+                .clipShape(Capsule())
+        }
+        .accessibilityLabel("Warm-up sets")
+    }
+
     /// Whole-number increment label ("5", "2.5", …) for the ± weight buttons.
     private var incLabel: String {
         weightIncrement == weightIncrement.rounded() ? "\(Int(weightIncrement))" : String(format: "%.1f", weightIncrement)
@@ -786,13 +826,8 @@ struct ActiveWorkoutView: View {
             if set.isTimed {
                 handleTimedSetTap(exIdx: exIdx, setIdx: setIdx, set: set, isRunning: isRunning)
             } else if set.isCompleted {
-                // Tap completed → adjust reps
-                numberEntry = NumberEntryItem(
-                    title: "Adjust Reps",
-                    message: "Set \(set.setNumber) reps (0 = incomplete)",
-                    currentValue: Double(set.actualReps),
-                    minValue: 0, maxValue: 100
-                ) { vm.adjustReps(exerciseIndex: exIdx, setIndex: setIdx, newReps: Int($0), context: context) }
+                // Tap completed → edit reps + RPE + set type
+                editingSet = SetEditTarget(exIdx: exIdx, setIdx: setIdx)
             } else {
                 // Mark complete, start rest timer (unless that was the last set)
                 vm.logSet(exerciseIndex: exIdx, setIndex: setIdx, context: context)
@@ -851,12 +886,7 @@ struct ActiveWorkoutView: View {
             let elapsed = max(0, set.plannedDuration - timedRemaining)
             finishTimedSet(exIdx: exIdx, setIdx: setIdx, actual: elapsed)
         } else if set.isCompleted {
-            numberEntry = NumberEntryItem(
-                title: "Adjust Hold",
-                message: "Set \(set.setNumber) seconds (0 = incomplete)",
-                currentValue: Double(set.actualDuration),
-                minValue: 0, maxValue: 600
-            ) { vm.adjustDuration(exerciseIndex: exIdx, setIndex: setIdx, newDuration: Int($0), context: context) }
+            editingSet = SetEditTarget(exIdx: exIdx, setIdx: setIdx)
         } else if timedSet == nil {
             startTimedSet(exIdx: exIdx, setIdx: setIdx, planned: set.plannedDuration)
         }
@@ -959,6 +989,21 @@ struct WorkoutCompleteOverlay: View {
                     Text("\(rounds) rounds")
                         .font(LKFont.heading)
                         .foregroundColor(LKColor.accent)
+                }
+
+                if let splits = vm.activeSession?.splits, !splits.isEmpty {
+                    VStack(spacing: 2) {
+                        Text("SPLITS")
+                            .font(LKFont.caption)
+                            .foregroundColor(LKColor.textMuted)
+                            .tracking(1)
+                        ForEach(Array(splits.enumerated()), id: \.offset) { i, s in
+                            Text("\(i + 1).  \(TimerEngine.format(s))")
+                                .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                                .foregroundColor(LKColor.textSecondary)
+                        }
+                    }
+                    .padding(.vertical, LKSpacing.xs)
                 }
 
                 Text(vm.completionMessage)
@@ -1065,6 +1110,147 @@ struct PlateCalculatorView: View {
             .frame(maxWidth: .infinity)
             .background(LKColor.background.ignoresSafeArea())
             .navigationTitle("Plate Calculator")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }.foregroundColor(LKColor.accent)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+}
+
+// MARK: - Set Edit Sheet (reps/duration + RPE + set type)
+
+struct SetEditTarget: Identifiable {
+    let id = UUID()
+    let exIdx: Int
+    let setIdx: Int
+}
+
+struct SetEditSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let isTimed: Bool
+    let setNumber: Int
+    let onSave: (Int, Double?, SetType) -> Void
+
+    @State private var value: Int
+    @State private var rpe: Double?
+    @State private var setType: SetType
+
+    private let rpeOptions: [Double] = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10]
+
+    init(isTimed: Bool, setNumber: Int, value: Int, rpe: Double?, setType: SetType,
+         onSave: @escaping (Int, Double?, SetType) -> Void) {
+        self.isTimed = isTimed
+        self.setNumber = setNumber
+        self.onSave = onSave
+        _value = State(initialValue: value)
+        _rpe = State(initialValue: rpe)
+        _setType = State(initialValue: setType)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(isTimed ? "Seconds" : "Reps") {
+                    Stepper("\(value)", value: $value, in: 0...600, step: isTimed ? 5 : 1)
+                }
+                Section("RPE") {
+                    Picker("RPE", selection: $rpe) {
+                        Text("—").tag(Double?.none)
+                        ForEach(rpeOptions, id: \.self) { v in
+                            Text(v == v.rounded() ? "\(Int(v))" : String(format: "%.1f", v))
+                                .tag(Double?.some(v))
+                        }
+                    }
+                }
+                Section("Set Type") {
+                    Picker("Type", selection: $setType) {
+                        ForEach(SetType.allCases) { t in Text(t.label).tag(t) }
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(LKColor.background.ignoresSafeArea())
+            .navigationTitle("Set \(setNumber)")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }.foregroundColor(LKColor.textSecondary)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { onSave(value, rpe, setType); dismiss() }.bold()
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+}
+
+// MARK: - Warm-up calculator
+
+enum WarmupMath {
+    /// Stronglifts-style warm-up ramp to a working weight (bar ×2, then 40/60/80%).
+    static func sets(working: Double, unit: WeightUnit) -> [(weight: Double, reps: Int)] {
+        let bar: Double = unit == .lb ? 45 : 20
+        guard working > bar else { return [] }
+        let step: Double = unit == .lb ? 5 : 2.5
+        func roundToStep(_ w: Double) -> Double { max(bar, (w / step).rounded() * step) }
+        var result: [(Double, Int)] = [(bar, 5), (bar, 5)]
+        for (pct, reps) in [(0.4, 5), (0.6, 3), (0.8, 2)] {
+            let w = roundToStep(working * pct)
+            if w > bar && w < working { result.append((w, reps)) }
+        }
+        return result
+    }
+}
+
+struct WarmupView: View {
+    @Environment(\.dismiss) private var dismiss
+    let target: PlateTarget
+
+    private func fmt(_ v: Double) -> String { v == v.rounded() ? "\(Int(v))" : String(format: "%.1f", v) }
+
+    var body: some View {
+        let sets = WarmupMath.sets(working: target.weight, unit: target.unit)
+        return NavigationStack {
+            VStack(spacing: LKSpacing.lg) {
+                Text("Warm-up to \(fmt(target.weight)) \(target.unit.rawValue)")
+                    .font(LKFont.heading)
+                    .foregroundColor(LKColor.textPrimary)
+
+                if sets.isEmpty {
+                    Text("No warm-up needed for this weight.")
+                        .font(LKFont.body)
+                        .foregroundColor(LKColor.textSecondary)
+                } else {
+                    VStack(spacing: LKSpacing.sm) {
+                        ForEach(Array(sets.enumerated()), id: \.offset) { i, set in
+                            HStack {
+                                Text("Set \(i + 1)")
+                                    .font(LKFont.caption)
+                                    .foregroundColor(LKColor.textMuted)
+                                Spacer()
+                                Text("\(fmt(set.weight)) \(target.unit.rawValue) × \(set.reps)")
+                                    .font(LKFont.bodyBold)
+                                    .foregroundColor(LKColor.textPrimary)
+                            }
+                            .padding(.horizontal, LKSpacing.md)
+                            .padding(.vertical, LKSpacing.sm)
+                            .background(LKColor.surface)
+                            .cornerRadius(LKRadius.medium)
+                        }
+                    }
+                    .padding(.horizontal, LKSpacing.lg)
+                }
+                Spacer()
+            }
+            .padding(.top, LKSpacing.xl)
+            .frame(maxWidth: .infinity)
+            .background(LKColor.background.ignoresSafeArea())
+            .navigationTitle("Warm-up")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
