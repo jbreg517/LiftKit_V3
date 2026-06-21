@@ -3,9 +3,9 @@ import SwiftData
 
 @Model
 final class WorkoutSession {
-    var id: UUID
-    var name: String
-    var startedAt: Date
+    var id: UUID = UUID()
+    var name: String = ""
+    var startedAt: Date = Date()
     var completedAt: Date?
     var notes: String?
     var workoutType: String?
@@ -13,7 +13,7 @@ final class WorkoutSession {
     var splits: [Double] = []
 
     @Relationship(deleteRule: .cascade, inverse: \WorkoutEntry.session)
-    var entries: [WorkoutEntry]
+    var entries: [WorkoutEntry] = []
 
     init(
         id: UUID = UUID(),

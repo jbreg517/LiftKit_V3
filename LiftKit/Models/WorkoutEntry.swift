@@ -3,9 +3,9 @@ import SwiftData
 
 @Model
 final class WorkoutEntry {
-    var id: UUID
-    var timerTypeRaw: String
-    var sortOrder: Int
+    var id: UUID = UUID()
+    var timerTypeRaw: String = TimerType.reps.rawValue
+    var sortOrder: Int = 0
     var notes: String?
     /// Number of sets prescribed at setup time. Used by progression to know
     /// whether every planned set was completed. 0 = unknown (legacy data).
@@ -19,7 +19,7 @@ final class WorkoutEntry {
     var session: WorkoutSession?
 
     @Relationship(deleteRule: .cascade, inverse: \SetRecord.entry)
-    var sets: [SetRecord]
+    var sets: [SetRecord] = []
 
     init(
         id: UUID = UUID(),

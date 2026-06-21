@@ -3,11 +3,11 @@ import SwiftData
 
 @Model
 final class WorkoutSchedule {
-    var id: UUID
-    var date: Date
+    var id: UUID = UUID()
+    var date: Date = Date()
     var customName: String?
     var notes: String?
-    var isCompleted: Bool
+    var isCompleted: Bool = false
 
     var template: WorkoutTemplate?
 

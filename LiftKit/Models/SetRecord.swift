@@ -26,13 +26,13 @@ enum SetType: String, CaseIterable, Identifiable {
 
 @Model
 final class SetRecord {
-    var id: UUID
-    var setNumber: Int
+    var id: UUID = UUID()
+    var setNumber: Int = 0
     var weight: Double?
-    var weightUnit: String
+    var weightUnit: String = WeightUnit.lb.rawValue
     var reps: Int?
     var duration: TimeInterval?
-    var completedAt: Date
+    var completedAt: Date = Date()
     var notes: String?
     var plannedWeight: Double?
     var plannedReps: Int?

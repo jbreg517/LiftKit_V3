@@ -3,13 +3,13 @@ import SwiftData
 
 @Model
 final class UserProfile {
-    var id: UUID
+    var id: UUID = UUID()
     var displayName: String?
     var email: String?
     var authProvider: String?
     var appleUserIdentifier: String?
-    var isPremium: Bool
-    var createdAt: Date
+    var isPremium: Bool = false
+    var createdAt: Date = Date()
 
     static let maxFreeTemplates    = 5
     static let maxVisibleTemplates = 10

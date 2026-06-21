@@ -3,20 +3,22 @@ import SwiftData
 
 @Model
 final class Exercise {
-    var id: UUID
-    var name: String
-    var category: String
+    // All non-optional attributes carry defaults and relationships are optional
+    // so the schema is CloudKit-compatible (private-database sync, opt-in).
+    var id: UUID = UUID()
+    var name: String = ""
+    var category: String = ExerciseCategory.custom.rawValue
     var equipment: String?
     var notes: String?
-    var isCustom: Bool
+    var isCustom: Bool = false
     var isFavorite: Bool = false
-    var createdAt: Date
+    var createdAt: Date = Date()
 
     @Relationship(deleteRule: .nullify, inverse: \WorkoutEntry.exercise)
-    var entries: [WorkoutEntry]
+    var entries: [WorkoutEntry] = []
 
     @Relationship(deleteRule: .nullify, inverse: \PersonalRecord.exercise)
-    var personalRecords: [PersonalRecord]
+    var personalRecords: [PersonalRecord] = []
 
     init(
         id: UUID = UUID(),

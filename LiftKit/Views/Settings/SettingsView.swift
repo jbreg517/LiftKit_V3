@@ -5,7 +5,7 @@ import UIKit
 /// App version, bumped on every commit/push so the running build is
 /// identifiable in Settings. Increment by 0.01 each push.
 enum AppVersion {
-    static let current = "0.05"
+    static let current = "0.06"
 }
 
 struct SettingsView: View {
@@ -13,6 +13,7 @@ struct SettingsView: View {
     @AppStorage("weightIncrement")    private var weightIncrement: Double = 5
     @AppStorage("soundEnabled")       private var soundEnabled: Bool = true
     @AppStorage("hapticsEnabled")     private var hapticsEnabled: Bool = true
+    @AppStorage("iCloudSyncEnabled")  private var iCloudSyncEnabled: Bool = false
 
     @Environment(\.modelContext) private var context
     @Query private var profiles: [UserProfile]
@@ -53,6 +54,15 @@ struct SettingsView: View {
                         .tint(LKColor.accent)
                     Toggle("Haptic Feedback", isOn: $hapticsEnabled)
                         .tint(LKColor.accent)
+                }
+
+                Section {
+                    Toggle("Sync with iCloud", isOn: $iCloudSyncEnabled)
+                        .tint(LKColor.accent)
+                } header: {
+                    Text("Sync")
+                } footer: {
+                    Text("Stores your workouts in your own private iCloud account so they sync across your devices. Nothing is shared with the developer or any third party. Requires an iCloud sign-in and an App Store build; relaunch the app after changing this.")
                 }
 
                 Section("Data") {

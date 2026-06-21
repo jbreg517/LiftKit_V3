@@ -3,10 +3,10 @@ import SwiftData
 
 @Model
 final class PersonalRecord {
-    var id: UUID
-    var type: String
-    var value: Double
-    var achievedAt: Date
+    var id: UUID = UUID()
+    var type: String = PRType.maxWeight.rawValue
+    var value: Double = 0
+    var achievedAt: Date = Date()
     var setRecordId: UUID?
 
     var exercise: Exercise?
