@@ -108,9 +108,12 @@ struct SessionRow: View {
 
 // MARK: - Workout Detail
 struct WorkoutDetailView: View {
-    let session: WorkoutSession
+    @Bindable var session: WorkoutSession
     @Bindable var vm: WorkoutViewModel
     @Environment(\.modelContext) private var context
+
+    @State private var isEditing = false
+    @State private var editingSet: SetRecord?
 
     var body: some View {
         ScrollView {
@@ -141,7 +144,17 @@ struct WorkoutDetailView: View {
                     exerciseSection(entry: entry)
                 }
                 // Notes
-                if let notes = session.notes, !notes.isEmpty {
+                if isEditing {
+                    VStack(alignment: .leading, spacing: LKSpacing.xs) {
+                        LKSectionLabel(text: "NOTES")
+                        TextField("Optional notes…", text: notesBinding, axis: .vertical)
+                            .font(LKFont.body)
+                            .foregroundColor(LKColor.textPrimary)
+                            .lineLimit(2...6)
+                    }
+                    .lkCard()
+                    .padding(.horizontal, LKSpacing.md)
+                } else if let notes = session.notes, !notes.isEmpty {
                     VStack(alignment: .leading, spacing: LKSpacing.xs) {
                         LKSectionLabel(text: "NOTES")
                         Text(notes)
@@ -153,19 +166,45 @@ struct WorkoutDetailView: View {
                     .padding(.horizontal, LKSpacing.md)
                 }
                 // Do Again
-                Button {
-                    vm.loadFromSession(session)
-                } label: {
-                    Label("Do Again", systemImage: "arrow.counterclockwise")
+                if !isEditing {
+                    Button {
+                        vm.loadFromSession(session)
+                    } label: {
+                        Label("Do Again", systemImage: "arrow.counterclockwise")
+                    }
+                    .buttonStyle(LKSecondaryButtonStyle())
+                    .padding(.horizontal, LKSpacing.md)
+                    .tint(LKColor.accent)
                 }
-                .buttonStyle(LKSecondaryButtonStyle())
-                .padding(.horizontal, LKSpacing.md)
-                .tint(LKColor.accent)
             }
             .padding(.vertical, LKSpacing.md)
         }
         .navigationTitle(session.name)
         .background(LKColor.background.ignoresSafeArea())
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(isEditing ? "Done" : "Edit") {
+                    if isEditing { try? context.save() }
+                    isEditing.toggle()
+                }
+                .foregroundColor(LKColor.accent)
+            }
+        }
+        .sheet(item: $editingSet) { set in
+            HistorySetEditSheet(set: set)
+        }
+    }
+
+    private var notesBinding: Binding<String> {
+        Binding(
+            get: { session.notes ?? "" },
+            set: { session.notes = $0.isEmpty ? nil : $0 }
+        )
+    }
+
+    private func deleteSet(_ set: SetRecord) {
+        context.delete(set)
+        try? context.save()
     }
 
     private var summarySection: some View {
@@ -235,7 +274,21 @@ struct WorkoutDetailView: View {
                 .foregroundColor(LKColor.textSecondary)
 
                 ForEach(sets) { set in
-                    setRow(set: set)
+                    if isEditing {
+                        HStack(spacing: LKSpacing.sm) {
+                            Button { editingSet = set } label: { setRow(set: set) }
+                                .buttonStyle(.plain)
+                            Button(role: .destructive) { deleteSet(set) } label: {
+                                Image(systemName: "trash.fill")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(LKColor.danger)
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel("Delete set \(set.setNumber)")
+                        }
+                    } else {
+                        setRow(set: set)
+                    }
                 }
             }
         }
@@ -302,6 +355,99 @@ struct WorkoutDetailView: View {
                     .font(LKFont.caption)
                     .foregroundColor(LKColor.textMuted)
             }
+            if isEditing {
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundColor(LKColor.textMuted)
+            }
         }
+    }
+}
+
+// MARK: - Edit a logged set (history)
+
+struct HistorySetEditSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+    @AppStorage("weightIncrement") private var weightIncrement: Double = 5
+
+    let set: SetRecord
+    private let isTimed: Bool
+
+    @State private var weight: Double
+    @State private var reps: Int
+    @State private var duration: Int
+    @State private var rpe: Double?
+    @State private var setType: SetType
+
+    private let rpeOptions: [Double] = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10]
+
+    init(set: SetRecord) {
+        self.set = set
+        self.isTimed = set.isTimed
+        _weight = State(initialValue: set.weight ?? 0)
+        _reps = State(initialValue: set.reps ?? 0)
+        _duration = State(initialValue: Int(set.duration ?? 0))
+        _rpe = State(initialValue: set.rpe)
+        _setType = State(initialValue: set.setType)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Weight (\(set.weightUnit))") {
+                    Stepper("\(Int(weight))", value: $weight, in: 0...2000, step: weightIncrement)
+                }
+                if isTimed {
+                    Section("Seconds") {
+                        Stepper("\(duration)", value: $duration, in: 0...600, step: 5)
+                    }
+                } else {
+                    Section("Reps") {
+                        Stepper("\(reps)", value: $reps, in: 0...100)
+                    }
+                }
+                Section("RPE") {
+                    Picker("RPE", selection: $rpe) {
+                        Text("—").tag(Double?.none)
+                        ForEach(rpeOptions, id: \.self) { v in
+                            Text(v == v.rounded() ? "\(Int(v))" : String(format: "%.1f", v))
+                                .tag(Double?.some(v))
+                        }
+                    }
+                }
+                Section("Set Type") {
+                    Picker("Type", selection: $setType) {
+                        ForEach(SetType.allCases) { t in Text(t.label).tag(t) }
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(LKColor.background.ignoresSafeArea())
+            .navigationTitle("Set \(set.setNumber)")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }.foregroundColor(LKColor.textSecondary)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { save() }.bold()
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private func save() {
+        set.weight = weight > 0 ? weight : nil
+        if isTimed {
+            set.duration = duration > 0 ? TimeInterval(duration) : nil
+        } else {
+            set.reps = reps > 0 ? reps : nil
+        }
+        set.rpe = rpe
+        set.setType = setType
+        try? context.save()
+        dismiss()
     }
 }
