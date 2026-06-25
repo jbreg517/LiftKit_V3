@@ -10,7 +10,6 @@ struct WorkoutHomeView: View {
     @Bindable var vm: WorkoutViewModel
 
     @State private var showCalendarPicker = false
-    @State private var scheduleTemplate: WorkoutTemplate?
     @State private var showSeriesSchedule = false
 
     private var userProfile: UserProfile? { profiles.first }
@@ -80,9 +79,6 @@ struct WorkoutHomeView: View {
         }
         .sheet(isPresented: $vm.showLogin) {
             LoginView(vm: vm)
-        }
-        .sheet(item: $scheduleTemplate) { template in
-            RecurringScheduleSheet(template: template)
         }
         .sheet(isPresented: $showSeriesSchedule) {
             SeriesScheduleSheet()
@@ -252,8 +248,6 @@ struct WorkoutHomeView: View {
                         vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
                         vm.markTemplateUsed(template, context: context)
                         vm.showWorkoutSetup = true
-                    } onSchedule: {
-                        scheduleTemplate = template
                     }
                 }
                 .padding(.horizontal, LKSpacing.md)
@@ -362,53 +356,36 @@ struct RecommendedCard: View {
 struct PlanCard: View {
     let template: WorkoutTemplate
     let onTap: () -> Void
-    let onSchedule: () -> Void
 
     var body: some View {
-        HStack(spacing: 0) {
-            Button(action: onTap) {
-                HStack {
-                    VStack(alignment: .leading, spacing: LKSpacing.xs) {
-                        Text(template.name)
-                            .font(LKFont.bodyBold)
-                            .foregroundColor(LKColor.textPrimary)
-                        Text("\(template.exercises.count) exercises")
-                            .font(LKFont.caption)
-                            .foregroundColor(LKColor.textMuted)
-                    }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: LKSpacing.xs) {
-                        Text(template.lastUsedAt.relativeFormatted)
-                            .font(.system(size: 12))
-                            .foregroundColor(LKColor.textSecondary)
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundColor(LKColor.textMuted)
-                    }
+        Button(action: onTap) {
+            HStack {
+                VStack(alignment: .leading, spacing: LKSpacing.xs) {
+                    Text(template.name)
+                        .font(LKFont.bodyBold)
+                        .foregroundColor(LKColor.textPrimary)
+                    Text("\(template.exercises.count) exercises")
+                        .font(LKFont.caption)
+                        .foregroundColor(LKColor.textMuted)
                 }
-                .padding(LKSpacing.md)
-                .frame(maxWidth: .infinity)
+                Spacer()
+                Text(template.lastUsedAt.relativeFormatted)
+                    .font(.system(size: 12))
+                    .foregroundColor(LKColor.textSecondary)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("\(template.name), \(template.exercises.count) exercises")
-            .accessibilityHint("Double tap to start this workout")
-
-            Button(action: onSchedule) {
-                Image(systemName: "calendar.badge.plus")
-                    .font(.system(size: 16))
-                    .foregroundColor(LKColor.textMuted)
-                    .padding(.horizontal, LKSpacing.md)
-                    .frame(maxHeight: .infinity)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Schedule \(template.name)")
+            .padding(LKSpacing.md)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .background(LKColor.surface)
         .overlay(
             RoundedRectangle(cornerRadius: LKRadius.large)
                 .strokeBorder(LKColor.surfaceElevated, lineWidth: 1)
         )
         .cornerRadius(LKRadius.large)
+        .accessibilityLabel("\(template.name), \(template.exercises.count) exercises")
+        .accessibilityHint("Double tap to start this workout")
     }
 }
 
@@ -420,7 +397,6 @@ struct AllTemplatesView: View {
 
     @State private var searchText = ""
     @State private var sortOption = SortOption.recent
-    @State private var scheduleTemplate: WorkoutTemplate?
 
     enum SortOption: String, CaseIterable {
         case recent = "Recent"
@@ -451,8 +427,6 @@ struct AllTemplatesView: View {
                             vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
                             vm.markTemplateUsed(template, context: context)
                             vm.showWorkoutSetup = true
-                        } onSchedule: {
-                            scheduleTemplate = template
                         }
                     }
                 }
@@ -470,9 +444,6 @@ struct AllTemplatesView: View {
             }
         }
         .background(LKColor.background.ignoresSafeArea())
-        .sheet(item: $scheduleTemplate) { template in
-            RecurringScheduleSheet(template: template)
-        }
     }
 }
 

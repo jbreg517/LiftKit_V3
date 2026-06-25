@@ -101,14 +101,12 @@ struct HealthView: View {
             Text("Finish setting up to see your calorie numbers.")
                 .font(LKFont.body)
                 .foregroundColor(LKColor.textSecondary)
-            HStack(spacing: LKSpacing.sm) {
-                if latestWeightLb == nil {
-                    Button("Log Weight") { showWeightAdd = true }
-                        .buttonStyle(LKSecondaryButtonStyle())
-                }
-                Button("Set Height, Age & Goal") { showGoals = true }
+            if latestWeightLb == nil {
+                Button("Log Weight") { showWeightAdd = true }
                     .buttonStyle(LKPrimaryButtonStyle())
             }
+            Button("Set Height, Age & Goal") { showGoals = true }
+                .buttonStyle(LKPrimaryButtonStyle())
         }
         .padding(LKSpacing.md)
         .background(LKColor.surface)
@@ -345,7 +343,6 @@ struct HealthView: View {
                 Image(systemName: "ruler.fill").foregroundColor(LKColor.accent).frame(width: 24)
                 Text("Body Measurements").font(LKFont.bodyBold).foregroundColor(LKColor.textPrimary)
                 Spacer()
-                Image(systemName: "chevron.right").font(.caption).foregroundColor(LKColor.textMuted)
             }
             .padding(LKSpacing.md)
             .background(LKColor.surface)

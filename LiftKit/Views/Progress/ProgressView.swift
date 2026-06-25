@@ -183,9 +183,6 @@ struct ProgressView: View {
                         .foregroundColor(LKColor.textMuted)
                 }
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(LKColor.textMuted)
             }
             .padding(LKSpacing.md)
             .background(LKColor.surface)
