@@ -323,7 +323,7 @@ struct HealthView: View {
             } else {
                 Chart {
                     ForEach(data) { d in
-                        BarMark(x: .value("Date", d.date, unit: .day), y: .value("kcal", d.calories))
+                        BarMark(x: .value("Date", d.date), y: .value("kcal", d.calories))
                             .foregroundStyle(LKColor.accent)
                             .cornerRadius(3)
                     }
