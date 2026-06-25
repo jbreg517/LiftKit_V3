@@ -74,6 +74,7 @@ struct LiftKitApp: App {
 // MARK: - Root Tab View
 struct RootTabView: View {
     @Bindable var vm: WorkoutViewModel
+    @AppStorage("hasOnboarded") private var hasOnboarded = false
 
     var body: some View {
         TabView {
@@ -98,6 +99,65 @@ struct RootTabView: View {
                 }
         }
         .tint(LKColor.accent)
+        .fullScreenCover(isPresented: Binding(get: { !hasOnboarded }, set: { _ in })) {
+            OnboardingView { hasOnboarded = true }
+        }
+    }
+}
+
+// MARK: - First-run onboarding
+struct OnboardingView: View {
+    let onDone: () -> Void
+
+    var body: some View {
+        ZStack {
+            LKColor.background.ignoresSafeArea()
+            VStack(spacing: LKSpacing.lg) {
+                Spacer()
+                Image(systemName: "dumbbell.fill")
+                    .font(.system(size: 60))
+                    .foregroundColor(LKColor.accent)
+                Text("Welcome to LiftKit")
+                    .font(LKFont.title)
+                    .foregroundColor(LKColor.textPrimary)
+
+                VStack(alignment: .leading, spacing: LKSpacing.md) {
+                    featureRow("timer", "Lift & WOD timers", "Reps, AMRAP, EMOM, intervals and more.")
+                    featureRow("chart.line.uptrend.xyaxis", "Auto progression", "Weights step up when you hit all your reps.")
+                    featureRow("lock.shield.fill", "Private by design", "Your data stays on your device.")
+                }
+                .padding(.horizontal, LKSpacing.lg)
+
+                Spacer()
+                Button { onDone() } label: { Text("Get Started") }
+                    .buttonStyle(LKPrimaryButtonStyle())
+                    .padding(.horizontal, LKSpacing.lg)
+                Text("LiftKit is a tracking tool, not medical advice. Consult a professional before starting any exercise program.")
+                    .font(LKFont.caption)
+                    .foregroundColor(LKColor.textMuted)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, LKSpacing.xl)
+                Spacer().frame(height: LKSpacing.md)
+            }
+        }
+    }
+
+    private func featureRow(_ icon: String, _ title: String, _ subtitle: String) -> some View {
+        HStack(spacing: LKSpacing.md) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(LKColor.accent)
+                .frame(width: 32)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(LKFont.bodyBold)
+                    .foregroundColor(LKColor.textPrimary)
+                Text(subtitle)
+                    .font(LKFont.caption)
+                    .foregroundColor(LKColor.textSecondary)
+            }
+            Spacer()
+        }
     }
 }
 

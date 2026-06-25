@@ -32,6 +32,7 @@ struct ProgressView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: LKSpacing.lg) {
+                    if weekStreak > 0 { streakBanner }
                     overviewGrid
                     prBoard
                     exerciseChart
@@ -42,6 +43,49 @@ struct ProgressView: View {
             .navigationTitle("Progress")
             .background(LKColor.background.ignoresSafeArea())
         }
+    }
+
+    // MARK: - Streak
+
+    /// Consecutive weeks (including the current one) with at least one completed
+    /// workout. The current week not yet having a workout doesn't break it.
+    private var weekStreak: Int {
+        let cal = Calendar.current
+        let weeks = Set(sessions.filter { !$0.isActive }
+            .compactMap { cal.dateInterval(of: .weekOfYear, for: $0.startedAt)?.start })
+        guard !weeks.isEmpty, var cursor = cal.dateInterval(of: .weekOfYear, for: Date())?.start else { return 0 }
+        if !weeks.contains(cursor) {
+            guard let prev = cal.date(byAdding: .weekOfYear, value: -1, to: cursor) else { return 0 }
+            cursor = prev
+        }
+        var streak = 0
+        while weeks.contains(cursor) {
+            streak += 1
+            guard let prev = cal.date(byAdding: .weekOfYear, value: -1, to: cursor) else { break }
+            cursor = prev
+        }
+        return streak
+    }
+
+    private var streakBanner: some View {
+        HStack(spacing: LKSpacing.sm) {
+            Image(systemName: "flame.fill")
+                .font(.title2)
+                .foregroundColor(LKColor.accent)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("\(weekStreak) week\(weekStreak == 1 ? "" : "s") in a row")
+                    .font(LKFont.bodyBold)
+                    .foregroundColor(LKColor.textPrimary)
+                Text("Keep the streak going")
+                    .font(LKFont.caption)
+                    .foregroundColor(LKColor.textMuted)
+            }
+            Spacer()
+        }
+        .padding(LKSpacing.md)
+        .background(LKColor.surface)
+        .cornerRadius(LKRadius.large)
+        .padding(.horizontal, LKSpacing.md)
     }
 
     // MARK: - Overview
