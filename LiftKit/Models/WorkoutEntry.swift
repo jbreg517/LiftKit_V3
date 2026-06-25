@@ -14,6 +14,8 @@ final class WorkoutEntry {
     /// keyed by exercise + equipment so e.g. kettlebell and barbell front squats
     /// track separately. nil = unspecified (legacy data).
     var equipmentRaw: String? = nil
+    /// Superset group index within the session (nil = standalone).
+    var supersetGroup: Int? = nil
 
     var exercise: Exercise?
     var session: WorkoutSession?

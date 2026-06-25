@@ -394,7 +394,7 @@ struct WorkoutSetupView: View {
             // Iterate by identity and bind by id. A binding-over-collection
             // ForEach ($vm.exercises) crashes when an element is removed from
             // within a row (stale element binding -> index out of range).
-            ForEach(vm.exercises) { card in
+            ForEach(Array(vm.exercises.enumerated()), id: \.element.id) { index, card in
                 SwipeToDeleteRow(
                     enabled: vm.exercises.count > 1,
                     onDelete: { vm.exercises.removeAll { $0.id == card.id } }
@@ -405,6 +405,9 @@ struct WorkoutSetupView: View {
                         context: context
                     )
                 }
+                if index < vm.exercises.count - 1 {
+                    supersetLink(for: card)
+                }
             }
             if vm.exercises.count < 20 {
                 plainAddButton("Add Exercise") {
@@ -412,6 +415,28 @@ struct WorkoutSetupView: View {
                 }
             }
         }
+    }
+
+    /// "Superset with next" toggle shown between consecutive exercise cards.
+    private func supersetLink(for card: ExerciseCard) -> some View {
+        let linked = card.linkedToNext
+        return Button {
+            if let i = vm.exercises.firstIndex(where: { $0.id == card.id }) {
+                vm.exercises[i].linkedToNext.toggle()
+                HapticManager.shared.buttonTap()
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: linked ? "link.circle.fill" : "link.circle")
+                    .font(.system(size: 13))
+                Text(linked ? "Supersetted" : "Superset with next")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundColor(linked ? LKColor.accent : LKColor.textMuted)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 2)
+        }
+        .buttonStyle(.plain)
     }
 
     /// Delete-safe binding to a single exercise card, resolved by id each access.

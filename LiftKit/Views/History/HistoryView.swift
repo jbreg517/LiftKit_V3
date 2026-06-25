@@ -242,6 +242,12 @@ struct WorkoutDetailView: View {
                 Text(entry.exercise?.name ?? "Exercise")
                     .font(LKFont.heading)
                     .foregroundColor(LKColor.textPrimary)
+                if entry.supersetGroup != nil {
+                    Image(systemName: "link")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(LKColor.accent)
+                        .accessibilityLabel("Superset")
+                }
                 Spacer()
                 if let eq = entry.exercise?.equipmentEnum, eq != .none {
                     Label(eq.rawValue, systemImage: eq.sfSymbol)

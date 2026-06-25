@@ -47,6 +47,8 @@ final class TemplateExercise {
     var equipmentRaw: String?
     var targetWeight: Double = 0
     var weightUnitRaw: String = WeightUnit.lb.rawValue
+    /// Supersetted with the next exercise in the template.
+    var linkedToNext: Bool = false
 
     var template: WorkoutTemplate?
 
@@ -60,7 +62,8 @@ final class TemplateExercise {
         sortOrder: Int = 0,
         equipment: Equipment? = nil,
         targetWeight: Double = 0,
-        weightUnit: WeightUnit = .lb
+        weightUnit: WeightUnit = .lb,
+        linkedToNext: Bool = false
     ) {
         self.id = id
         self.exerciseName = exerciseName
@@ -72,6 +75,7 @@ final class TemplateExercise {
         self.equipmentRaw = equipment?.rawValue
         self.targetWeight = targetWeight
         self.weightUnitRaw = weightUnit.rawValue
+        self.linkedToNext = linkedToNext
     }
 
     var timerType: TimerType {

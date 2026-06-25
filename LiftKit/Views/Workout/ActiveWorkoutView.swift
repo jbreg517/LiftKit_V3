@@ -717,9 +717,17 @@ struct ActiveWorkoutView: View {
     private func exerciseCard(exIdx: Int, ex: ActiveExercise) -> some View {
         VStack(alignment: .leading, spacing: LKSpacing.md) {
             HStack {
-                Text(ex.name)
-                    .font(LKFont.heading)
-                    .foregroundColor(LKColor.textPrimary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(ex.name)
+                        .font(LKFont.heading)
+                        .foregroundColor(LKColor.textPrimary)
+                    if ex.supersetGroup != nil {
+                        Label("SUPERSET", systemImage: "link")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(LKColor.accent)
+                            .tracking(1)
+                    }
+                }
                 Spacer()
                 weightChip(exIdx: exIdx, ex: ex)
             }

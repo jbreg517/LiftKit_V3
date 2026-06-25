@@ -28,6 +28,8 @@ struct ExerciseCard: Identifiable {
     /// Track hold time (e.g. planks) instead of reps.
     var isTimed: Bool = false
     var durationSeconds: Int = 60
+    /// Supersetted with the next exercise in the list (alternate between them).
+    var linkedToNext: Bool = false
     // Transient progression hint shown in setup (not persisted).
     var progressionNote: String? = nil
     var progressionReason: ProgressionService.Reason? = nil
@@ -60,6 +62,9 @@ struct ActiveExercise: Identifiable {
     var sets: [ActiveSet]
     /// "Last: 135×5 · 135×5" from the previous session, computed once at start.
     var previousSummary: String? = nil
+    /// Superset group index (nil = standalone). Consecutive exercises sharing
+    /// a non-nil value are performed as a superset.
+    var supersetGroup: Int? = nil
 
     init(from card: ExerciseCard) {
         self.name = card.name.isEmpty ? "Exercise" : card.name
@@ -222,6 +227,7 @@ final class WorkoutViewModel {
             card.reps = ex.targetReps
             card.isTimed = ex.timerType == .forTime
             card.durationSeconds = ex.targetDuration > 0 ? ex.targetDuration : 60
+            card.linkedToNext = ex.linkedToNext
             return card
         }
         sessions = sorted.map { ex in
@@ -305,6 +311,7 @@ final class WorkoutViewModel {
             context.insert(entry)
         }
 
+        let groups = supersetGroups()
         if selectedTimerType == .reps {
             for (i, card) in exercises.enumerated() {
                 let exName = card.name.isEmpty ? "Exercise \(i + 1)" : card.name
@@ -315,6 +322,7 @@ final class WorkoutViewModel {
                     plannedSets: card.sets
                 )
                 entry.equipmentRaw = card.equipment == .none ? nil : card.equipment.rawValue
+                entry.supersetGroup = groups[i]
                 entry.session = session
                 entry.exercise = exercise
                 context.insert(entry)
@@ -334,6 +342,7 @@ final class WorkoutViewModel {
                     exerciseID: card.exerciseID, exerciseName: activeExercises[i].name,
                     equipment: card.equipment, excluding: session.id, in: context
                 )
+                activeExercises[i].supersetGroup = groups[i]
             }
         }
         currentSessionIndex = 0
@@ -365,6 +374,13 @@ final class WorkoutViewModel {
                 card.isTimed = entry.timerType == .forTime
                 if let dur = sets.first?.duration { card.durationSeconds = Int(dur) }
                 return card
+            }
+            // Restore superset links: consecutive entries sharing a group are linked.
+            for i in exercises.indices where i + 1 < entries.count {
+                let g = entries[i].supersetGroup
+                if g != nil && g == entries[i + 1].supersetGroup {
+                    exercises[i].linkedToNext = true
+                }
             }
             if exercises.isEmpty { exercises = [ExerciseCard()] }
         case .amrap, .forTime:
@@ -672,7 +688,8 @@ final class WorkoutViewModel {
                     sortOrder: i,
                     equipment: card.equipment == .none ? nil : card.equipment,
                     targetWeight: card.weight,
-                    weightUnit: card.weightUnit
+                    weightUnit: card.weightUnit,
+                    linkedToNext: card.linkedToNext
                 )
                 te.template = template
                 context.insert(te)
@@ -722,7 +739,8 @@ final class WorkoutViewModel {
                     sortOrder: i,
                     equipment: card.equipment == .none ? nil : card.equipment,
                     targetWeight: card.weight,
-                    weightUnit: card.weightUnit
+                    weightUnit: card.weightUnit,
+                    linkedToNext: card.linkedToNext
                 )
                 te.template = template
                 context.insert(te)
@@ -764,6 +782,22 @@ final class WorkoutViewModel {
         case .manual:          return manualSessions
         case .reps:            return []
         }
+    }
+
+    /// Superset group index per exercise (nil = standalone). Consecutive cards
+    /// linked via `linkedToNext` share an index; singleton groups return nil.
+    private func supersetGroups() -> [Int?] {
+        let n = exercises.count
+        guard n > 0 else { return [] }
+        var raw = Array(repeating: 0, count: n)
+        var g = 0
+        for i in 0..<n {
+            raw[i] = g
+            if i < n - 1 && !exercises[i].linkedToNext { g += 1 }
+        }
+        var counts: [Int: Int] = [:]
+        for gid in raw { counts[gid, default: 0] += 1 }
+        return raw.map { (counts[$0] ?? 0) > 1 ? $0 : nil }
     }
 
     private func findOrCreateExercise(id: UUID? = nil, name: String, equipment: Equipment, context: ModelContext) -> Exercise {
