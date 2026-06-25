@@ -455,9 +455,11 @@ struct WorkoutDetailView: View {
             }
             Spacer()
             if let rpe = eff.rpe {
-                Text("RPE \(rpe == rpe.rounded() ? "\(Int(rpe))" : String(format: "%.1f", rpe))")
+                Text("Rate of Perceived Exertion: \(rpe == rpe.rounded() ? "\(Int(rpe))" : String(format: "%.1f", rpe))")
                     .font(LKFont.caption)
                     .foregroundColor(LKColor.textMuted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             if isEditing {
                 Image(systemName: "chevron.right")
@@ -484,7 +486,7 @@ struct HistorySetEditSheet: View {
     @State private var rpe: Double?
     @State private var setType: SetType
 
-    private let rpeOptions: [Double] = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10]
+    private let rpeOptions: [Double] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
     init(initial: SetDraft, isTimed: Bool, setNumber: Int, onSave: @escaping (SetDraft) -> Void) {
         self.isTimed = isTimed
@@ -527,7 +529,7 @@ struct HistorySetEditSheet: View {
                         }
                     }
                 }
-                Section("RPE") {
+                Section {
                     Picker("RPE", selection: $rpe) {
                         Text("—").tag(Double?.none)
                         ForEach(rpeOptions, id: \.self) { v in
@@ -535,6 +537,10 @@ struct HistorySetEditSheet: View {
                                 .tag(Double?.some(v))
                         }
                     }
+                } header: {
+                    Text("Rate of Perceived Exertion")
+                } footer: {
+                    Text("How hard the set felt, 1 (very easy) to 10 (maximal effort).")
                 }
                 Section("Set Type") {
                     Picker("Type", selection: $setType) {

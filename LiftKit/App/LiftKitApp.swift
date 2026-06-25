@@ -32,6 +32,8 @@ struct LiftKitApp: App {
             UserProfile.self,
             WorkoutSchedule.self,
             BodyMetric.self,
+            HealthProfile.self,
+            NutritionDay.self,
         ])
 
         // iCloud sync is opt-in (default OFF) and only works on a properly
@@ -101,6 +103,11 @@ struct RootTabView: View {
             ProgressView()
                 .tabItem {
                     Label("Progress", systemImage: "chart.line.uptrend.xyaxis")
+                }
+
+            HealthView(vm: vm)
+                .tabItem {
+                    Label("Health", systemImage: "heart.text.square.fill")
                 }
 
             SettingsView()

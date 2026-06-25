@@ -6,14 +6,21 @@ enum LKColor {
     static let background      = dynamic(light: "#F2F2F7", dark: "#000000")
     static let surface         = dynamic(light: "#FFFFFF", dark: "#1C1C1E")
     static let surfaceElevated = dynamic(light: "#E6E6EB", dark: "#2C2C2E")
-    static let accent          = Color(hex: "#D4A843")
+    // Gold accent. In light mode a deeper amber-gold reads clearly as text on
+    // light surfaces (the pale gold below is reserved for dark mode).
+    static let accent          = dynamic(light: "#A16207", dark: "#D4A843")
     static let work            = Color(hex: "#22C55E")
     static let success         = Color(hex: "#22C55E")
     static let rest            = Color(hex: "#3B82F6")
     static let danger          = Color(hex: "#EF4444")
     static let textPrimary     = Color(uiColor: .label)        // black in light, white in dark
     static let textSecondary   = Color(UIColor.secondaryLabel)
-    static let textMuted       = Color(UIColor.tertiaryLabel)
+    /// Muted captions/labels. The system tertiaryLabel is too faint on light
+    /// backgrounds, so light mode uses a readable medium gray; dark mode keeps
+    /// the original light-gray tertiary.
+    static let textMuted       = Color(uiColor: UIColor { trait in
+        trait.userInterfaceStyle == .dark ? .tertiaryLabel : UIColor(white: 0.42, alpha: 1.0)
+    })
     /// Dark text/icons placed on the gold accent — readable in both modes.
     static let onAccent        = Color.black
 

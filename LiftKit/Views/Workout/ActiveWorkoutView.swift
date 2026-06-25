@@ -1171,7 +1171,7 @@ struct SetEditSheet: View {
     @State private var rpe: Double?
     @State private var setType: SetType
 
-    private let rpeOptions: [Double] = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10]
+    private let rpeOptions: [Double] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
     init(isTimed: Bool, setNumber: Int, value: Int, rpe: Double?, setType: SetType,
          onSave: @escaping (Int, Double?, SetType) -> Void) {
@@ -1189,7 +1189,7 @@ struct SetEditSheet: View {
                 Section(isTimed ? "Seconds" : "Reps") {
                     Stepper("\(value)", value: $value, in: 0...600, step: isTimed ? 5 : 1)
                 }
-                Section("RPE") {
+                Section {
                     Picker("RPE", selection: $rpe) {
                         Text("—").tag(Double?.none)
                         ForEach(rpeOptions, id: \.self) { v in
@@ -1197,6 +1197,10 @@ struct SetEditSheet: View {
                                 .tag(Double?.some(v))
                         }
                     }
+                } header: {
+                    Text("Rate of Perceived Exertion")
+                } footer: {
+                    Text("How hard the set felt, 1 (very easy) to 10 (maximal effort).")
                 }
                 Section("Set Type") {
                     Picker("Type", selection: $setType) {
