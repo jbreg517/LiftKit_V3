@@ -107,13 +107,46 @@ struct SessionRow: View {
 }
 
 // MARK: - Workout Detail
+/// Staged edits to a single set (applied to the SetRecord only on Save).
+struct SetDraft {
+    var weight: Double?
+    var reps: Int?
+    var duration: TimeInterval?
+    var rpe: Double?
+    var setType: SetType
+}
+
+/// Identifiable wrapper so we don't use the SwiftData model directly as a sheet item.
+struct EditingSetTarget: Identifiable {
+    let id: UUID
+    let set: SetRecord
+}
+
 struct WorkoutDetailView: View {
     @Bindable var session: WorkoutSession
     @Bindable var vm: WorkoutViewModel
     @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
 
     @State private var isEditing = false
-    @State private var editingSet: SetRecord?
+    @State private var editingTarget: EditingSetTarget?
+
+    // Staged edits (applied only on Save; dropped on Discard).
+    @State private var drafts: [UUID: SetDraft] = [:]
+    @State private var deletedSetIDs: Set<UUID> = []
+    @State private var draftNotes: String = ""
+    @State private var notesEdited = false
+    @State private var showDiscardConfirm = false
+
+    private var isDirty: Bool {
+        !drafts.isEmpty || !deletedSetIDs.isEmpty || notesEdited
+    }
+
+    /// Current (draft-aware) values for a set.
+    private func effective(_ set: SetRecord) -> SetDraft {
+        drafts[set.id] ?? SetDraft(weight: set.weight, reps: set.reps,
+                                   duration: set.duration, rpe: set.rpe, setType: set.setType)
+    }
 
     var body: some View {
         ScrollView {
@@ -181,30 +214,94 @@ struct WorkoutDetailView: View {
         }
         .navigationTitle(session.name)
         .background(LKColor.background.ignoresSafeArea())
+        .navigationBarBackButtonHidden(isEditing)
         .toolbar {
+            if isEditing {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") { attemptExit() }
+                        .foregroundColor(LKColor.danger)
+                }
+            }
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button(isEditing ? "Done" : "Edit") {
-                    if isEditing { try? context.save() }
-                    isEditing.toggle()
+                Button(isEditing ? (isDirty ? "Save" : "Done") : "Edit") {
+                    if isEditing {
+                        if isDirty { applyEdits() }
+                        exitEditing()
+                    } else {
+                        isEditing = true
+                    }
                 }
                 .foregroundColor(LKColor.accent)
+                .fontWeight(isEditing && isDirty ? .bold : .regular)
             }
         }
-        .sheet(item: $editingSet) { set in
-            HistorySetEditSheet(set: set)
+        .sheet(item: $editingTarget) { target in
+            HistorySetEditSheet(
+                initial: effective(target.set),
+                isTimed: target.set.isTimed,
+                setNumber: target.set.setNumber
+            ) { draft in
+                drafts[target.set.id] = draft
+            }
+        }
+        .confirmationDialog("You have unsaved edits", isPresented: $showDiscardConfirm, titleVisibility: .visible) {
+            Button("Save") { applyEdits(); exitEditing() }
+            Button("Discard", role: .destructive) { exitEditing() }
+            Button("Keep Editing", role: .cancel) {}
         }
     }
 
     private var notesBinding: Binding<String> {
         Binding(
-            get: { session.notes ?? "" },
-            set: { session.notes = $0.isEmpty ? nil : $0 }
+            get: { notesEdited ? draftNotes : (session.notes ?? "") },
+            set: { draftNotes = $0; notesEdited = true }
         )
     }
 
+    /// Stages a set deletion (applied on Save).
     private func deleteSet(_ set: SetRecord) {
-        context.delete(set)
+        deletedSetIDs.insert(set.id)
+        drafts[set.id] = nil
+        HapticManager.shared.buttonTap()
+    }
+
+    private func attemptExit() {
+        if isDirty { showDiscardConfirm = true } else { exitEditing() }
+    }
+
+    /// Applies all staged edits/deletions/notes to the models and persists.
+    private func applyEdits() {
+        for set in session.entries.flatMap({ $0.sets }) {
+            if deletedSetIDs.contains(set.id) {
+                context.delete(set)
+                continue
+            }
+            if let d = drafts[set.id] {
+                set.weight = d.weight
+                set.reps = d.reps
+                set.duration = d.duration
+                set.rpe = d.rpe
+                set.setType = d.setType
+            }
+        }
+        if notesEdited {
+            let trimmed = draftNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+            session.notes = trimmed.isEmpty ? nil : trimmed
+        }
         try? context.save()
+        clearDrafts()
+    }
+
+    private func exitEditing() {
+        clearDrafts()
+        isEditing = false
+    }
+
+    private func clearDrafts() {
+        drafts.removeAll()
+        deletedSetIDs.removeAll()
+        draftNotes = ""
+        notesEdited = false
     }
 
     private var summarySection: some View {
@@ -279,10 +376,10 @@ struct WorkoutDetailView: View {
                 .font(LKFont.caption)
                 .foregroundColor(LKColor.textSecondary)
 
-                ForEach(sets) { set in
+                ForEach(sets.filter { !deletedSetIDs.contains($0.id) }) { set in
                     if isEditing {
                         HStack(spacing: LKSpacing.sm) {
-                            Button { editingSet = set } label: { setRow(set: set) }
+                            Button { editingTarget = EditingSetTarget(id: set.id, set: set) } label: { setRow(set: set) }
                                 .buttonStyle(.plain)
                             Button(role: .destructive) { deleteSet(set) } label: {
                                 Image(systemName: "trash.fill")
@@ -308,22 +405,23 @@ struct WorkoutDetailView: View {
     }
 
     private func setRow(set: SetRecord) -> some View {
-        HStack {
+        let eff = effective(set)
+        return HStack {
             Text("Set \(set.setNumber)")
                 .font(LKFont.caption)
                 .foregroundColor(LKColor.textMuted)
                 .frame(width: 44, alignment: .leading)
 
-            if let badge = set.setType.badge {
+            if let badge = eff.setType.badge {
                 Text(badge)
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.black)
                     .frame(width: 16, height: 16)
-                    .background(set.setType == .failure ? LKColor.danger : LKColor.accent)
+                    .background(eff.setType == .failure ? LKColor.danger : LKColor.accent)
                     .clipShape(Circle())
             }
 
-            if let weight = set.weight {
+            if let weight = eff.weight {
                 Text("\(Int(weight)) \(set.weightUnit)")
                     .font(LKFont.body)
                     .foregroundColor(LKColor.textPrimary)
@@ -334,7 +432,7 @@ struct WorkoutDetailView: View {
                 }
             }
 
-            if let reps = set.reps {
+            if let reps = eff.reps {
                 Text("×")
                     .foregroundColor(LKColor.textMuted)
                 Text("\(reps) reps")
@@ -345,7 +443,7 @@ struct WorkoutDetailView: View {
                         .font(LKFont.caption)
                         .foregroundColor(LKColor.textSecondary)
                 }
-            } else if let duration = set.duration {
+            } else if let duration = eff.duration {
                 Text(Self.durationLabel(Int(duration)))
                     .font(LKFont.body)
                     .foregroundColor(LKColor.textPrimary)
@@ -356,7 +454,7 @@ struct WorkoutDetailView: View {
                 }
             }
             Spacer()
-            if let rpe = set.rpe {
+            if let rpe = eff.rpe {
                 Text("RPE \(rpe == rpe.rounded() ? "\(Int(rpe))" : String(format: "%.1f", rpe))")
                     .font(LKFont.caption)
                     .foregroundColor(LKColor.textMuted)
@@ -374,11 +472,11 @@ struct WorkoutDetailView: View {
 
 struct HistorySetEditSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var context
     @AppStorage("weightIncrement") private var weightIncrement: Double = 5
 
-    let set: SetRecord
-    private let isTimed: Bool
+    let isTimed: Bool
+    let setNumber: Int
+    let onSave: (SetDraft) -> Void
 
     @State private var weight: Double
     @State private var reps: Int
@@ -388,29 +486,45 @@ struct HistorySetEditSheet: View {
 
     private let rpeOptions: [Double] = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10]
 
-    init(set: SetRecord) {
-        self.set = set
-        self.isTimed = set.isTimed
-        _weight = State(initialValue: set.weight ?? 0)
-        _reps = State(initialValue: set.reps ?? 0)
-        _duration = State(initialValue: Int(set.duration ?? 0))
-        _rpe = State(initialValue: set.rpe)
-        _setType = State(initialValue: set.setType)
+    init(initial: SetDraft, isTimed: Bool, setNumber: Int, onSave: @escaping (SetDraft) -> Void) {
+        self.isTimed = isTimed
+        self.setNumber = setNumber
+        self.onSave = onSave
+        _weight = State(initialValue: initial.weight ?? 0)
+        _reps = State(initialValue: initial.reps ?? 0)
+        _duration = State(initialValue: Int(initial.duration ?? 0))
+        _rpe = State(initialValue: initial.rpe)
+        _setType = State(initialValue: initial.setType)
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Weight (\(set.weightUnit))") {
-                    Stepper("\(Int(weight))", value: $weight, in: 0...2000, step: weightIncrement)
+                Section("Weight") {
+                    HStack {
+                        TextField("0", value: $weight, format: .number)
+                            .keyboardType(.decimalPad)
+                        Stepper("", value: $weight, in: 0...2000, step: weightIncrement)
+                            .labelsHidden()
+                    }
                 }
                 if isTimed {
                     Section("Seconds") {
-                        Stepper("\(duration)", value: $duration, in: 0...600, step: 5)
+                        HStack {
+                            TextField("0", value: $duration, format: .number)
+                                .keyboardType(.numberPad)
+                            Stepper("", value: $duration, in: 0...600, step: 5)
+                                .labelsHidden()
+                        }
                     }
                 } else {
                     Section("Reps") {
-                        Stepper("\(reps)", value: $reps, in: 0...100)
+                        HStack {
+                            TextField("0", value: $reps, format: .number)
+                                .keyboardType(.numberPad)
+                            Stepper("", value: $reps, in: 0...100)
+                                .labelsHidden()
+                        }
                     }
                 }
                 Section("RPE") {
@@ -430,30 +544,26 @@ struct HistorySetEditSheet: View {
             }
             .scrollContentBackground(.hidden)
             .background(LKColor.background.ignoresSafeArea())
-            .navigationTitle("Set \(set.setNumber)")
+            .navigationTitle("Set \(setNumber)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }.foregroundColor(LKColor.textSecondary)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }.bold()
+                    Button("Done") {
+                        onSave(SetDraft(
+                            weight: weight > 0 ? weight : nil,
+                            reps: isTimed ? nil : (reps > 0 ? reps : nil),
+                            duration: isTimed ? (duration > 0 ? TimeInterval(duration) : nil) : nil,
+                            rpe: rpe,
+                            setType: setType
+                        ))
+                        dismiss()
+                    }.bold()
                 }
             }
         }
         .presentationDetents([.medium])
-    }
-
-    private func save() {
-        set.weight = weight > 0 ? weight : nil
-        if isTimed {
-            set.duration = duration > 0 ? TimeInterval(duration) : nil
-        } else {
-            set.reps = reps > 0 ? reps : nil
-        }
-        set.rpe = rpe
-        set.setType = setType
-        try? context.save()
-        dismiss()
     }
 }
