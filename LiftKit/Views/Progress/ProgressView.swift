@@ -9,6 +9,13 @@ struct ProgressView: View {
 
     @State private var selectedExercise: Exercise?
     @State private var timeRange: TimeRange = .month
+    @State private var muscleRange: MuscleRange = .week
+
+    enum MuscleRange: String, CaseIterable {
+        case week  = "7 Days"
+        case month = "30 Days"
+        var days: Int { self == .week ? 7 : 30 }
+    }
 
     enum TimeRange: String, CaseIterable {
         case week  = "1W"
@@ -111,16 +118,24 @@ struct ProgressView: View {
     }
 
     private var muscleFocusSection: some View {
-        let data = setsByMuscle(days: 7)
+        let data = setsByMuscle(days: muscleRange.days)
         return VStack(alignment: .leading, spacing: LKSpacing.md) {
-            Text("This Week by Muscle")
-                .font(LKFont.heading)
-                .foregroundColor(LKColor.textPrimary)
-                .padding(.horizontal, LKSpacing.md)
+            HStack {
+                Text("Muscle Balance")
+                    .font(LKFont.heading)
+                    .foregroundColor(LKColor.textPrimary)
+                Spacer()
+                Picker("Range", selection: $muscleRange) {
+                    ForEach(MuscleRange.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 160)
+            }
+            .padding(.horizontal, LKSpacing.md)
 
             if data.isEmpty {
                 ContentUnavailableView(
-                    "No Sets This Week",
+                    "No Sets Logged",
                     systemImage: "figure.strengthtraining.traditional",
                     description: Text("Log a workout to see your muscle-group balance.")
                 )
@@ -138,7 +153,7 @@ struct ProgressView: View {
                             .foregroundColor(LKColor.textMuted)
                     }
                 }
-                .chartXAxisLabel("Sets · last 7 days")
+                .chartXAxisLabel("Sets · last \(muscleRange.days) days")
                 .frame(height: CGFloat(data.count) * 34 + 40)
                 .padding(.horizontal, LKSpacing.md)
             }
