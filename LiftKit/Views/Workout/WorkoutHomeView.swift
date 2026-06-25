@@ -5,14 +5,24 @@ struct WorkoutHomeView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \WorkoutTemplate.lastUsedAt, order: .reverse) private var templates: [WorkoutTemplate]
     @Query private var profiles: [UserProfile]
+    @Query(sort: \WorkoutSchedule.date) private var schedules: [WorkoutSchedule]
 
     @Bindable var vm: WorkoutViewModel
 
     @State private var showCalendarPicker = false
     @State private var scheduleTemplate: WorkoutTemplate?
+    @State private var showSeriesSchedule = false
 
     private var userProfile: UserProfile? { profiles.first }
     private var isPremium: Bool { userProfile?.isPremium ?? false }
+
+    /// Uncompleted schedules due today or carried forward from a missed day.
+    private var dueSchedules: [WorkoutSchedule] {
+        let today = Calendar.current.startOfDay(for: Date())
+        return schedules.filter {
+            !$0.isCompleted && Calendar.current.startOfDay(for: $0.date) <= today
+        }
+    }
 
     private var visibleTemplates: [WorkoutTemplate] {
         let limit = isPremium ? UserProfile.maxVisibleTemplates : UserProfile.maxFreeTemplates
@@ -39,6 +49,9 @@ struct WorkoutHomeView: View {
                         WorkoutCalendarView(vm: vm)
                             .padding(.horizontal, LKSpacing.md)
                     }
+
+                    // Today / carried-forward scheduled workouts
+                    dueWorkoutsSection
 
                     // Recommended workouts
                     recommendedSection
@@ -70,9 +83,62 @@ struct WorkoutHomeView: View {
         .sheet(item: $scheduleTemplate) { template in
             RecurringScheduleSheet(template: template)
         }
+        .sheet(isPresented: $showSeriesSchedule) {
+            SeriesScheduleSheet()
+        }
         .fullScreenCover(isPresented: $vm.showActiveWorkout) {
             ActiveWorkoutView(vm: vm)
         }
+    }
+
+    // MARK: - Due workouts (today / carried forward)
+    @ViewBuilder
+    private var dueWorkoutsSection: some View {
+        if !dueSchedules.isEmpty {
+            VStack(alignment: .leading, spacing: LKSpacing.sm) {
+                Text("TODAY")
+                    .font(LKFont.caption)
+                    .foregroundColor(LKColor.textMuted)
+                    .tracking(2)
+                    .padding(.horizontal, LKSpacing.md)
+
+                ForEach(dueSchedules) { sched in
+                    let info = dueLabel(sched.date)
+                    SwipeToDeleteRow(enabled: true, onDelete: { clearSchedule(sched) }) {
+                        DueWorkoutCard(schedule: sched, dateLabel: info.text, overdue: info.overdue) {
+                            startScheduled(sched)
+                        }
+                    }
+                    .padding(.horizontal, LKSpacing.md)
+                }
+            }
+        }
+    }
+
+    private func dueLabel(_ date: Date) -> (text: String, overdue: Bool) {
+        let cal = Calendar.current
+        let d = cal.startOfDay(for: date)
+        let today = cal.startOfDay(for: Date())
+        let f = DateFormatter(); f.dateFormat = "EEE, MMM d"
+        if d == today { return ("Today", false) }
+        let days = cal.dateComponents([.day], from: d, to: today).day ?? 0
+        if days == 1 { return ("Yesterday · overdue", true) }
+        if days > 1 { return ("\(f.string(from: date)) · overdue", true) }
+        return (f.string(from: date), false)
+    }
+
+    private func startScheduled(_ sched: WorkoutSchedule) {
+        guard let template = sched.template else { return }
+        sched.isCompleted = true
+        try? context.save()
+        vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
+        vm.markTemplateUsed(template, context: context)
+        vm.showWorkoutSetup = true
+    }
+
+    private func clearSchedule(_ sched: WorkoutSchedule) {
+        context.delete(sched)
+        try? context.save()
     }
 
     // MARK: - Toolbar
@@ -155,11 +221,24 @@ struct WorkoutHomeView: View {
     // MARK: - Plans section
     private var plansSection: some View {
         VStack(alignment: .leading, spacing: LKSpacing.sm) {
-            Text("YOUR WORKOUT PLANS")
-                .font(LKFont.caption)
-                .foregroundColor(LKColor.textMuted)
-                .tracking(2)
-                .padding(.horizontal, LKSpacing.md)
+            HStack {
+                Text("YOUR WORKOUT PLANS")
+                    .font(LKFont.caption)
+                    .foregroundColor(LKColor.textMuted)
+                    .tracking(2)
+                Spacer()
+                if !templates.isEmpty {
+                    Button {
+                        showSeriesSchedule = true
+                        HapticManager.shared.buttonTap()
+                    } label: {
+                        Label("Schedule", systemImage: "calendar")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(LKColor.accent)
+                    }
+                }
+            }
+            .padding(.horizontal, LKSpacing.md)
 
             ForEach(visibleTemplates) { template in
                 SwipeToDeleteRow(enabled: true, onDelete: {
@@ -391,6 +470,195 @@ struct AllTemplatesView: View {
         .sheet(item: $scheduleTemplate) { template in
             RecurringScheduleSheet(template: template)
         }
+    }
+}
+
+// MARK: - Due Workout Card
+struct DueWorkoutCard: View {
+    let schedule: WorkoutSchedule
+    let dateLabel: String
+    let overdue: Bool
+    let onStart: () -> Void
+
+    var body: some View {
+        Button(action: onStart) {
+            HStack(spacing: LKSpacing.md) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(schedule.displayName)
+                        .font(LKFont.bodyBold)
+                        .foregroundColor(LKColor.textPrimary)
+                        .lineLimit(1)
+                    Text(dateLabel)
+                        .font(LKFont.caption)
+                        .foregroundColor(overdue ? LKColor.danger : LKColor.textMuted)
+                }
+                Spacer()
+                if schedule.template != nil {
+                    Image(systemName: "play.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(LKColor.accent)
+                }
+            }
+            .padding(LKSpacing.md)
+            .background(LKColor.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: LKRadius.large)
+                    .strokeBorder(overdue ? LKColor.danger.opacity(0.45) : LKColor.surfaceElevated, lineWidth: 1)
+            )
+            .cornerRadius(LKRadius.large)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Swipe to clear this scheduled workout")
+    }
+}
+
+// MARK: - Series Schedule Sheet
+// Schedule up to 5 plans that auto-alternate across the chosen weekdays.
+struct SeriesScheduleSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+    @Query(sort: \WorkoutTemplate.lastUsedAt, order: .reverse) private var templates: [WorkoutTemplate]
+
+    @State private var selectedIDs: [UUID] = []
+    @State private var weekdays: Set<Int> = []
+    @State private var startDate = Date()
+    @State private var endDate = Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date()
+
+    private let cal = Calendar.current
+    private let weekdayLabels = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+    private let maxTemplates = 5
+
+    private var selected: [WorkoutTemplate] {
+        selectedIDs.compactMap { id in templates.first { $0.id == id } }
+    }
+
+    private var occurrenceCount: Int {
+        guard !weekdays.isEmpty, !selected.isEmpty else { return 0 }
+        var count = 0
+        var current = cal.startOfDay(for: startDate)
+        let end = cal.startOfDay(for: endDate)
+        while current <= end {
+            if weekdays.contains(cal.component(.weekday, from: current)) { count += 1 }
+            guard let next = cal.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+        return count
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    ForEach(templates) { t in
+                        let order = selectedIDs.firstIndex(of: t.id)
+                        Button {
+                            toggle(t)
+                            HapticManager.shared.buttonTap()
+                        } label: {
+                            HStack {
+                                if let order {
+                                    Text("\(order + 1)")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundColor(.black)
+                                        .frame(width: 22, height: 22)
+                                        .background(LKColor.accent)
+                                        .clipShape(Circle())
+                                } else {
+                                    Image(systemName: "circle")
+                                        .foregroundColor(LKColor.textMuted)
+                                }
+                                Text(t.name).foregroundColor(LKColor.textPrimary)
+                                Spacer()
+                            }
+                        }
+                        .disabled(order == nil && selectedIDs.count >= maxTemplates)
+                    }
+                } header: {
+                    Text("Workouts (alternate in this order)")
+                } footer: {
+                    Text("Pick up to \(maxTemplates). They rotate across your chosen days — e.g. A, B, A, B…")
+                }
+
+                Section("Repeat On") {
+                    HStack(spacing: LKSpacing.xs) {
+                        ForEach(1...7, id: \.self) { wd in
+                            let on = weekdays.contains(wd)
+                            Button {
+                                if on { weekdays.remove(wd) } else { weekdays.insert(wd) }
+                            } label: {
+                                Text(weekdayLabels[wd - 1])
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, LKSpacing.sm)
+                                    .background(on ? LKColor.accent : LKColor.surfaceElevated)
+                                    .foregroundColor(on ? .black : LKColor.textSecondary)
+                                    .cornerRadius(LKRadius.small)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                Section("Range") {
+                    DatePicker("Start", selection: $startDate, displayedComponents: .date).tint(LKColor.accent)
+                    DatePicker("End", selection: $endDate, in: startDate..., displayedComponents: .date).tint(LKColor.accent)
+                }
+
+                Section {
+                    Text(scheduleSummary)
+                        .font(LKFont.caption)
+                        .foregroundColor(LKColor.textMuted)
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(LKColor.background.ignoresSafeArea())
+            .navigationTitle("Schedule a Series")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }.foregroundColor(LKColor.textSecondary)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Schedule") { createSeries() }
+                        .bold()
+                        .disabled(selected.isEmpty || weekdays.isEmpty || occurrenceCount == 0)
+                }
+            }
+        }
+        .presentationDetents([.large])
+    }
+
+    private var scheduleSummary: String {
+        if selected.isEmpty { return "Select at least one workout." }
+        if weekdays.isEmpty { return "Select the days to repeat on." }
+        return "\(occurrenceCount) workout\(occurrenceCount == 1 ? "" : "s") will be scheduled, alternating \(selected.map(\.name).joined(separator: " → "))."
+    }
+
+    private func toggle(_ t: WorkoutTemplate) {
+        if let idx = selectedIDs.firstIndex(of: t.id) {
+            selectedIDs.remove(at: idx)
+        } else if selectedIDs.count < maxTemplates {
+            selectedIDs.append(t.id)
+        }
+    }
+
+    private func createSeries() {
+        let temps = selected
+        guard !temps.isEmpty, !weekdays.isEmpty else { return }
+        var current = cal.startOfDay(for: startDate)
+        let end = cal.startOfDay(for: endDate)
+        var i = 0
+        while current <= end {
+            if weekdays.contains(cal.component(.weekday, from: current)) {
+                let sched = WorkoutSchedule(date: current, template: temps[i % temps.count])
+                context.insert(sched)
+                i += 1
+            }
+            guard let next = cal.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+        try? context.save()
+        dismiss()
     }
 }
 
