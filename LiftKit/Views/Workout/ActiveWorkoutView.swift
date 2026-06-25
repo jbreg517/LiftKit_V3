@@ -716,8 +716,8 @@ struct ActiveWorkoutView: View {
 
     private func exerciseCard(exIdx: Int, ex: ActiveExercise) -> some View {
         VStack(alignment: .leading, spacing: LKSpacing.md) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: LKSpacing.xs) {
                     Text(ex.name)
                         .font(LKFont.heading)
                         .foregroundColor(LKColor.textPrimary)
@@ -727,9 +727,10 @@ struct ActiveWorkoutView: View {
                             .foregroundColor(LKColor.accent)
                             .tracking(1)
                     }
+                    accessoryButtons(ex: ex)
                 }
                 Spacer()
-                weightChip(exIdx: exIdx, ex: ex)
+                weightControls(exIdx: exIdx, ex: ex)
             }
 
             if let last = ex.previousSummary {
@@ -749,46 +750,12 @@ struct ActiveWorkoutView: View {
         .lkCard()
     }
 
+    /// "Show Plates" / "Warm-up" buttons shown under the exercise name.
     @ViewBuilder
-    private func weightChip(exIdx: Int, ex: ActiveExercise) -> some View {
+    private func accessoryButtons(ex: ActiveExercise) -> some View {
         HStack(spacing: LKSpacing.sm) {
-            if ex.equipment != .none {
-                Label(ex.equipment.rawValue, systemImage: ex.equipment.sfSymbol)
-                    .font(LKFont.caption)
-                    .foregroundColor(LKColor.textSecondary)
-                    .padding(.horizontal, LKSpacing.sm)
-                    .padding(.vertical, LKSpacing.xs)
-                    .background(LKColor.surfaceElevated)
-                    .clipShape(Capsule())
-            }
-            HStack(spacing: LKSpacing.sm) {
-                Button {
-                    vm.adjustWeight(exerciseIndex: exIdx, delta: -weightIncrement)
-                    HapticManager.shared.buttonTap()
-                } label: { Text("−\(incLabel)").font(LKFont.caption).foregroundColor(LKColor.textSecondary) }
-
-                Button {
-                    numberEntry = NumberEntryItem(
-                        title: "Weight", message: "Enter weight",
-                        currentValue: ex.weight, minValue: 0, maxValue: 999
-                    ) { vm.activeExercises[exIdx].weight = $0 }
-                } label: {
-                    Text("\(Int(ex.weight)) \(ex.weightUnit.rawValue)")
-                        .font(LKFont.caption).foregroundColor(LKColor.accent).underline()
-                }
-
-                Button {
-                    vm.adjustWeight(exerciseIndex: exIdx, delta: weightIncrement)
-                    HapticManager.shared.buttonTap()
-                } label: { Text("+\(incLabel)").font(LKFont.caption).foregroundColor(LKColor.textSecondary) }
-            }
-            .padding(.horizontal, LKSpacing.sm)
-            .padding(.vertical, LKSpacing.xs)
-            .background(LKColor.surfaceElevated)
-            .clipShape(Capsule())
-
             if ex.equipment == .barbell {
-                plateButton(weight: ex.weight, unit: ex.weightUnit)
+                showPlatesButton(weight: ex.weight, unit: ex.weightUnit)
             }
             if !ex.isTimed && ex.weight > 0 {
                 warmupButton(weight: ex.weight, unit: ex.weightUnit)
@@ -796,20 +763,73 @@ struct ActiveWorkoutView: View {
         }
     }
 
-    private func plateButton(weight: Double, unit: WeightUnit) -> some View {
+    /// Equipment icon (icon-only) + a prominent weight stepper with full ± buttons.
+    @ViewBuilder
+    private func weightControls(exIdx: Int, ex: ActiveExercise) -> some View {
+        HStack(spacing: LKSpacing.sm) {
+            if ex.equipment != .none {
+                Image(systemName: ex.equipment.sfSymbol)
+                    .font(.system(size: 15))
+                    .foregroundColor(LKColor.textSecondary)
+                    .frame(width: 30, height: 30)
+                    .background(LKColor.surfaceElevated)
+                    .clipShape(Circle())
+                    .accessibilityLabel(ex.equipment.rawValue)
+            }
+            Button {
+                vm.adjustWeight(exerciseIndex: exIdx, delta: -weightIncrement)
+                HapticManager.shared.buttonTap()
+            } label: {
+                Image(systemName: "minus.circle.fill")
+                    .font(.system(size: 34))
+                    .foregroundColor(LKColor.textSecondary)
+            }
+            .accessibilityLabel("Decrease weight by \(incLabel)")
+
+            Button {
+                numberEntry = NumberEntryItem(
+                    title: "Weight", message: "Enter weight",
+                    currentValue: ex.weight, minValue: 0, maxValue: 999
+                ) { vm.activeExercises[exIdx].weight = $0 }
+            } label: {
+                VStack(spacing: 0) {
+                    Text("\(Int(ex.weight))")
+                        .font(.system(size: 26, weight: .bold, design: .monospaced))
+                        .foregroundColor(LKColor.accent)
+                        .contentTransition(.numericText())
+                    Text(ex.weightUnit.rawValue)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(LKColor.textMuted)
+                }
+                .frame(minWidth: 58)
+            }
+            .accessibilityLabel("\(Int(ex.weight)) \(ex.weightUnit.rawValue), edit weight")
+
+            Button {
+                vm.adjustWeight(exerciseIndex: exIdx, delta: weightIncrement)
+                HapticManager.shared.buttonTap()
+            } label: {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 34))
+                    .foregroundColor(LKColor.accent)
+            }
+            .accessibilityLabel("Increase weight by \(incLabel)")
+        }
+    }
+
+    private func showPlatesButton(weight: Double, unit: WeightUnit) -> some View {
         Button {
             plateTarget = PlateTarget(weight: weight, unit: unit)
             HapticManager.shared.buttonTap()
         } label: {
-            Image(systemName: "circle.grid.2x2.fill")
-                .font(LKFont.caption)
-                .foregroundColor(LKColor.textSecondary)
+            Label("Show Plates", systemImage: "circle.grid.2x2.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(LKColor.accent)
                 .padding(.horizontal, LKSpacing.sm)
-                .padding(.vertical, LKSpacing.xs)
+                .padding(.vertical, 5)
                 .background(LKColor.surfaceElevated)
                 .clipShape(Capsule())
         }
-        .accessibilityLabel("Plate calculator")
     }
 
     private func warmupButton(weight: Double, unit: WeightUnit) -> some View {
@@ -817,15 +837,14 @@ struct ActiveWorkoutView: View {
             warmupTarget = PlateTarget(weight: weight, unit: unit)
             HapticManager.shared.buttonTap()
         } label: {
-            Image(systemName: "flame.fill")
-                .font(LKFont.caption)
-                .foregroundColor(LKColor.textSecondary)
+            Label("Warm-up", systemImage: "flame.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(LKColor.accent)
                 .padding(.horizontal, LKSpacing.sm)
-                .padding(.vertical, LKSpacing.xs)
+                .padding(.vertical, 5)
                 .background(LKColor.surfaceElevated)
                 .clipShape(Capsule())
         }
-        .accessibilityLabel("Warm-up sets")
     }
 
     /// Whole-number increment label ("5", "2.5", …) for the ± weight buttons.

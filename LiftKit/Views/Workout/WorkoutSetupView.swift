@@ -12,7 +12,7 @@ struct WorkoutSetupView: View {
     @State private var templateError = ""
     @State private var notesExpanded = false
     @State private var didApplyProgression = false
-    @State private var showUpdatedAlert = false
+    @State private var infoAlert: String?
 
     let type: TimerType
 
@@ -48,8 +48,27 @@ struct WorkoutSetupView: View {
                 .presentationDetents([.height(280)])
         }
         .sheet(isPresented: $showSaveTemplate) { saveTemplateSheet }
-        .alert("Workout Plan Updated", isPresented: $showUpdatedAlert) {
+        .alert(infoAlert ?? "", isPresented: Binding(get: { infoAlert != nil }, set: { if !$0 { infoAlert = nil } })) {
             Button("OK", role: .cancel) {}
+        }
+    }
+
+    /// Saves the current setup as a new template. Uses the workout name if the
+    /// user has already named the workout; only prompts for a name otherwise.
+    private func saveTemplate() {
+        HapticManager.shared.buttonTap()
+        let name = vm.workoutName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            templateName = ""
+            templateError = ""
+            showSaveTemplate = true
+            return
+        }
+        vm.selectedTimerType = type
+        if vm.saveAsTemplate(name: name, context: context) {
+            infoAlert = "Saved \u{201C}\(name)\u{201D} as a template."
+        } else {
+            infoAlert = vm.templateNameError
         }
     }
 
@@ -59,7 +78,11 @@ struct WorkoutSetupView: View {
     private var saveButtons: some View {
         if vm.editingTemplate != nil {
             Button {
+                // "Save as New" makes a copy — prompt for a distinct name
+                // (prefilled with the current one).
                 HapticManager.shared.buttonTap()
+                templateName = vm.workoutName
+                templateError = ""
                 showSaveTemplate = true
             } label: {
                 Label("Save as New", systemImage: "plus.square.on.square")
@@ -69,7 +92,7 @@ struct WorkoutSetupView: View {
             Button {
                 if vm.updateTemplate(context: context) {
                     HapticManager.shared.setLogged()
-                    showUpdatedAlert = true
+                    infoAlert = "Workout plan updated."
                 }
             } label: {
                 Label("Update Workout", systemImage: "arrow.triangle.2.circlepath")
@@ -77,8 +100,7 @@ struct WorkoutSetupView: View {
             .buttonStyle(LKSecondaryButtonStyle())
         } else {
             Button {
-                HapticManager.shared.buttonTap()
-                showSaveTemplate = true
+                saveTemplate()
             } label: {
                 Label("Save as Template", systemImage: "square.and.arrow.down")
             }
