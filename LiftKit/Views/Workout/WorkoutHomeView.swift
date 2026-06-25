@@ -40,6 +40,9 @@ struct WorkoutHomeView: View {
                             .padding(.horizontal, LKSpacing.md)
                     }
 
+                    // Recommended workouts
+                    recommendedSection
+
                     // Plans section
                     plansSection
                 }
@@ -126,6 +129,29 @@ struct WorkoutHomeView: View {
         }
     }
 
+    // MARK: - Recommended section
+    private var recommendedSection: some View {
+        VStack(alignment: .leading, spacing: LKSpacing.sm) {
+            Text("RECOMMENDED")
+                .font(LKFont.caption)
+                .foregroundColor(LKColor.textMuted)
+                .tracking(2)
+                .padding(.horizontal, LKSpacing.md)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: LKSpacing.md) {
+                    ForEach(RecommendedWorkouts.all) { rec in
+                        RecommendedCard(rec: rec) {
+                            HapticManager.shared.buttonTap()
+                            vm.loadRecommended(rec)
+                        }
+                    }
+                }
+                .padding(.horizontal, LKSpacing.md)
+            }
+        }
+    }
+
     // MARK: - Plans section
     private var plansSection: some View {
         VStack(alignment: .leading, spacing: LKSpacing.sm) {
@@ -193,6 +219,60 @@ struct WorkoutHomeView: View {
                 .padding(.horizontal, LKSpacing.md)
             }
         }
+    }
+}
+
+// MARK: - Recommended Card
+struct RecommendedCard: View {
+    let rec: RecommendedWorkout
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: LKSpacing.sm) {
+                HStack(spacing: LKSpacing.xs) {
+                    Image(systemName: rec.type.sfSymbol)
+                        .font(.system(size: 12))
+                        .foregroundColor(LKColor.accent)
+                    Text(rec.type.rawValue)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(LKColor.textMuted)
+                    Spacer()
+                }
+                Text(rec.name)
+                    .font(LKFont.bodyBold)
+                    .foregroundColor(LKColor.textPrimary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Text(rec.blurb)
+                    .font(LKFont.caption)
+                    .foregroundColor(LKColor.textSecondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+                HStack(spacing: 4) {
+                    ForEach(rec.purposes) { p in
+                        Text(p.label)
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundColor(LKColor.accent)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(LKColor.surfaceElevated)
+                            .clipShape(Capsule())
+                    }
+                }
+            }
+            .padding(LKSpacing.md)
+            .frame(width: 230, height: 150, alignment: .topLeading)
+            .background(LKColor.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: LKRadius.large)
+                    .strokeBorder(LKColor.surfaceElevated, lineWidth: 1)
+            )
+            .cornerRadius(LKRadius.large)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(rec.name), \(rec.type.rawValue)")
     }
 }
 

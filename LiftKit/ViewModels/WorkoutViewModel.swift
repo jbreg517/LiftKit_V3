@@ -260,6 +260,48 @@ final class WorkoutViewModel {
         }
     }
 
+    /// Loads a pre-built recommended workout into the setup screen so the user
+    /// can review it, then Start or Save it as their own plan.
+    func loadRecommended(_ rec: RecommendedWorkout) {
+        resetSetup()
+        selectedTimerType = rec.type
+        workoutName = rec.name
+        restBetweenSets = rec.restBetweenSets
+        timeLimitMinutes = rec.timeCapMinutes
+        timeLimitSeconds = 0
+        emomMinutes = rec.emomMinutes
+        workSeconds = rec.work
+        restSeconds = rec.rest
+        intervalRounds = rec.rounds
+
+        let exCards: [ExerciseCard] = rec.exercises.map { r in
+            var c = ExerciseCard()
+            c.name = r.name
+            c.equipment = r.equipment
+            c.sets = r.sets
+            c.reps = r.reps
+            c.isTimed = r.isTimed
+            c.durationSeconds = r.durationSeconds
+            return c
+        }
+        let sessCards: [SessionCard] = rec.sessions.map { r in
+            var c = SessionCard()
+            c.name = r.name
+            c.equipment = r.equipment
+            c.reps = r.reps
+            return c
+        }
+
+        switch rec.type {
+        case .reps:      exercises = exCards.isEmpty ? [ExerciseCard()] : exCards
+        case .amrap, .forTime: sessions = sessCards.isEmpty ? [SessionCard()] : sessCards
+        case .emom:      emomSessions = sessCards.isEmpty ? [SessionCard()] : sessCards
+        case .intervals: intervalSessions = sessCards.isEmpty ? [SessionCard()] : sessCards
+        case .manual:    manualSessions = sessCards.isEmpty ? [SessionCard()] : sessCards
+        }
+        showWorkoutSetup = true
+    }
+
     func buildTimerConfig() -> TimerConfig {
         var config = TimerConfig(type: selectedTimerType)
         switch selectedTimerType {
