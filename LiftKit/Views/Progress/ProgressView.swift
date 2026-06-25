@@ -34,6 +34,7 @@ struct ProgressView: View {
                 VStack(spacing: LKSpacing.lg) {
                     if weekStreak > 0 { streakBanner }
                     overviewGrid
+                    muscleFocusSection
                     prBoard
                     exerciseChart
                     weeklyVolume
@@ -86,6 +87,62 @@ struct ProgressView: View {
         .background(LKColor.surface)
         .cornerRadius(LKRadius.large)
         .padding(.horizontal, LKSpacing.md)
+    }
+
+    // MARK: - Muscle focus
+
+    private struct MuscleSetCount: Identifiable {
+        let muscle: MuscleGroup
+        let sets: Int
+        var id: String { muscle.rawValue }
+    }
+
+    /// Working-set count per muscle group over the last `days`, highest first.
+    private func setsByMuscle(days: Int) -> [MuscleSetCount] {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: Date()) ?? .distantPast
+        var counts: [MuscleGroup: Int] = [:]
+        for session in sessions where !session.isActive && session.startedAt >= cutoff {
+            for entry in session.entries {
+                guard let m = entry.exercise?.primaryMuscle else { continue }
+                counts[m, default: 0] += entry.sets.count
+            }
+        }
+        return counts.sorted { $0.value > $1.value }.map { MuscleSetCount(muscle: $0.key, sets: $0.value) }
+    }
+
+    private var muscleFocusSection: some View {
+        let data = setsByMuscle(days: 7)
+        return VStack(alignment: .leading, spacing: LKSpacing.md) {
+            Text("This Week by Muscle")
+                .font(LKFont.heading)
+                .foregroundColor(LKColor.textPrimary)
+                .padding(.horizontal, LKSpacing.md)
+
+            if data.isEmpty {
+                ContentUnavailableView(
+                    "No Sets This Week",
+                    systemImage: "figure.strengthtraining.traditional",
+                    description: Text("Log a workout to see your muscle-group balance.")
+                )
+                .frame(height: 120)
+            } else {
+                Chart(data) { item in
+                    BarMark(
+                        x: .value("Sets", item.sets),
+                        y: .value("Muscle", item.muscle.label)
+                    )
+                    .foregroundStyle(LKColor.accent)
+                    .annotation(position: .trailing) {
+                        Text("\(item.sets)")
+                            .font(.caption2)
+                            .foregroundColor(LKColor.textMuted)
+                    }
+                }
+                .chartXAxisLabel("Sets · last 7 days")
+                .frame(height: CGFloat(data.count) * 34 + 40)
+                .padding(.horizontal, LKSpacing.md)
+            }
+        }
     }
 
     // MARK: - Overview

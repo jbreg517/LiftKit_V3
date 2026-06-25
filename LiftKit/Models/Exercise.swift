@@ -13,6 +13,8 @@ final class Exercise {
     var isCustom: Bool = false
     var isFavorite: Bool = false
     var createdAt: Date = Date()
+    /// Primary muscle group for volume analytics (nil = untagged).
+    var primaryMuscleRaw: String?
 
     @Relationship(deleteRule: .nullify, inverse: \WorkoutEntry.exercise)
     var entries: [WorkoutEntry] = []
@@ -47,5 +49,10 @@ final class Exercise {
     var equipmentEnum: Equipment? {
         guard let e = equipment else { return nil }
         return Equipment(rawValue: e)
+    }
+
+    var primaryMuscle: MuscleGroup? {
+        get { primaryMuscleRaw.flatMap { MuscleGroup(rawValue: $0) } }
+        set { primaryMuscleRaw = newValue?.rawValue }
     }
 }

@@ -12,6 +12,7 @@ struct ExercisePickerView: View {
     let onSelect: (Exercise) -> Void
 
     @State private var search = ""
+    @State private var customMuscle: MuscleGroup = .other
 
     private var trimmed: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -47,6 +48,10 @@ struct ExercisePickerView: View {
                         Button { createAndSelect() } label: {
                             Label("Add \u{201C}\(trimmed)\u{201D}", systemImage: "plus.circle.fill")
                                 .foregroundColor(LKColor.accent)
+                        }
+                        .listRowBackground(LKColor.surface)
+                        Picker("Muscle group", selection: $customMuscle) {
+                            ForEach(MuscleGroup.allCases) { m in Text(m.label).tag(m) }
                         }
                         .listRowBackground(LKColor.surface)
                     }
@@ -94,8 +99,10 @@ struct ExercisePickerView: View {
                     Text(ex.name)
                         .font(LKFont.body)
                         .foregroundColor(LKColor.textPrimary)
-                    if let eq = ex.equipmentEnum, eq != .none {
-                        Text(eq.rawValue)
+                    let subtitle = [ex.equipmentEnum.flatMap { $0 == .none ? nil : $0.rawValue },
+                                    ex.primaryMuscle?.label].compactMap { $0 }.joined(separator: " · ")
+                    if !subtitle.isEmpty {
+                        Text(subtitle)
                             .font(LKFont.caption)
                             .foregroundColor(LKColor.textMuted)
                     }
@@ -123,6 +130,7 @@ struct ExercisePickerView: View {
             onSelect(existing); dismiss(); return
         }
         let ex = Exercise(name: name, isCustom: true)
+        ex.primaryMuscle = ExerciseLibrary.defaultMuscle(forName: name) ?? customMuscle
         context.insert(ex)
         try? context.save()
         onSelect(ex)

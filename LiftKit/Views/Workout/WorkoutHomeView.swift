@@ -67,6 +67,7 @@ struct WorkoutHomeView: View {
             .onAppear {
                 vm.userProfile = userProfile
                 ExerciseLibrary.shared.seedIfNeeded(context: context)
+                ExerciseLibrary.shared.backfillMuscles(context: context)
             }
         }
         .sheet(isPresented: $vm.showTypePicker) {
