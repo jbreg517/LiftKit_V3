@@ -6,6 +6,7 @@ struct ProgressView: View {
     @Query(sort: \WorkoutSession.startedAt) private var sessions: [WorkoutSession]
     @Query private var personalRecords: [PersonalRecord]
     @Query private var exercises: [Exercise]
+    @Query(sort: \BodyMetric.date) private var bodyMetrics: [BodyMetric]
 
     @State private var selectedExercise: Exercise?
     @State private var timeRange: TimeRange = .month
@@ -42,6 +43,7 @@ struct ProgressView: View {
                     if weekStreak > 0 { streakBanner }
                     overviewGrid
                     muscleFocusSection
+                    bodyMetricsCard
                     prBoard
                     exerciseChart
                     weeklyVolume
@@ -158,6 +160,39 @@ struct ProgressView: View {
                 .padding(.horizontal, LKSpacing.md)
             }
         }
+    }
+
+    // MARK: - Body metrics entry
+    private var bodyMetricsCard: some View {
+        let latestWeight = bodyMetrics
+            .filter { $0.type == .bodyweight }
+            .max(by: { $0.date < $1.date })
+        return NavigationLink(destination: BodyTrackingView()) {
+            HStack(spacing: LKSpacing.md) {
+                Image(systemName: "figure.arms.open")
+                    .font(.title2)
+                    .foregroundColor(LKColor.accent)
+                    .frame(width: 32)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Body Metrics")
+                        .font(LKFont.bodyBold)
+                        .foregroundColor(LKColor.textPrimary)
+                    Text(latestWeight.map { "Bodyweight \(Int($0.value.rounded())) lb" }
+                         ?? "Track bodyweight & measurements")
+                        .font(LKFont.caption)
+                        .foregroundColor(LKColor.textMuted)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(LKColor.textMuted)
+            }
+            .padding(LKSpacing.md)
+            .background(LKColor.surface)
+            .cornerRadius(LKRadius.large)
+            .padding(.horizontal, LKSpacing.md)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Overview

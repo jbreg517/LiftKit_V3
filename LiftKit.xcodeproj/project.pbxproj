@@ -20,6 +20,7 @@
 		A70000000000000000000010 /* WorkoutEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000010 /* WorkoutEntry.swift */; };
 		A70000000000000000000011 /* SetRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000011 /* SetRecord.swift */; };
 		A70000000000000000000012 /* PersonalRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000012 /* PersonalRecord.swift */; };
+		A70000000000000000000041 /* BodyMetric.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000041 /* BodyMetric.swift */; };
 		A70000000000000000000013 /* WorkoutTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000013 /* WorkoutTemplate.swift */; };
 		A70000000000000000000014 /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000014 /* UserProfile.swift */; };
 		A70000000000000000000015 /* WorkoutSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000015 /* WorkoutSchedule.swift */; };
@@ -40,6 +41,7 @@
 		A70000000000000000000037 /* ExercisePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000037 /* ExercisePickerView.swift */; };
 		A70000000000000000000022 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000022 /* HistoryView.swift */; };
 		A70000000000000000000023 /* ProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000023 /* ProgressView.swift */; };
+		A70000000000000000000042 /* BodyTrackingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000042 /* BodyTrackingView.swift */; };
 		A70000000000000000000024 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000024 /* SettingsView.swift */; };
 		A70000000000000000000025 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000025 /* LoginView.swift */; };
 		A70000000000000000000026 /* WorkoutCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000026 /* WorkoutCalendarView.swift */; };
@@ -96,6 +98,7 @@
 		A60000000000000000000010 /* WorkoutEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutEntry.swift; sourceTree = "<group>"; };
 		A60000000000000000000011 /* SetRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetRecord.swift; sourceTree = "<group>"; };
 		A60000000000000000000012 /* PersonalRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalRecord.swift; sourceTree = "<group>"; };
+		A60000000000000000000041 /* BodyMetric.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BodyMetric.swift; sourceTree = "<group>"; };
 		A60000000000000000000013 /* WorkoutTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutTemplate.swift; sourceTree = "<group>"; };
 		A60000000000000000000014 /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
 		A60000000000000000000015 /* WorkoutSchedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSchedule.swift; sourceTree = "<group>"; };
@@ -116,6 +119,7 @@
 		A60000000000000000000037 /* ExercisePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExercisePickerView.swift; sourceTree = "<group>"; };
 		A60000000000000000000022 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		A60000000000000000000023 /* ProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressView.swift; sourceTree = "<group>"; };
+		A60000000000000000000042 /* BodyTrackingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BodyTrackingView.swift; sourceTree = "<group>"; };
 		A60000000000000000000024 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A60000000000000000000025 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		A60000000000000000000026 /* WorkoutCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutCalendarView.swift; sourceTree = "<group>"; };
@@ -230,6 +234,7 @@
 				A60000000000000000000010 /* WorkoutEntry.swift */,
 				A60000000000000000000011 /* SetRecord.swift */,
 				A60000000000000000000012 /* PersonalRecord.swift */,
+				A60000000000000000000041 /* BodyMetric.swift */,
 				A60000000000000000000013 /* WorkoutTemplate.swift */,
 				A60000000000000000000014 /* UserProfile.swift */,
 				A60000000000000000000015 /* WorkoutSchedule.swift */,
@@ -302,6 +307,7 @@
 			isa = PBXGroup;
 			children = (
 				A60000000000000000000023 /* ProgressView.swift */,
+				A60000000000000000000042 /* BodyTrackingView.swift */,
 			);
 			path = Progress;
 			sourceTree = "<group>";
@@ -505,6 +511,7 @@
 				A70000000000000000000010 /* WorkoutEntry.swift in Sources */,
 				A70000000000000000000011 /* SetRecord.swift in Sources */,
 				A70000000000000000000012 /* PersonalRecord.swift in Sources */,
+				A70000000000000000000041 /* BodyMetric.swift in Sources */,
 				A70000000000000000000013 /* WorkoutTemplate.swift in Sources */,
 				A70000000000000000000014 /* UserProfile.swift in Sources */,
 				A70000000000000000000015 /* WorkoutSchedule.swift in Sources */,
@@ -525,6 +532,7 @@
 				A70000000000000000000037 /* ExercisePickerView.swift in Sources */,
 				A70000000000000000000022 /* HistoryView.swift in Sources */,
 				A70000000000000000000023 /* ProgressView.swift in Sources */,
+				A70000000000000000000042 /* BodyTrackingView.swift in Sources */,
 				A70000000000000000000024 /* SettingsView.swift in Sources */,
 				A70000000000000000000025 /* LoginView.swift in Sources */,
 				A70000000000000000000026 /* WorkoutCalendarView.swift in Sources */,

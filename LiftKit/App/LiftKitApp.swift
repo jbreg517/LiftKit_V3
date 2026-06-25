@@ -31,6 +31,7 @@ struct LiftKitApp: App {
             TemplateExercise.self,
             UserProfile.self,
             WorkoutSchedule.self,
+            BodyMetric.self,
         ])
 
         // iCloud sync is opt-in (default OFF) and only works on a properly
