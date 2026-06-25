@@ -203,7 +203,7 @@ struct ActiveWorkoutView: View {
             } label: {
                 Image(systemName: engine.isRunning ? "pause.fill" : "play.fill")
                     .font(.title)
-                    .foregroundColor(LKColor.background)
+                    .foregroundColor(LKColor.onAccent)
                     .frame(width: 88, height: 88)
                     .background(LKColor.accent)
                     .clipShape(Circle())
@@ -886,7 +886,7 @@ struct ActiveWorkoutView: View {
     }
 
     private func setCircleTextColor(set: ActiveSet, isRunning: Bool) -> Color {
-        if isRunning { return LKColor.background }      // dark text on gold
+        if isRunning { return LKColor.onAccent }        // dark text on gold
         return set.isCompleted ? .white : LKColor.textPrimary
     }
 
@@ -971,7 +971,7 @@ struct ActiveWorkoutView: View {
             } label: {
                 Image(systemName: engine.isRunning ? "pause.fill" : "play.fill")
                     .font(.title)
-                    .foregroundColor(LKColor.background)
+                    .foregroundColor(LKColor.onAccent)
                     .frame(width: 88, height: 88)
                     .background(LKColor.accent)
                     .clipShape(Circle())

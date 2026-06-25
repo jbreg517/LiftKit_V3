@@ -5,7 +5,7 @@ import UIKit
 /// App version, bumped on every commit/push so the running build is
 /// identifiable in Settings. Increment by 0.01 each push.
 enum AppVersion {
-    static let current = "0.11"
+    static let current = "0.12"
 }
 
 struct SettingsView: View {
@@ -14,6 +14,7 @@ struct SettingsView: View {
     @AppStorage("soundEnabled")       private var soundEnabled: Bool = true
     @AppStorage("hapticsEnabled")     private var hapticsEnabled: Bool = true
     @AppStorage("iCloudSyncEnabled")  private var iCloudSyncEnabled: Bool = false
+    @AppStorage("appearance")         private var appearance: String = "system"
 
     @Environment(\.modelContext) private var context
     @Query private var profiles: [UserProfile]
@@ -47,6 +48,15 @@ struct SettingsView: View {
                         }
                     }
                     .tint(LKColor.accent)
+                }
+
+                Section("Appearance") {
+                    Picker("Theme", selection: $appearance) {
+                        Text("System").tag("system")
+                        Text("Light").tag("light")
+                        Text("Dark").tag("dark")
+                    }
+                    .pickerStyle(.segmented)
                 }
 
                 Section("Feedback") {

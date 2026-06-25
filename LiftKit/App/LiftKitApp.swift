@@ -5,6 +5,15 @@ import UserNotifications
 @main
 struct LiftKitApp: App {
     @State private var vm = WorkoutViewModel()
+    @AppStorage("appearance") private var appearance = "system"
+
+    private var preferredScheme: ColorScheme? {
+        switch appearance {
+        case "light": return .light
+        case "dark":  return .dark
+        default:      return nil   // follow system
+        }
+    }
 
     init() {
         requestNotificationPermission()
@@ -54,7 +63,7 @@ struct LiftKitApp: App {
     var body: some Scene {
         WindowGroup {
             RootTabView(vm: vm)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(preferredScheme)
         }
         .modelContainer(sharedModelContainer)
     }
