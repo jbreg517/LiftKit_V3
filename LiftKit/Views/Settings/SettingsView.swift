@@ -5,7 +5,7 @@ import UIKit
 /// App version, bumped on every commit/push so the running build is
 /// identifiable in Settings. Increment by 0.01 each push.
 enum AppVersion {
-    static let current = "0.16"
+    static let current = "0.17"
 }
 
 struct SettingsView: View {
@@ -15,15 +15,35 @@ struct SettingsView: View {
     @AppStorage("hapticsEnabled")     private var hapticsEnabled: Bool = true
     @AppStorage("iCloudSyncEnabled")  private var iCloudSyncEnabled: Bool = false
     @AppStorage("appearance")         private var appearance: String = "system"
+    @AppStorage("workoutRemindersEnabled") private var remindersEnabled: Bool = true
+    @AppStorage("reminderHour")       private var reminderHour: Int = 8
 
     @Environment(\.modelContext) private var context
     @Query private var profiles: [UserProfile]
     @Query(sort: \WorkoutSession.startedAt) private var sessions: [WorkoutSession]
+    @Query private var schedules: [WorkoutSchedule]
 
     private var currentProfile: UserProfile? { profiles.first }
 
     private var buildString: String {
         Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
+    }
+
+    /// Re-applies (or clears) reminders for all future schedules when the toggle
+    /// or reminder time changes, so the change takes effect immediately.
+    private func refreshReminders() {
+        if remindersEnabled {
+            WorkoutReminders.reschedule(schedules.filter { !$0.isCompleted })
+        } else {
+            WorkoutReminders.cancelAll()
+        }
+    }
+
+    private func hourLabel(_ hour: Int) -> String {
+        var comps = DateComponents(); comps.hour = hour
+        let date = Calendar.current.date(from: comps) ?? Date()
+        let f = DateFormatter(); f.dateFormat = "h a"
+        return f.string(from: date)
     }
 
     @State private var showPrivacyPolicy = false
@@ -57,6 +77,25 @@ struct SettingsView: View {
                         Text("Dark").tag("dark")
                     }
                     .pickerStyle(.segmented)
+                }
+
+                Section {
+                    Toggle("Workout Reminders", isOn: $remindersEnabled)
+                        .tint(LKColor.accent)
+                        .onChange(of: remindersEnabled) { _, _ in refreshReminders() }
+                    if remindersEnabled {
+                        Picker("Reminder Time", selection: $reminderHour) {
+                            ForEach(5...21, id: \.self) { h in
+                                Text(hourLabel(h)).tag(h)
+                            }
+                        }
+                        .tint(LKColor.accent)
+                        .onChange(of: reminderHour) { _, _ in refreshReminders() }
+                    }
+                } header: {
+                    Text("Reminders")
+                } footer: {
+                    Text("Get a local notification on days you have a workout scheduled. Reminders stay on your device.")
                 }
 
                 Section("Feedback") {

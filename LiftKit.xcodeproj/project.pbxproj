@@ -28,6 +28,7 @@
 		A70000000000000000000018 /* WeightCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000018 /* WeightCache.swift */; };
 		A70000000000000000000036 /* ProgressionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000036 /* ProgressionService.swift */; };
 		A70000000000000000000038 /* RecommendedWorkouts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000038 /* RecommendedWorkouts.swift */; };
+		A70000000000000000000040 /* WorkoutReminders.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000040 /* WorkoutReminders.swift */; };
 		A70000000000000000000019 /* PRDetectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000019 /* PRDetectionService.swift */; };
 		A7000000000000000000001A /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6000000000000000000001A /* HapticManager.swift */; };
 		A7000000000000000000001B /* ScreenSleepManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6000000000000000000001B /* ScreenSleepManager.swift */; };
@@ -103,6 +104,7 @@
 		A60000000000000000000018 /* WeightCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightCache.swift; sourceTree = "<group>"; };
 		A60000000000000000000036 /* ProgressionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressionService.swift; sourceTree = "<group>"; };
 		A60000000000000000000038 /* RecommendedWorkouts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendedWorkouts.swift; sourceTree = "<group>"; };
+		A60000000000000000000040 /* WorkoutReminders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutReminders.swift; sourceTree = "<group>"; };
 		A60000000000000000000019 /* PRDetectionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRDetectionService.swift; sourceTree = "<group>"; };
 		A6000000000000000000001A /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
 		A6000000000000000000001B /* ScreenSleepManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenSleepManager.swift; sourceTree = "<group>"; };
@@ -243,6 +245,7 @@
 				A60000000000000000000018 /* WeightCache.swift */,
 				A60000000000000000000036 /* ProgressionService.swift */,
 				A60000000000000000000038 /* RecommendedWorkouts.swift */,
+				A60000000000000000000040 /* WorkoutReminders.swift */,
 				A60000000000000000000019 /* PRDetectionService.swift */,
 				A6000000000000000000001A /* HapticManager.swift */,
 				A6000000000000000000001B /* ScreenSleepManager.swift */,
@@ -510,6 +513,7 @@
 				A70000000000000000000018 /* WeightCache.swift in Sources */,
 				A70000000000000000000036 /* ProgressionService.swift in Sources */,
 				A70000000000000000000038 /* RecommendedWorkouts.swift in Sources */,
+				A70000000000000000000040 /* WorkoutReminders.swift in Sources */,
 				A70000000000000000000019 /* PRDetectionService.swift in Sources */,
 				A7000000000000000000001A /* HapticManager.swift in Sources */,
 				A7000000000000000000001B /* ScreenSleepManager.swift in Sources */,

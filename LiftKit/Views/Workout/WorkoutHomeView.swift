@@ -131,6 +131,7 @@ struct WorkoutHomeView: View {
     private func startScheduled(_ sched: WorkoutSchedule) {
         guard let template = sched.template else { return }
         sched.isCompleted = true
+        WorkoutReminders.cancel(sched)
         try? context.save()
         vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
         vm.markTemplateUsed(template, context: context)
@@ -138,6 +139,7 @@ struct WorkoutHomeView: View {
     }
 
     private func clearSchedule(_ sched: WorkoutSchedule) {
+        WorkoutReminders.cancel(sched)
         context.delete(sched)
         try? context.save()
     }
@@ -653,6 +655,7 @@ struct SeriesScheduleSheet: View {
             if weekdays.contains(cal.component(.weekday, from: current)) {
                 let sched = WorkoutSchedule(date: current, template: temps[i % temps.count])
                 context.insert(sched)
+                WorkoutReminders.schedule(sched)
                 i += 1
             }
             guard let next = cal.date(byAdding: .day, value: 1, to: current) else { break }
@@ -775,6 +778,7 @@ struct RecurringScheduleSheet: View {
             if selectedWeekdays.contains(cal.component(.weekday, from: current)) {
                 let sched = WorkoutSchedule(date: current, template: template)
                 context.insert(sched)
+                WorkoutReminders.schedule(sched)
             }
             guard let next = cal.date(byAdding: .day, value: 1, to: current) else { break }
             current = next
