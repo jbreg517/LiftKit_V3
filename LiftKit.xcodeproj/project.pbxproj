@@ -286,6 +286,7 @@
 				A5000000000000000000000A /* Workout */,
 				A5000000000000000000000B /* History */,
 				A5000000000000000000000C /* Progress */,
+				A50000000000000000000047 /* Health */,
 				A5000000000000000000000D /* Settings */,
 				A5000000000000000000000E /* Auth */,
 				A5000000000000000000000F /* Calendar */,
@@ -319,9 +320,16 @@
 			children = (
 				A60000000000000000000023 /* ProgressView.swift */,
 				A60000000000000000000042 /* BodyTrackingView.swift */,
-				A60000000000000000000046 /* HealthView.swift */,
 			);
 			path = Progress;
+			sourceTree = "<group>";
+		};
+		A50000000000000000000047 /* Health */ = {
+			isa = PBXGroup;
+			children = (
+				A60000000000000000000046 /* HealthView.swift */,
+			);
+			path = Health;
 			sourceTree = "<group>";
 		};
 		A5000000000000000000000D /* Settings */ = {
