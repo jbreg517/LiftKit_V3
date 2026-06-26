@@ -54,6 +54,24 @@ enum HealthCalculations {
         return MacroTargets(proteinG: protein, fatG: fat, carbG: carbCals / 4)
     }
 
+    // MARK: - Adaptive maintenance
+
+    /// Back-calculates real maintenance calories from logged intake vs. actual
+    /// weight change over a period (≈3500 kcal per pound). Because this is
+    /// empirical it already accounts for the user's true activity, unlike the
+    /// formula TDEE. Returns nil if the window is too short or inputs invalid.
+    ///
+    /// dailyBalance = ΔweightCals / days = avgIntake − maintenance
+    /// ⇒ maintenance = avgIntake − (ΔweightLb × 3500 / days)
+    static func adaptiveMaintenance(startWeightLb: Double, endWeightLb: Double,
+                                    days: Int, avgDailyIntake: Double) -> Double? {
+        guard days >= 14, avgDailyIntake > 0 else { return nil }
+        let changeCals = (endWeightLb - startWeightLb) * 3500.0
+        let dailyBalance = changeCals / Double(days)
+        let maintenance = avgDailyIntake - dailyBalance
+        return maintenance > 0 ? maintenance : nil
+    }
+
     // MARK: - Workout energy burn (MET method, no heart-rate data)
 
     /// Rough MET value per workout style.

@@ -65,6 +65,7 @@ struct HealthView: View {
         ScrollView {
             VStack(spacing: LKSpacing.lg) {
                 energySection
+                adaptiveSection
                 weightGoalSection
                 nutritionSection
                 burnSection
@@ -79,17 +80,19 @@ struct HealthView: View {
     private var energySection: some View {
         VStack(alignment: .leading, spacing: LKSpacing.sm) {
             sectionHeader("DAILY ENERGY")
-            if let bmr, let tdee, let goal = goalCalories {
+            if let bmr, let maintenance = effectiveMaintenance, let goal = goalCalories {
                 HStack(spacing: LKSpacing.sm) {
                     tile("BMR", "\(kcal(bmr))", "kcal", "bed.double.fill")
-                    tile("Maintain", "\(kcal(tdee))", "kcal", "flame.fill")
+                    tile("Maintain", "\(kcal(maintenance))", "kcal", "flame.fill")
                     tile("Target", "\(kcal(goal))", "kcal", "target")
                 }
                 .padding(.horizontal, LKSpacing.md)
-                Text("Rough estimate (Mifflin–St Jeor) from your weight, height, age, sex and activity. Target reflects your weight goal.")
-                    .font(LKFont.caption)
-                    .foregroundColor(LKColor.textMuted)
-                    .padding(.horizontal, LKSpacing.md)
+                if adaptiveInsight == nil {
+                    Text("Rough estimate (Mifflin–St Jeor) from your weight, height, age, sex and activity. Target reflects your weight goal.")
+                        .font(LKFont.caption)
+                        .foregroundColor(LKColor.textMuted)
+                        .padding(.horizontal, LKSpacing.md)
+                }
             } else {
                 setupPrompt
             }
@@ -112,6 +115,29 @@ struct HealthView: View {
         .background(LKColor.surface)
         .cornerRadius(LKRadius.large)
         .padding(.horizontal, LKSpacing.md)
+    }
+
+    // MARK: - Adaptive maintenance (from real data)
+    @ViewBuilder
+    private var adaptiveSection: some View {
+        if let a = adaptiveInsight {
+            HStack(alignment: .top, spacing: LKSpacing.sm) {
+                Image(systemName: "wand.and.stars")
+                    .foregroundColor(LKColor.accent)
+                Text("Calibrated from your data — \(a.loggedDays) logged days over \(a.days) days, weight \(changeText(a.weightChangeLb)). Your maintenance and target use this instead of the formula.")
+                    .font(LKFont.caption)
+                    .foregroundColor(LKColor.textMuted)
+                Spacer(minLength: 0)
+            }
+            .padding(LKSpacing.md)
+            .background(LKColor.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: LKRadius.large)
+                    .strokeBorder(LKColor.accent.opacity(0.4), lineWidth: 1)
+            )
+            .cornerRadius(LKRadius.large)
+            .padding(.horizontal, LKSpacing.md)
+        }
     }
 
     // MARK: - Weight + goal
@@ -438,9 +464,14 @@ struct HealthView: View {
         guard let bmr, let hp else { return nil }
         return HealthCalculations.tdee(bmr: bmr, activity: hp.activityLevel)
     }
+    /// Maintenance used for the target: the measured adaptive value when we have
+    /// enough data, otherwise the Mifflin–St Jeor formula estimate.
+    private var effectiveMaintenance: Double? {
+        adaptiveInsight?.maintenance ?? tdee
+    }
     private var goalCalories: Double? {
-        guard let tdee, let hp else { return nil }
-        return HealthCalculations.goalCalories(tdee: tdee, goal: hp.goalType, weeklyRateLb: hp.weeklyRateLb)
+        guard let maintenance = effectiveMaintenance, let hp else { return nil }
+        return HealthCalculations.goalCalories(tdee: maintenance, goal: hp.goalType, weeklyRateLb: hp.weeklyRateLb)
     }
     private var macroTargets: HealthCalculations.MacroTargets? {
         guard let goal = goalCalories, let w = latestWeightLb, let hp else { return nil }
@@ -461,6 +492,37 @@ struct HealthView: View {
     private func fmtRate(_ r: Double) -> String {
         (r == r.rounded() ? "\(Int(r))" : String(format: "%.2g", r)) + " lb"
     }
+
+    private struct AdaptiveInsight {
+        let maintenance: Double
+        let days: Int
+        let loggedDays: Int
+        let weightChangeLb: Double
+    }
+    /// Empirical maintenance from weigh-ins + logged intake over the last ~5 weeks.
+    private var adaptiveInsight: AdaptiveInsight? {
+        let cal = Calendar.current
+        let windowStart = cal.date(byAdding: .day, value: -35, to: Date()) ?? .distantPast
+        let weights = bodyMetrics
+            .filter { $0.type == .bodyweight && $0.date >= windowStart }
+            .sorted { $0.date < $1.date }
+        guard let first = weights.first, let last = weights.last else { return nil }
+        let days = cal.dateComponents([.day], from: first.date, to: last.date).day ?? 0
+        guard days >= 14 else { return nil }
+        let logs = nutritionDays.filter { !$0.isEmpty && $0.date >= first.date && $0.date <= last.date }
+        guard logs.count >= 10 else { return nil }
+        let avgIntake = logs.map(\.calories).reduce(0, +) / Double(logs.count)
+        guard let maint = HealthCalculations.adaptiveMaintenance(
+            startWeightLb: first.value, endWeightLb: last.value,
+            days: days, avgDailyIntake: avgIntake) else { return nil }
+        return AdaptiveInsight(maintenance: maint, days: days,
+                               loggedDays: logs.count, weightChangeLb: last.value - first.value)
+    }
+    private func changeText(_ lb: Double) -> String {
+        if abs(lb) < 0.5 { return "held steady" }
+        return (lb > 0 ? "up " : "down ") + String(format: "%.1f lb", abs(lb))
+    }
+
     private var todayLog: NutritionDay? {
         nutritionDays.first { Calendar.current.isDateInToday($0.date) }
     }

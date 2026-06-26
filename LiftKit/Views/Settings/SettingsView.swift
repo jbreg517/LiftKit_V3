@@ -5,7 +5,7 @@ import UIKit
 /// App version, bumped on every commit/push so the running build is
 /// identifiable in Settings. Increment by 0.01 each push.
 enum AppVersion {
-    static let current = "0.23"
+    static let current = "0.24"
 }
 
 struct SettingsView: View {
@@ -21,6 +21,7 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var context
     @Query private var profiles: [UserProfile]
     @Query(sort: \WorkoutSession.startedAt) private var sessions: [WorkoutSession]
+    @Query private var nutritionDays: [NutritionDay]
     @Query private var schedules: [WorkoutSchedule]
 
     private var currentProfile: UserProfile? { profiles.first }
@@ -121,6 +122,15 @@ struct SettingsView: View {
                         }
                     }
                     .foregroundColor(LKColor.accent)
+
+                    if !nutritionDays.isEmpty {
+                        Button("Export Nutrition Data (CSV)") {
+                            if let url = CSVExport.writeNutrition(days: nutritionDays) {
+                                exportFile = ExportFile(url: url)
+                            }
+                        }
+                        .foregroundColor(LKColor.accent)
+                    }
                 }
 
                 if let profile = currentProfile {
@@ -230,6 +240,32 @@ enum CSVExport {
         } catch {
             return nil
         }
+    }
+
+    static func writeNutrition(days: [NutritionDay]) -> URL? {
+        var rows = ["Date,Protein(g),Carbs(g),Fat(g),Alcohol(g),Calories"]
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        for d in days.filter({ !$0.isEmpty }).sorted(by: { $0.date < $1.date }) {
+            let cols: [String] = [
+                df.string(from: d.date),
+                num(d.proteinG), num(d.carbG), num(d.fatG), num(d.alcoholG),
+                String(Int(d.calories.rounded())),
+            ]
+            rows.append(cols.joined(separator: ","))
+        }
+        let csv = rows.joined(separator: "\n")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("LiftKit_nutrition.csv")
+        do {
+            try csv.write(to: url, atomically: true, encoding: .utf8)
+            return url
+        } catch {
+            return nil
+        }
+    }
+
+    private static func num(_ v: Double) -> String {
+        v == v.rounded() ? String(Int(v)) : String(format: "%.1f", v)
     }
 
     private static func esc(_ s: String) -> String {
