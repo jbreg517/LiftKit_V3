@@ -388,7 +388,7 @@ struct ActiveWorkoutView: View {
                 }
                 .padding(.horizontal, LKSpacing.md)
                 Button("Save") {
-                    if vm.saveAsTemplate(name: templateName, context: context) {
+                    if vm.saveAsTemplate(name: templateName, context: context) != nil {
                         showSaveTemplate = false
                         templateName = ""
                         templateError = ""

@@ -700,11 +700,12 @@ final class WorkoutViewModel {
 
     // MARK: - Templates
 
-    func saveAsTemplate(name: String, context: ModelContext) -> Bool {
+    @discardableResult
+    func saveAsTemplate(name: String, context: ModelContext) -> WorkoutTemplate? {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             templateNameError = "Name cannot be empty"
-            return false
+            return nil
         }
 
         // Check template limit
@@ -713,7 +714,7 @@ final class WorkoutViewModel {
         let isPremium = userProfile?.isPremium ?? false
         if !isPremium && count >= UserProfile.maxFreeTemplates {
             templateNameError = "Upgrade to premium for more templates"
-            return false
+            return nil
         }
 
         let template = WorkoutTemplate(name: trimmed)
@@ -754,7 +755,7 @@ final class WorkoutViewModel {
             }
         }
         try? context.save()
-        return true
+        return template
     }
 
     /// Overwrites the exercises (and name) of the template the setup was loaded

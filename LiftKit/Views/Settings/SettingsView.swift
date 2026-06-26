@@ -5,7 +5,7 @@ import UIKit
 /// App version, bumped on every commit/push so the running build is
 /// identifiable in Settings. Increment by 0.01 each push.
 enum AppVersion {
-    static let current = "0.25"
+    static let current = "0.26"
 }
 
 struct SettingsView: View {
@@ -49,6 +49,7 @@ struct SettingsView: View {
 
     @State private var showPrivacyPolicy = false
     @State private var showDisclaimer    = false
+    @State private var showTour          = false
     @State private var exportFile: ExportFile?
 
     var body: some View {
@@ -174,6 +175,11 @@ struct SettingsView: View {
                             .foregroundColor(LKColor.textSecondary)
                     }
 
+                    Button("App Tour") {
+                        showTour = true
+                    }
+                    .foregroundColor(LKColor.accent)
+
                     Button("Privacy Policy") {
                         showPrivacyPolicy = true
                     }
@@ -190,6 +196,7 @@ struct SettingsView: View {
             .background(LKColor.background.ignoresSafeArea())
             .sheet(isPresented: $showPrivacyPolicy) { PrivacyPolicyView() }
             .sheet(isPresented: $showDisclaimer)    { DisclaimerView() }
+            .sheet(isPresented: $showTour)          { TourView(onDone: { showTour = false }) }
             .sheet(item: $exportFile) { ShareSheet(items: [$0.url]) }
         }
     }

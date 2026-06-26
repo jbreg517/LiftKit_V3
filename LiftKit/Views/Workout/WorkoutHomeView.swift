@@ -686,40 +686,43 @@ struct RecurringScheduleSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
 
-    @State private var selectedWeekdays: Set<Int> = []
+    @State private var weekdays: Set<Int> = []
     @State private var startDate = Date()
     @State private var endDate = Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date()
 
     private let cal = Calendar.current
-    // weekday 1=Sun … 7=Sat, labels align to that
     private let weekdayLabels = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+
+    private var occurrenceCount: Int {
+        guard !weekdays.isEmpty else { return 0 }
+        var count = 0
+        var current = cal.startOfDay(for: startDate)
+        let end = cal.startOfDay(for: endDate)
+        while current <= end {
+            if weekdays.contains(cal.component(.weekday, from: current)) { count += 1 }
+            guard let next = cal.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+        return count
+    }
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: LKSpacing.lg) {
-
-                // Day toggles
-                VStack(alignment: .leading, spacing: LKSpacing.sm) {
-                    Text("REPEAT ON")
-                        .font(LKFont.caption)
-                        .foregroundColor(LKColor.textMuted)
-                        .tracking(1.5)
-
+            Form {
+                Section("Repeat On") {
                     HStack(spacing: LKSpacing.xs) {
-                        ForEach(1...7, id: \.self) { weekday in
-                            let label    = weekdayLabels[weekday - 1]
-                            let selected = selectedWeekdays.contains(weekday)
+                        ForEach(1...7, id: \.self) { wd in
+                            let on = weekdays.contains(wd)
                             Button {
-                                if selected { selectedWeekdays.remove(weekday) }
-                                else        { selectedWeekdays.insert(weekday) }
+                                if on { weekdays.remove(wd) } else { weekdays.insert(wd) }
                                 HapticManager.shared.buttonTap()
                             } label: {
-                                Text(label)
+                                Text(weekdayLabels[wd - 1])
                                     .font(.system(size: 13, weight: .semibold))
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, LKSpacing.sm)
-                                    .background(selected ? LKColor.accent : LKColor.surfaceElevated)
-                                    .foregroundColor(selected ? .black : LKColor.textSecondary)
+                                    .background(on ? LKColor.accent : LKColor.surfaceElevated)
+                                    .foregroundColor(on ? .black : LKColor.textSecondary)
                                     .cornerRadius(LKRadius.small)
                             }
                             .buttonStyle(.plain)
@@ -727,68 +730,46 @@ struct RecurringScheduleSheet: View {
                     }
                 }
 
-                // Date range
-                VStack(spacing: 0) {
-                    DatePicker("Start", selection: $startDate, displayedComponents: .date)
-                        .tint(LKColor.accent)
-                        .padding(.vertical, LKSpacing.sm)
-                    Divider()
-                    DatePicker("End", selection: $endDate, in: startDate..., displayedComponents: .date)
-                        .tint(LKColor.accent)
-                        .padding(.vertical, LKSpacing.sm)
+                Section("Range") {
+                    DatePicker("Start", selection: $startDate, displayedComponents: .date).tint(LKColor.accent)
+                    DatePicker("End", selection: $endDate, in: startDate..., displayedComponents: .date).tint(LKColor.accent)
                 }
-                .padding(.horizontal, LKSpacing.md)
-                .background(LKColor.surface)
-                .cornerRadius(LKRadius.large)
 
-                // Count hint
-                let count = occurrenceCount
-                Text(
-                    selectedWeekdays.isEmpty ? "Select days above" :
-                    count == 0              ? "No occurrences in this range" :
-                    "\(count) workout\(count == 1 ? "" : "s") will be scheduled"
-                )
-                .font(LKFont.caption)
-                .foregroundColor(LKColor.textMuted)
-
-                Button("Schedule") { createSchedules() }
-                    .buttonStyle(LKPrimaryButtonStyle())
-                    .disabled(count == 0)
-
-                Spacer()
+                Section {
+                    Text(scheduleSummary)
+                        .font(LKFont.caption)
+                        .foregroundColor(LKColor.textMuted)
+                }
             }
-            .padding(LKSpacing.md)
+            .scrollContentBackground(.hidden)
             .background(LKColor.background.ignoresSafeArea())
-            .navigationTitle(template.name)
+            .navigationTitle("Schedule \(template.name)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                        .foregroundColor(LKColor.textSecondary)
+                    Button("Cancel") { dismiss() }.foregroundColor(LKColor.textSecondary)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Schedule") { createSchedules() }
+                        .bold()
+                        .disabled(weekdays.isEmpty || occurrenceCount == 0)
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.large])
     }
 
-    private var occurrenceCount: Int {
-        guard !selectedWeekdays.isEmpty else { return 0 }
-        var count = 0
-        var current = cal.startOfDay(for: startDate)
-        let end = cal.startOfDay(for: endDate)
-        while current <= end {
-            if selectedWeekdays.contains(cal.component(.weekday, from: current)) { count += 1 }
-            guard let next = cal.date(byAdding: .day, value: 1, to: current) else { break }
-            current = next
-        }
-        return count
+    private var scheduleSummary: String {
+        if weekdays.isEmpty { return "Select the days to repeat on." }
+        if occurrenceCount == 0 { return "No occurrences in this range." }
+        return "\(occurrenceCount) session\(occurrenceCount == 1 ? "" : "s") of \(template.name) will be scheduled."
     }
 
     private func createSchedules() {
         var current = cal.startOfDay(for: startDate)
         let end = cal.startOfDay(for: endDate)
         while current <= end {
-            if selectedWeekdays.contains(cal.component(.weekday, from: current)) {
+            if weekdays.contains(cal.component(.weekday, from: current)) {
                 let sched = WorkoutSchedule(date: current, template: template)
                 context.insert(sched)
                 WorkoutReminders.schedule(sched)

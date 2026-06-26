@@ -13,6 +13,7 @@ struct WorkoutSetupView: View {
     @State private var notesExpanded = false
     @State private var didApplyProgression = false
     @State private var infoAlert: String?
+    @State private var scheduleTemplate: WorkoutTemplate?
 
     let type: TimerType
 
@@ -25,6 +26,7 @@ struct WorkoutSetupView: View {
                 notesSection
                 startButton
                 saveButtons
+                scheduleButton
             }
             .padding(LKSpacing.md)
         }
@@ -48,6 +50,7 @@ struct WorkoutSetupView: View {
                 .presentationDetents([.height(280)])
         }
         .sheet(isPresented: $showSaveTemplate) { saveTemplateSheet }
+        .sheet(item: $scheduleTemplate) { RecurringScheduleSheet(template: $0) }
         .alert(infoAlert ?? "", isPresented: Binding(get: { infoAlert != nil }, set: { if !$0 { infoAlert = nil } })) {
             Button("OK", role: .cancel) {}
         }
@@ -65,7 +68,7 @@ struct WorkoutSetupView: View {
             return
         }
         vm.selectedTimerType = type
-        if vm.saveAsTemplate(name: name, context: context) {
+        if vm.saveAsTemplate(name: name, context: context) != nil {
             infoAlert = "Saved \u{201C}\(name)\u{201D} as a template."
         } else {
             infoAlert = vm.templateNameError
@@ -105,6 +108,40 @@ struct WorkoutSetupView: View {
                 Label("Save as Template", systemImage: "square.and.arrow.down")
             }
             .buttonStyle(LKSecondaryButtonStyle())
+        }
+    }
+
+    // MARK: - Schedule button
+
+    private var scheduleButton: some View {
+        Button {
+            scheduleWorkout()
+        } label: {
+            Label("Schedule", systemImage: "calendar")
+        }
+        .buttonStyle(LKSecondaryButtonStyle())
+    }
+
+    /// Persists the current workout as a template first — updating the one being
+    /// edited, or saving a new one — so the schedule has something to point at,
+    /// then opens the recurring scheduler.
+    private func scheduleWorkout() {
+        HapticManager.shared.buttonTap()
+        vm.selectedTimerType = type
+        if vm.editingTemplate != nil {
+            vm.updateTemplate(context: context)
+            scheduleTemplate = vm.editingTemplate
+            return
+        }
+        let name = vm.workoutName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            infoAlert = "Name your workout above before scheduling it."
+            return
+        }
+        if let t = vm.saveAsTemplate(name: name, context: context) {
+            scheduleTemplate = t
+        } else {
+            infoAlert = vm.templateNameError
         }
     }
 
@@ -513,7 +550,7 @@ struct WorkoutSetupView: View {
 
                 Button("Save") {
                     vm.selectedTimerType = type
-                    if vm.saveAsTemplate(name: templateName, context: context) {
+                    if vm.saveAsTemplate(name: templateName, context: context) != nil {
                         showSaveTemplate = false; templateName = ""; templateError = ""
                     } else {
                         templateError = vm.templateNameError

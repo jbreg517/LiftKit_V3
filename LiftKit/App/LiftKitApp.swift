@@ -125,8 +125,17 @@ struct RootTabView: View {
 // MARK: - First-run onboarding
 struct OnboardingView: View {
     let onDone: () -> Void
+    @State private var showTour = false
 
     var body: some View {
+        if showTour {
+            TourView(onDone: onDone)
+        } else {
+            welcome
+        }
+    }
+
+    private var welcome: some View {
         ZStack {
             LKColor.background.ignoresSafeArea()
             VStack(spacing: LKSpacing.lg) {
@@ -146,9 +155,17 @@ struct OnboardingView: View {
                 .padding(.horizontal, LKSpacing.lg)
 
                 Spacer()
-                Button { onDone() } label: { Text("Get Started") }
-                    .buttonStyle(LKPrimaryButtonStyle())
-                    .padding(.horizontal, LKSpacing.lg)
+                VStack(spacing: LKSpacing.sm) {
+                    Button {
+                        HapticManager.shared.buttonTap()
+                        showTour = true
+                    } label: { Text("Take a Quick Tour") }
+                        .buttonStyle(LKPrimaryButtonStyle())
+                    Button("Skip for now") { onDone() }
+                        .font(LKFont.bodyBold)
+                        .foregroundColor(LKColor.textSecondary)
+                }
+                .padding(.horizontal, LKSpacing.lg)
                 Text("LiftKit is a tracking tool, not medical advice. Consult a professional before starting any exercise program.")
                     .font(LKFont.caption)
                     .foregroundColor(LKColor.textMuted)
@@ -173,6 +190,84 @@ struct OnboardingView: View {
                     .font(LKFont.caption)
                     .foregroundColor(LKColor.textSecondary)
             }
+            Spacer()
+        }
+    }
+}
+
+// MARK: - Guided tour
+struct TourView: View {
+    let onDone: () -> Void
+    @State private var page = 0
+
+    private struct TourPage {
+        let icon: String
+        let title: String
+        let body: String
+    }
+
+    private let pages: [TourPage] = [
+        TourPage(icon: "timer",
+                 title: "Workout Types",
+                 body: "Pick the timer that fits your session: Reps for lifting, plus AMRAP, EMOM, For Time, Intervals (like Tabata), or a free Manual count-up."),
+        TourPage(icon: "square.and.arrow.down",
+                 title: "Save Templates",
+                 body: "Build a workout once, tap Save as Template, and it’s ready to start again any time from your plans."),
+        TourPage(icon: "calendar",
+                 title: "Schedule Workouts",
+                 body: "Schedule a plan on the days you train — or alternate several in a series. Today’s workout appears on your home screen, with a reminder so you don’t forget."),
+        TourPage(icon: "chart.line.uptrend.xyaxis",
+                 title: "Track & Grow",
+                 body: "Timers log every set. Your lifts auto-progress when you hit all your reps, and your history, PRs and charts show how you’re improving over time."),
+    ]
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            LKColor.background.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                TabView(selection: $page) {
+                    ForEach(pages.indices, id: \.self) { i in
+                        tourPage(pages[i]).tag(i)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .always))
+
+                Button(page == pages.count - 1 ? "Done" : "Next") {
+                    HapticManager.shared.buttonTap()
+                    if page == pages.count - 1 {
+                        onDone()
+                    } else {
+                        withAnimation { page += 1 }
+                    }
+                }
+                .buttonStyle(LKPrimaryButtonStyle())
+                .padding(.horizontal, LKSpacing.lg)
+                .padding(.bottom, LKSpacing.lg)
+            }
+
+            Button("Skip") { onDone() }
+                .font(LKFont.bodyBold)
+                .foregroundColor(LKColor.textSecondary)
+                .padding(LKSpacing.md)
+        }
+    }
+
+    private func tourPage(_ p: TourPage) -> some View {
+        VStack(spacing: LKSpacing.lg) {
+            Spacer()
+            Image(systemName: p.icon)
+                .font(.system(size: 64))
+                .foregroundColor(LKColor.accent)
+            Text(p.title)
+                .font(LKFont.title)
+                .foregroundColor(LKColor.textPrimary)
+            Text(p.body)
+                .font(LKFont.body)
+                .foregroundColor(LKColor.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, LKSpacing.xl)
+            Spacer()
             Spacer()
         }
     }
