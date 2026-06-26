@@ -67,6 +67,7 @@ struct HealthView: View {
                 energySection
                 adaptiveSection
                 weightGoalSection
+                targetNudgeSection
                 nutritionSection
                 burnSection
                 trendsSection
@@ -128,6 +129,38 @@ struct HealthView: View {
                     .font(LKFont.caption)
                     .foregroundColor(LKColor.textMuted)
                 Spacer(minLength: 0)
+            }
+            .padding(LKSpacing.md)
+            .background(LKColor.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: LKRadius.large)
+                    .strokeBorder(LKColor.accent.opacity(0.4), lineWidth: 1)
+            )
+            .cornerRadius(LKRadius.large)
+            .padding(.horizontal, LKSpacing.md)
+        }
+    }
+
+    // MARK: - Off-target nudge
+    @ViewBuilder
+    private var targetNudgeSection: some View {
+        if let n = targetNudge {
+            VStack(alignment: .leading, spacing: LKSpacing.sm) {
+                HStack(alignment: .top, spacing: LKSpacing.sm) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(LKColor.accent)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(nudgeTitle(n))
+                            .font(LKFont.bodyBold)
+                            .foregroundColor(LKColor.textPrimary)
+                        Text(nudgeMessage(n))
+                            .font(LKFont.caption)
+                            .foregroundColor(LKColor.textSecondary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                Button("Adjust Goal") { showGoals = true }
+                    .buttonStyle(LKSecondaryButtonStyle())
             }
             .padding(LKSpacing.md)
             .background(LKColor.surface)
@@ -521,6 +554,68 @@ struct HealthView: View {
     private func changeText(_ lb: Double) -> String {
         if abs(lb) < 0.5 { return "held steady" }
         return (lb > 0 ? "up " : "down ") + String(format: "%.1f lb", abs(lb))
+    }
+
+    private enum NudgeKind { case adherence, retarget }
+    private struct TargetNudge {
+        let kind: NudgeKind
+        let actualRate: Double      // signed lb/week
+        let intendedRate: Double    // signed lb/week
+        let avgIntake: Double?
+        let goal: Double
+        let suggestedTarget: Double
+        let dailyDelta: Double      // signed kcal/day
+    }
+    /// Flags when the real weekly weight trend diverges from the goal rate by
+    /// enough to matter (≈0.3 lb/wk). Distinguishes an adherence gap (eating far
+    /// from target) from a target that itself needs tweaking.
+    private var targetNudge: TargetNudge? {
+        guard let hp, hp.goalType != .maintain, let goal = goalCalories else { return nil }
+        let cal = Calendar.current
+        let windowStart = cal.date(byAdding: .day, value: -28, to: Date()) ?? .distantPast
+        let weights = bodyMetrics
+            .filter { $0.type == .bodyweight && $0.date >= windowStart }
+            .sorted { $0.date < $1.date }
+        guard weights.count >= 3, let first = weights.first, let last = weights.last else { return nil }
+        let days = cal.dateComponents([.day], from: first.date, to: last.date).day ?? 0
+        guard days >= 14 else { return nil }
+        let weeks = Double(days) / 7.0
+        let actualRate = (last.value - first.value) / weeks
+        let intendedRate = hp.goalType == .lose ? -hp.weeklyRateLb : hp.weeklyRateLb
+        let dailyDelta = (intendedRate - actualRate) * 500.0
+        guard abs(dailyDelta) >= 150 else { return nil }
+
+        let logs = nutritionDays.filter { !$0.isEmpty && $0.date >= first.date && $0.date <= last.date }
+        let avgIntake: Double? = logs.count >= 7 ? logs.map(\.calories).reduce(0, +) / Double(logs.count) : nil
+
+        // Logging but eating well off target → adherence, not a target problem.
+        if let avg = avgIntake, abs(avg - goal) >= 150 {
+            return TargetNudge(kind: .adherence, actualRate: actualRate, intendedRate: intendedRate,
+                               avgIntake: avg, goal: goal, suggestedTarget: goal, dailyDelta: dailyDelta)
+        }
+        return TargetNudge(kind: .retarget, actualRate: actualRate, intendedRate: intendedRate,
+                           avgIntake: avgIntake, goal: goal,
+                           suggestedTarget: max(1200, goal + dailyDelta), dailyDelta: dailyDelta)
+    }
+    private func trendPhrase(_ r: Double) -> String {
+        if abs(r) < 0.05 { return "flat" }
+        return (r < 0 ? "down " : "up ") + String(format: "%.1f lb", abs(r))
+    }
+    private func nudgeTitle(_ n: TargetNudge) -> String {
+        switch n.kind {
+        case .adherence: return "You’re off your target"
+        case .retarget:  return "Your target may be off"
+        }
+    }
+    private func nudgeMessage(_ n: TargetNudge) -> String {
+        switch n.kind {
+        case .adherence:
+            let avg = n.avgIntake.map { kcal($0) } ?? "—"
+            let side = (n.avgIntake ?? 0) > n.goal ? "above" : "below"
+            return "You’re averaging \(avg) kcal/day, \(side) your \(kcal(n.goal)) target — weight is trending \(trendPhrase(n.actualRate))/wk vs your \(trendPhrase(n.intendedRate))/wk goal. Eating closer to your target should get you on track."
+        case .retarget:
+            return "Your weight is trending \(trendPhrase(n.actualRate))/wk, but your goal is \(trendPhrase(n.intendedRate))/wk. Try about \(kcal(n.suggestedTarget)) kcal/day (≈\(Int(abs(n.dailyDelta).rounded())) \(n.dailyDelta < 0 ? "fewer" : "more")) to get back on track."
+        }
     }
 
     private var todayLog: NutritionDay? {
