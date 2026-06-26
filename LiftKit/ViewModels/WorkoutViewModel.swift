@@ -10,7 +10,7 @@ struct SessionCard: Identifiable {
     var name: String = ""
     var equipment: Equipment = .none
     var weight: Double = 0
-    var weightUnit: WeightUnit = .lb
+    var weightUnit: WeightUnit = UnitSystem.current.weightUnit
     var reps: Int = 10
 }
 
@@ -22,7 +22,7 @@ struct ExerciseCard: Identifiable {
     var name: String = ""
     var equipment: Equipment = .none
     var weight: Double = 0
-    var weightUnit: WeightUnit = .lb
+    var weightUnit: WeightUnit = UnitSystem.current.weightUnit
     var sets: Int = 3
     var reps: Int = 10
     /// Track hold time (e.g. planks) instead of reps.

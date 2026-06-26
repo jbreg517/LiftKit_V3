@@ -74,7 +74,7 @@ enum WorkoutRecommender {
             if !hits.isEmpty {
                 score += Double(min(hits.count, 3)) * 2
                 if reason == nil, let m = hits.min(by: { $0.rawValue < $1.rawValue }) {
-                    reason = "Targets your under-trained \(m.label.lowercased())"
+                    reason = "Rounds out your week with \(m.label.lowercased())"
                 }
             }
 

@@ -74,4 +74,28 @@ enum BodyMetricType: String, CaseIterable, Identifiable {
         default:               return false
         }
     }
+
+    // Values are stored canonically (bodyweight in lb, lengths in inches).
+    // These convert to/from the user's chosen unit system for display & entry.
+    func unitLabel(_ system: UnitSystem) -> String {
+        switch self {
+        case .bodyweight: return system.weightLabel
+        case .bodyFat:    return "%"
+        default:          return system.lengthLabel
+        }
+    }
+    func toDisplay(_ value: Double, _ system: UnitSystem) -> Double {
+        switch self {
+        case .bodyweight: return system.weightFromLb(value)
+        case .bodyFat:    return value
+        default:          return system.lengthFromInches(value)
+        }
+    }
+    func fromDisplay(_ value: Double, _ system: UnitSystem) -> Double {
+        switch self {
+        case .bodyweight: return system.weightToLb(value)
+        case .bodyFat:    return value
+        default:          return system.lengthToInches(value)
+        }
+    }
 }

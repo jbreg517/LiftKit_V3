@@ -20,9 +20,12 @@ struct HealthView: View {
     @State private var showWeightAdd = false
     @State private var showNutritionAdd = false
     @State private var showLogin = false
+    @State private var showClearHealth = false
+    @AppStorage("unitSystem") private var unitSystemRaw = "imperial"
 
     private var isPremium: Bool { userProfiles.first?.isPremium ?? false }
     private var hp: HealthProfile? { healthProfiles.first }
+    private var units: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .imperial }
 
     var body: some View {
         NavigationStack {
@@ -57,6 +60,12 @@ struct HealthView: View {
                 NutritionQuickAddSheet { p, c, f, a in addMacros(p: p, c: c, f: f, a: a) }
             }
             .sheet(isPresented: $showLogin) { LoginView(vm: vm) }
+            .alert("Delete health data?", isPresented: $showClearHealth) {
+                Button("Delete", role: .destructive) { clearHealthData() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This removes your bodyweight, measurements, nutrition logs and health profile. Your workouts aren’t affected.")
+            }
         }
     }
 
@@ -72,6 +81,7 @@ struct HealthView: View {
                 burnSection
                 trendsSection
                 measurementsLink
+                clearHealthButton
             }
             .padding(.vertical, LKSpacing.md)
         }
@@ -180,7 +190,7 @@ struct HealthView: View {
             HStack(spacing: LKSpacing.md) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Current").font(LKFont.caption).foregroundColor(LKColor.textMuted)
-                    Text(latestWeightLb.map { "\(Int($0.rounded())) lb" } ?? "—")
+                    Text(latestWeightLb.map { "\(Int(units.weightFromLb($0).rounded())) \(units.weightLabel)" } ?? "—")
                         .font(.system(size: 26, weight: .bold, design: .rounded))
                         .foregroundColor(LKColor.textPrimary)
                 }
@@ -188,7 +198,7 @@ struct HealthView: View {
                     Image(systemName: "arrow.right").foregroundColor(LKColor.textMuted)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Goal").font(LKFont.caption).foregroundColor(LKColor.textMuted)
-                        Text("\(Int(hp.goalWeightLb.rounded())) lb")
+                        Text("\(Int(units.weightFromLb(hp.goalWeightLb).rounded())) \(units.weightLabel)")
                             .font(.system(size: 26, weight: .bold, design: .rounded))
                             .foregroundColor(LKColor.accent)
                     }
@@ -354,12 +364,12 @@ struct HealthView: View {
             } else {
                 Chart {
                     ForEach(data) { m in
-                        PointMark(x: .value("Date", m.date), y: .value("lb", m.value))
+                        PointMark(x: .value("Date", m.date), y: .value(units.weightLabel, units.weightFromLb(m.value)))
                             .foregroundStyle(LKColor.textMuted.opacity(0.5))
                             .symbolSize(18)
                     }
                     ForEach(smooth) { p in
-                        LineMark(x: .value("Date", p.date), y: .value("Trend", p.value))
+                        LineMark(x: .value("Date", p.date), y: .value("Trend", units.weightFromLb(p.value)))
                             .foregroundStyle(LKColor.accent)
                             .interpolationMethod(.catmullRom)
                     }
@@ -409,6 +419,26 @@ struct HealthView: View {
             .padding(.horizontal, LKSpacing.md)
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: - Delete health data
+    private var clearHealthButton: some View {
+        Button { showClearHealth = true } label: {
+            Label("Delete Health Data", systemImage: "trash")
+                .font(LKFont.bodyBold)
+                .foregroundColor(LKColor.danger)
+                .frame(maxWidth: .infinity)
+                .padding(LKSpacing.md)
+                .background(LKColor.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: LKRadius.large)
+                        .strokeBorder(LKColor.danger.opacity(0.4), lineWidth: 1)
+                )
+                .cornerRadius(LKRadius.large)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, LKSpacing.md)
+        .padding(.top, LKSpacing.sm)
     }
 
     // MARK: - Locked (non-premium)
@@ -523,7 +553,8 @@ struct HealthView: View {
         return "Est. goal: \(f.string(from: date)) · ~\(Int(weeks.rounded())) wk at \(fmtRate(hp.weeklyRateLb))/wk"
     }
     private func fmtRate(_ r: Double) -> String {
-        (r == r.rounded() ? "\(Int(r))" : String(format: "%.2g", r)) + " lb"
+        let v = units.weightFromLb(r)
+        return (v == v.rounded() ? "\(Int(v))" : String(format: "%.2g", v)) + " \(units.weightLabel)"
     }
 
     private struct AdaptiveInsight {
@@ -553,7 +584,7 @@ struct HealthView: View {
     }
     private func changeText(_ lb: Double) -> String {
         if abs(lb) < 0.5 { return "held steady" }
-        return (lb > 0 ? "up " : "down ") + String(format: "%.1f lb", abs(lb))
+        return (lb > 0 ? "up " : "down ") + String(format: "%.1f \(units.weightLabel)", units.weightFromLb(abs(lb)))
     }
 
     private enum NudgeKind { case adherence, retarget }
@@ -599,7 +630,7 @@ struct HealthView: View {
     }
     private func trendPhrase(_ r: Double) -> String {
         if abs(r) < 0.05 { return "flat" }
-        return (r < 0 ? "down " : "up ") + String(format: "%.1f lb", abs(r))
+        return (r < 0 ? "down " : "up ") + String(format: "%.1f \(units.weightLabel)", units.weightFromLb(abs(r)))
     }
     private func nudgeTitle(_ n: TargetNudge) -> String {
         switch n.kind {
@@ -684,6 +715,13 @@ struct HealthView: View {
         if let day = todayLog { context.delete(day); try? context.save() }
     }
 
+    private func clearHealthData() {
+        try? context.delete(model: BodyMetric.self)
+        try? context.delete(model: NutritionDay.self)
+        try? context.delete(model: HealthProfile.self)
+        try? context.save()
+    }
+
     private func kcal(_ v: Double) -> String { "\(Int(v.rounded()))" }
 }
 
@@ -756,6 +794,7 @@ struct HealthGoalsSheet: View {
 
     @State private var heightFeet = 5
     @State private var heightInches = 8
+    @State private var heightCm = 170
     @State private var age = 30
     @State private var sex: BiologicalSex = .unspecified
     @State private var activity: ActivityLevel = .moderate
@@ -765,15 +804,27 @@ struct HealthGoalsSheet: View {
     @State private var proteinPerLb: Double = 0.8
     @State private var fatPercent: Double = 0.30
     @State private var loaded = false
+    @AppStorage("unitSystem") private var unitSystemRaw = "imperial"
+    private var units: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .imperial }
 
     private let rates: [Double] = [0.25, 0.5, 1.0, 1.5, 2.0]
+
+    private func rateLabel(_ lb: Double) -> String {
+        let v = units.weightFromLb(lb)
+        let num = v == v.rounded() ? "\(Int(v))" : String(format: "%.2g", v)
+        return "\(num) \(units.weightLabel)/wk"
+    }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Height") {
-                    Stepper("\(heightFeet) ft", value: $heightFeet, in: 3...8)
-                    Stepper("\(heightInches) in", value: $heightInches, in: 0...11)
+                    if units == .metric {
+                        Stepper("\(heightCm) cm", value: $heightCm, in: 120...230)
+                    } else {
+                        Stepper("\(heightFeet) ft", value: $heightFeet, in: 3...8)
+                        Stepper("\(heightInches) in", value: $heightInches, in: 0...11)
+                    }
                 }
                 Section("About You") {
                     Stepper("Age: \(age)", value: $age, in: 13...100)
@@ -798,7 +849,7 @@ struct HealthGoalsSheet: View {
                     if goal != .maintain {
                         Picker("Rate", selection: $rate) {
                             ForEach(rates, id: \.self) { r in
-                                Text(r == r.rounded() ? "\(Int(r)) lb/wk" : String(format: "%.2g lb/wk", r)).tag(r)
+                                Text(rateLabel(r)).tag(r)
                             }
                         }
                     }
@@ -809,7 +860,7 @@ struct HealthGoalsSheet: View {
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                             .frame(width: 90)
-                        Text("lb").foregroundColor(LKColor.textMuted)
+                        Text(units.weightLabel).foregroundColor(LKColor.textMuted)
                     }
                 }
                 Section {
@@ -852,13 +903,14 @@ struct HealthGoalsSheet: View {
         if p.heightInches > 0 {
             heightFeet = Int(p.heightInches) / 12
             heightInches = Int(p.heightInches) % 12
+            heightCm = Int((p.heightInches * 2.54).rounded())
         }
         if p.age > 0 { age = p.age }
         sex = p.biologicalSex
         activity = p.activityLevel
         goal = p.goalType
         rate = p.weeklyRateLb
-        if p.goalWeightLb > 0 { goalWeight = String(Int(p.goalWeightLb)) }
+        if p.goalWeightLb > 0 { goalWeight = String(Int(units.weightFromLb(p.goalWeightLb).rounded())) }
         if p.proteinPerLb > 0 { proteinPerLb = p.proteinPerLb }
         if p.fatPercent > 0 { fatPercent = p.fatPercent }
     }
@@ -871,13 +923,14 @@ struct HealthGoalsSheet: View {
             p = HealthProfile()
             context.insert(p)
         }
-        p.heightInches = Double(heightFeet * 12 + heightInches)
+        p.heightInches = units == .metric ? Double(heightCm) / 2.54 : Double(heightFeet * 12 + heightInches)
         p.age = age
         p.biologicalSex = sex
         p.activityLevel = activity
         p.goalType = goal
         p.weeklyRateLb = rate
-        p.goalWeightLb = Double(goalWeight.trimmingCharacters(in: .whitespaces)) ?? 0
+        let goalDisplay = Double(goalWeight.trimmingCharacters(in: .whitespaces)) ?? 0
+        p.goalWeightLb = goalDisplay > 0 ? units.weightToLb(goalDisplay) : 0
         p.proteinPerLb = proteinPerLb
         p.fatPercent = fatPercent
         try? context.save()

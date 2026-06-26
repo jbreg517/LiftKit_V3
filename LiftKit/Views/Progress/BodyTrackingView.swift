@@ -10,6 +10,8 @@ struct BodyTrackingView: View {
 
     @State private var selectedType: BodyMetricType = .bodyweight
     @State private var showAdd = false
+    @AppStorage("unitSystem") private var unitSystemRaw = "imperial"
+    private var units: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .imperial }
 
     private var entries: [BodyMetric] {
         metrics.filter { $0.type == selectedType }.sorted { $0.date < $1.date }
@@ -75,16 +77,16 @@ struct BodyTrackingView: View {
         let latest = entries.last
         let first = entries.first
         let delta: Double? = (latest != nil && first != nil && latest!.id != first!.id)
-            ? latest!.value - first!.value : nil
+            ? selectedType.toDisplay(latest!.value, units) - selectedType.toDisplay(first!.value, units) : nil
         return VStack(alignment: .leading, spacing: LKSpacing.xs) {
             Text("Current")
                 .font(LKFont.caption)
                 .foregroundColor(LKColor.textMuted)
             HStack(alignment: .firstTextBaseline, spacing: LKSpacing.sm) {
-                Text(latest.map { fmt($0.value) } ?? "—")
+                Text(latest.map { fmt(selectedType.toDisplay($0.value, units)) } ?? "—")
                     .font(.system(size: 34, weight: .bold, design: .rounded))
                     .foregroundColor(LKColor.textPrimary)
-                Text(selectedType.unit)
+                Text(selectedType.unitLabel(units))
                     .font(LKFont.body)
                     .foregroundColor(LKColor.textMuted)
                 Spacer()
@@ -106,7 +108,7 @@ struct BodyTrackingView: View {
         let arrow = delta > 0 ? "arrow.up" : (delta < 0 ? "arrow.down" : "minus")
         return HStack(spacing: 2) {
             Image(systemName: arrow).font(.caption2)
-            Text("\(fmt(abs(delta))) \(selectedType.unit)")
+            Text("\(fmt(abs(delta))) \(selectedType.unitLabel(units))")
                 .font(LKFont.caption)
         }
         .foregroundColor(color)
@@ -127,18 +129,18 @@ struct BodyTrackingView: View {
                     ForEach(entries) { m in
                         LineMark(
                             x: .value("Date", m.date),
-                            y: .value(selectedType.label, m.value)
+                            y: .value(selectedType.label, selectedType.toDisplay(m.value, units))
                         )
                         .foregroundStyle(LKColor.accent)
                         .interpolationMethod(.catmullRom)
                         PointMark(
                             x: .value("Date", m.date),
-                            y: .value(selectedType.label, m.value)
+                            y: .value(selectedType.label, selectedType.toDisplay(m.value, units))
                         )
                         .foregroundStyle(LKColor.accent)
                     }
                 }
-                .chartYAxisLabel("\(selectedType.label) (\(selectedType.unit))")
+                .chartYAxisLabel("\(selectedType.label) (\(selectedType.unitLabel(units)))")
                 .frame(height: 220)
                 .padding(.horizontal, LKSpacing.md)
             }
@@ -165,7 +167,7 @@ struct BodyTrackingView: View {
                             .font(LKFont.body)
                             .foregroundColor(LKColor.textSecondary)
                         Spacer()
-                        Text("\(fmt(m.value)) \(selectedType.unit)")
+                        Text("\(fmt(selectedType.toDisplay(m.value, units))) \(selectedType.unitLabel(units))")
                             .font(LKFont.bodyBold)
                             .foregroundColor(LKColor.textPrimary)
                     }
@@ -200,6 +202,8 @@ struct AddBodyMetricSheet: View {
     @State private var type: BodyMetricType
     @State private var date = Date()
     @State private var valueText = ""
+    @AppStorage("unitSystem") private var unitSystemRaw = "imperial"
+    private var units: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .imperial }
 
     init(defaultType: BodyMetricType) {
         self.defaultType = defaultType
@@ -222,7 +226,7 @@ struct AddBodyMetricSheet: View {
                     HStack {
                         TextField("Value", text: $valueText)
                             .keyboardType(.decimalPad)
-                        Text(type.unit)
+                        Text(type.unitLabel(units))
                             .foregroundColor(LKColor.textMuted)
                     }
                 }
@@ -248,7 +252,7 @@ struct AddBodyMetricSheet: View {
 
     private func save() {
         guard let value, value > 0 else { return }
-        let metric = BodyMetric(date: date, type: type, value: value)
+        let metric = BodyMetric(date: date, type: type, value: type.fromDisplay(value, units))
         context.insert(metric)
         try? context.save()
         HapticManager.shared.buttonTap()

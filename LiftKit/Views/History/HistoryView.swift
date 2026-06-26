@@ -6,47 +6,50 @@ struct HistoryView: View {
     @Query(sort: \WorkoutSession.startedAt, order: .reverse) private var sessions: [WorkoutSession]
     @Bindable var vm: WorkoutViewModel
 
+    private var completed: [WorkoutSession] { sessions.filter { !$0.isActive } }
+
     var body: some View {
         NavigationStack {
             Group {
-                if sessions.filter({ !$0.isActive }).isEmpty {
+                if completed.isEmpty {
                     ContentUnavailableView(
                         "No Workouts Yet",
                         systemImage: "figure.strengthtraining.traditional",
                         description: Text("Complete a workout and it will appear here.")
                     )
                 } else {
-                    List {
-                        ForEach(sessions.filter { !$0.isActive }) { session in
-                            NavigationLink(destination: WorkoutDetailView(session: session, vm: vm)) {
-                                SessionRow(session: session)
-                            }
-                            .listRowBackground(LKColor.surface)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
+                    ScrollView {
+                        LazyVStack(spacing: LKSpacing.sm) {
+                            ForEach(completed) { session in
+                                SwipeToDeleteRow(enabled: true, onDelete: {
                                     context.delete(session)
                                     try? context.save()
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
+                                }) {
+                                    NavigationLink {
+                                        WorkoutDetailView(session: session, vm: vm)
+                                    } label: {
+                                        SessionRow(session: session)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .contextMenu {
+                                        Button {
+                                            vm.loadFromSession(session)
+                                        } label: {
+                                            Label("Do Again", systemImage: "arrow.counterclockwise")
+                                        }
+                                        Button(role: .destructive) {
+                                            context.delete(session)
+                                            try? context.save()
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
                                 }
-                            }
-                            .contextMenu {
-                                Button {
-                                    vm.loadFromSession(session)
-                                } label: {
-                                    Label("Do Again", systemImage: "arrow.counterclockwise")
-                                }
-                                Button(role: .destructive) {
-                                    context.delete(session)
-                                    try? context.save()
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
+                                .padding(.horizontal, LKSpacing.md)
                             }
                         }
+                        .padding(.vertical, LKSpacing.md)
                     }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
                 }
             }
             .navigationTitle("History")
@@ -80,7 +83,7 @@ struct SessionRow: View {
                         .foregroundColor(LKColor.textSecondary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
-                        .background(Color(UIColor.systemGray5))
+                        .background(LKColor.surfaceElevated)
                         .clipShape(Capsule())
                 }
             }
@@ -102,7 +105,15 @@ struct SessionRow: View {
                     .lineLimit(1)
             }
         }
-        .padding(.vertical, LKSpacing.xs)
+        .padding(LKSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(LKColor.surface)
+        .overlay(
+            RoundedRectangle(cornerRadius: LKRadius.large)
+                .strokeBorder(LKColor.surfaceElevated, lineWidth: 1)
+        )
+        .cornerRadius(LKRadius.large)
+        .contentShape(Rectangle())
     }
 }
 

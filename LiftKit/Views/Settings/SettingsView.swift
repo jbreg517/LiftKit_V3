@@ -5,7 +5,7 @@ import UIKit
 /// App version, bumped on every commit/push so the running build is
 /// identifiable in Settings. Increment by 0.01 each push.
 enum AppVersion {
-    static let current = "0.26"
+    static let current = "0.27"
 }
 
 struct SettingsView: View {
@@ -17,6 +17,7 @@ struct SettingsView: View {
     @AppStorage("appearance")         private var appearance: String = "system"
     @AppStorage("workoutRemindersEnabled") private var remindersEnabled: Bool = true
     @AppStorage("reminderHour")       private var reminderHour: Int = 8
+    @AppStorage("unitSystem")         private var unitSystem: String = "imperial"
 
     @Environment(\.modelContext) private var context
     @Query private var profiles: [UserProfile]
@@ -47,9 +48,28 @@ struct SettingsView: View {
         return f.string(from: date)
     }
 
+    /// Permanently removes every stored model from the on-device database.
+    private func clearAllData() {
+        try? context.delete(model: WorkoutSession.self)
+        try? context.delete(model: WorkoutEntry.self)
+        try? context.delete(model: SetRecord.self)
+        try? context.delete(model: PersonalRecord.self)
+        try? context.delete(model: WorkoutTemplate.self)
+        try? context.delete(model: TemplateExercise.self)
+        try? context.delete(model: Exercise.self)
+        try? context.delete(model: UserProfile.self)
+        try? context.delete(model: WorkoutSchedule.self)
+        try? context.delete(model: BodyMetric.self)
+        try? context.delete(model: HealthProfile.self)
+        try? context.delete(model: NutritionDay.self)
+        try? context.save()
+        WorkoutReminders.cancelAll()
+    }
+
     @State private var showPrivacyPolicy = false
     @State private var showDisclaimer    = false
     @State private var showTour          = false
+    @State private var showClearAll      = false
     @State private var exportFile: ExportFile?
 
     var body: some View {
@@ -79,6 +99,18 @@ struct SettingsView: View {
                         Text("Dark").tag("dark")
                     }
                     .pickerStyle(.segmented)
+                }
+
+                Section {
+                    Picker("Measurement System", selection: $unitSystem) {
+                        Text("Imperial (lb)").tag("imperial")
+                        Text("Metric (kg)").tag("metric")
+                    }
+                    .pickerStyle(.segmented)
+                } header: {
+                    Text("Units")
+                } footer: {
+                    Text("Sets the default unit for new workouts and how body measurements are shown. Weights you’ve already logged keep the unit they were recorded in.")
                 }
 
                 Section {
@@ -132,6 +164,11 @@ struct SettingsView: View {
                         }
                         .foregroundColor(LKColor.accent)
                     }
+
+                    Button("Clear All Data", role: .destructive) {
+                        showClearAll = true
+                    }
+                    .foregroundColor(LKColor.danger)
                 }
 
                 if let profile = currentProfile {
@@ -198,6 +235,12 @@ struct SettingsView: View {
             .sheet(isPresented: $showDisclaimer)    { DisclaimerView() }
             .sheet(isPresented: $showTour)          { TourView(onDone: { showTour = false }) }
             .sheet(item: $exportFile) { ShareSheet(items: [$0.url]) }
+            .alert("Delete all data?", isPresented: $showClearAll) {
+                Button("Delete Everything", role: .destructive) { clearAllData() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This permanently removes all workouts, history, templates, schedules, and body & nutrition data on this device. This can’t be undone.")
+            }
         }
     }
 }

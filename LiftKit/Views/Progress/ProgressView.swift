@@ -11,6 +11,8 @@ struct ProgressView: View {
     @State private var selectedExercise: Exercise?
     @State private var timeRange: TimeRange = .month
     @State private var muscleRange: MuscleRange = .week
+    @AppStorage("unitSystem") private var unitSystemRaw = "imperial"
+    private var units: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .imperial }
 
     enum MuscleRange: String, CaseIterable {
         case week  = "7 Days"
@@ -177,7 +179,7 @@ struct ProgressView: View {
                     Text("Body Metrics")
                         .font(LKFont.bodyBold)
                         .foregroundColor(LKColor.textPrimary)
-                    Text(latestWeight.map { "Bodyweight \(Int($0.value.rounded())) lb" }
+                    Text(latestWeight.map { "Bodyweight \(Int(units.weightFromLb($0.value).rounded())) \(units.weightLabel)" }
                          ?? "Track bodyweight & measurements")
                         .font(LKFont.caption)
                         .foregroundColor(LKColor.textMuted)
@@ -201,7 +203,7 @@ struct ProgressView: View {
 
         return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: LKSpacing.md) {
             StatCard(icon: "figure.strengthtraining.traditional", value: "\(completed.count)", label: "Total Workouts", color: .blue)
-            StatCard(icon: "scalemass.fill", value: "\(Int(totalVolume)) lb", label: "Total Volume", color: .green)
+            StatCard(icon: "scalemass.fill", value: "\(Int(units.weightFromLb(totalVolume))) \(units.weightLabel)", label: "Total Volume", color: .green)
             StatCard(icon: "clock.fill", value: TimerEngine.format(avgDuration), label: "Avg Duration", color: .orange)
             StatCard(icon: "trophy.fill", value: "\(prCount)", label: "Personal Records", color: .yellow)
         }
@@ -282,7 +284,7 @@ struct ProgressView: View {
                                     .font(LKFont.caption)
                                     .foregroundColor(LKColor.textMuted)
                                 Spacer()
-                                Text("\(Int(e1rm.rounded())) lb")
+                                Text("\(Int(e1rm.rounded())) \(units.weightLabel)")
                                     .font(LKFont.bodyBold)
                                     .foregroundColor(LKColor.accent)
                             }
@@ -307,7 +309,7 @@ struct ProgressView: View {
                         }
                         .frame(height: 200)
                         .padding(.horizontal, LKSpacing.md)
-                        .chartYAxisLabel("Weight (lb)")
+                        .chartYAxisLabel("Weight (\(units.weightLabel))")
 
                         // Reps chart
                         Chart {
@@ -347,7 +349,7 @@ struct ProgressView: View {
                     ForEach(weeks, id: \.week) { item in
                         BarMark(
                             x: .value("Week", item.week),
-                            y: .value("Volume", item.volume)
+                            y: .value("Volume", units.weightFromLb(item.volume))
                         )
                         .foregroundStyle(
                             LinearGradient(colors: [.blue, .blue.opacity(0.5)], startPoint: .top, endPoint: .bottom)
@@ -357,7 +359,7 @@ struct ProgressView: View {
                 }
                 .frame(height: 180)
                 .padding(.horizontal, LKSpacing.md)
-                .chartYAxisLabel("Volume (lb)")
+                .chartYAxisLabel("Volume (\(units.weightLabel))")
             }
         }
     }
@@ -385,7 +387,7 @@ struct ProgressView: View {
             .compactMap { set -> ChartPoint? in
                 guard let w = set.weight, let r = set.reps else { return nil }
                 let lbs = set.weightUnitEnum == .kg ? w * 2.20462 : w
-                return ChartPoint(date: set.completedAt, weight: lbs, reps: r)
+                return ChartPoint(date: set.completedAt, weight: units.weightFromLb(lbs), reps: r)
             }
             .sorted { $0.date < $1.date }
     }
