@@ -104,18 +104,24 @@ struct ProgressView: View {
 
     private struct MuscleSetCount: Identifiable {
         let muscle: MuscleGroup
-        let sets: Int
+        let sets: Double
         var id: String { muscle.rawValue }
+        var label: String { sets == sets.rounded() ? "\(Int(sets))" : String(format: "%.1f", sets) }
     }
 
-    /// Working-set count per muscle group over the last `days`, highest first.
+    /// Working-set credit per muscle over the last `days`, highest first. Each
+    /// set counts fully toward the exercise's primary muscle and half toward
+    /// each secondary muscle.
     private func setsByMuscle(days: Int) -> [MuscleSetCount] {
         let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: Date()) ?? .distantPast
-        var counts: [MuscleGroup: Int] = [:]
+        var counts: [MuscleGroup: Double] = [:]
         for session in sessions where !session.isActive && session.startedAt >= cutoff {
             for entry in session.entries {
-                guard let m = entry.exercise?.primaryMuscle else { continue }
-                counts[m, default: 0] += entry.sets.count
+                guard let ex = entry.exercise else { continue }
+                let setCount = Double(entry.sets.count)
+                for c in ex.muscleContributions {
+                    counts[c.muscle, default: 0] += setCount * c.weight
+                }
             }
         }
         return counts.sorted { $0.value > $1.value }.map { MuscleSetCount(muscle: $0.key, sets: $0.value) }
@@ -152,7 +158,7 @@ struct ProgressView: View {
                     )
                     .foregroundStyle(LKColor.accent)
                     .annotation(position: .trailing) {
-                        Text("\(item.sets)")
+                        Text(item.label)
                             .font(.caption2)
                             .foregroundColor(LKColor.textMuted)
                     }

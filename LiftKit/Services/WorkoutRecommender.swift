@@ -33,22 +33,25 @@ enum WorkoutRecommender {
         let overworked = sessionsThisWeek >= 5
         let weightLoss = health?.goalType == .lose
 
-        // Sets per muscle over the last 14 days.
-        var setsByMuscle: [MuscleGroup: Int] = [:]
+        // Set credit per muscle over the last 14 days (primary full, secondary half).
+        var setsByMuscle: [MuscleGroup: Double] = [:]
         for s in completed where s.startedAt >= twoWeeksAgo {
             for e in s.entries {
-                guard let m = e.exercise?.primaryMuscle else { continue }
-                setsByMuscle[m, default: 0] += e.sets.count
+                guard let ex = e.exercise else { continue }
+                let setCount = Double(e.sets.count)
+                for c in ex.muscleContributions {
+                    setsByMuscle[c.muscle, default: 0] += setCount * c.weight
+                }
             }
         }
 
         // Under-trained = clearly below the average across trackable muscles.
         let trackable: [MuscleGroup] = [.chest, .back, .shoulders, .biceps, .triceps,
                                         .quads, .hamstrings, .glutes, .calves, .core]
-        let trainedTotal = trackable.reduce(0) { $0 + (setsByMuscle[$1] ?? 0) }
-        let avg = Double(trainedTotal) / Double(trackable.count)
+        let trainedTotal = trackable.reduce(0.0) { $0 + (setsByMuscle[$1] ?? 0) }
+        let avg = trainedTotal / Double(trackable.count)
         let undertrained: Set<MuscleGroup> = trainedTotal == 0 ? [] :
-            Set(trackable.filter { Double(setsByMuscle[$0] ?? 0) < avg * 0.5 })
+            Set(trackable.filter { (setsByMuscle[$0] ?? 0) < avg * 0.5 })
 
         let lastType = completed.max(by: { $0.startedAt < $1.startedAt })?.timerType
 

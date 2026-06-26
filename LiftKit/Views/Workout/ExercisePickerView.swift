@@ -13,6 +13,7 @@ struct ExercisePickerView: View {
 
     @State private var search = ""
     @State private var customMuscle: MuscleGroup = .other
+    @State private var customSecondary: Set<MuscleGroup> = []
 
     private var trimmed: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -50,8 +51,34 @@ struct ExercisePickerView: View {
                                 .foregroundColor(LKColor.accent)
                         }
                         .listRowBackground(LKColor.surface)
-                        Picker("Muscle group", selection: $customMuscle) {
+                        Picker("Primary muscle", selection: $customMuscle) {
                             ForEach(MuscleGroup.allCases) { m in Text(m.label).tag(m) }
+                        }
+                        .listRowBackground(LKColor.surface)
+                        Menu {
+                            ForEach(MuscleGroup.allCases) { m in
+                                if m != customMuscle {
+                                    Button {
+                                        if customSecondary.contains(m) { customSecondary.remove(m) }
+                                        else { customSecondary.insert(m) }
+                                    } label: {
+                                        if customSecondary.contains(m) {
+                                            Label(m.label, systemImage: "checkmark")
+                                        } else {
+                                            Text(m.label)
+                                        }
+                                    }
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                Text("Also targets").foregroundColor(LKColor.textPrimary)
+                                Spacer()
+                                Text(customSecondary.isEmpty ? "None"
+                                     : customSecondary.map { $0.label }.sorted().joined(separator: ", "))
+                                    .foregroundColor(LKColor.textMuted)
+                                    .lineLimit(1)
+                            }
                         }
                         .listRowBackground(LKColor.surface)
                     }
@@ -99,12 +126,14 @@ struct ExercisePickerView: View {
                     Text(ex.name)
                         .font(LKFont.body)
                         .foregroundColor(LKColor.textPrimary)
+                    let muscleText = ex.allMuscles.map { $0.label }.joined(separator: ", ")
                     let subtitle = [ex.equipmentEnum.flatMap { $0 == .none ? nil : $0.rawValue },
-                                    ex.primaryMuscle?.label].compactMap { $0 }.joined(separator: " · ")
+                                    muscleText.isEmpty ? nil : muscleText].compactMap { $0 }.joined(separator: " · ")
                     if !subtitle.isEmpty {
                         Text(subtitle)
                             .font(LKFont.caption)
                             .foregroundColor(LKColor.textMuted)
+                            .lineLimit(1)
                     }
                 }
                 Spacer()
@@ -131,6 +160,10 @@ struct ExercisePickerView: View {
         }
         let ex = Exercise(name: name, isCustom: true)
         ex.primaryMuscle = ExerciseLibrary.defaultMuscle(forName: name) ?? customMuscle
+        let libSecondaries = ExerciseLibrary.defaultSecondaries(forName: name)
+        ex.secondaryMuscles = libSecondaries.isEmpty
+            ? customSecondary.filter { $0 != ex.primaryMuscle }.sorted { $0.rawValue < $1.rawValue }
+            : libSecondaries
         context.insert(ex)
         try? context.save()
         onSelect(ex)
