@@ -187,5 +187,177 @@ enum RecommendedWorkouts {
             ],
             restBetweenSets: 15
         ),
+
+        // MARK: Push / Pull / Legs (hypertrophy split)
+        RecommendedWorkout(
+            id: "ppl-push", name: "Push Day", type: .reps,
+            blurb: "Chest, shoulders & triceps volume.",
+            purposes: [.muscleGrowth], muscles: [.chest, .shoulders, .triceps],
+            exercises: [
+                RecExercise(name: "Bench Press", equipment: .barbell, sets: 4, reps: 8),
+                RecExercise(name: "Incline Dumbbell Press", equipment: .dumbbell, sets: 3, reps: 10),
+                RecExercise(name: "Dumbbell Shoulder Press", equipment: .dumbbell, sets: 3, reps: 10),
+                RecExercise(name: "Lateral Raises", equipment: .dumbbell, sets: 3, reps: 15),
+                RecExercise(name: "Tricep Pushdown", equipment: .cable, sets: 3, reps: 12),
+            ],
+            restBetweenSets: 90
+        ),
+        RecommendedWorkout(
+            id: "ppl-pull", name: "Pull Day", type: .reps,
+            blurb: "Back & biceps, vertical and horizontal pulls.",
+            purposes: [.muscleGrowth], muscles: [.back, .biceps],
+            exercises: [
+                RecExercise(name: "Deadlift", equipment: .barbell, sets: 3, reps: 5),
+                RecExercise(name: "Pull-Up", equipment: .bodyweight, sets: 3, reps: 8),
+                RecExercise(name: "Barbell Row", equipment: .barbell, sets: 3, reps: 10),
+                RecExercise(name: "Lat Pulldown", equipment: .cable, sets: 3, reps: 12),
+                RecExercise(name: "Bicep Curl", equipment: .barbell, sets: 3, reps: 12),
+                RecExercise(name: "Face Pull", equipment: .cable, sets: 3, reps: 15),
+            ],
+            restBetweenSets: 90
+        ),
+        RecommendedWorkout(
+            id: "ppl-legs", name: "Leg Day", type: .reps,
+            blurb: "Quads, hamstrings, glutes & calves.",
+            purposes: [.muscleGrowth, .strength], muscles: [.quads, .hamstrings, .glutes, .calves],
+            exercises: [
+                RecExercise(name: "Back Squat", equipment: .barbell, sets: 4, reps: 8),
+                RecExercise(name: "Romanian Deadlift", equipment: .barbell, sets: 3, reps: 10),
+                RecExercise(name: "Leg Press", equipment: .machine, sets: 3, reps: 12),
+                RecExercise(name: "Leg Curl", equipment: .machine, sets: 3, reps: 12),
+                RecExercise(name: "Calf Raise", equipment: .machine, sets: 4, reps: 15),
+            ],
+            restBetweenSets: 120
+        ),
+
+        // MARK: Upper / Lower (strength split)
+        RecommendedWorkout(
+            id: "upper-strength", name: "Upper Body Strength", type: .reps,
+            blurb: "Heavy presses and pulls.",
+            purposes: [.strength], muscles: [.chest, .back, .shoulders],
+            exercises: [
+                RecExercise(name: "Bench Press", equipment: .barbell, sets: 4, reps: 6),
+                RecExercise(name: "Barbell Row", equipment: .barbell, sets: 4, reps: 6),
+                RecExercise(name: "Overhead Press", equipment: .barbell, sets: 3, reps: 8),
+                RecExercise(name: "Pull-Up", equipment: .bodyweight, sets: 3, reps: 8),
+            ],
+            restBetweenSets: 150
+        ),
+        RecommendedWorkout(
+            id: "lower-strength", name: "Lower Body Strength", type: .reps,
+            blurb: "Squat-and-hinge lower strength.",
+            purposes: [.strength], muscles: [.quads, .hamstrings, .glutes],
+            exercises: [
+                RecExercise(name: "Back Squat", equipment: .barbell, sets: 4, reps: 6),
+                RecExercise(name: "Romanian Deadlift", equipment: .barbell, sets: 3, reps: 8),
+                RecExercise(name: "Lunge", equipment: .dumbbell, sets: 3, reps: 10),
+                RecExercise(name: "Calf Raise", equipment: .machine, sets: 4, reps: 12),
+            ],
+            restBetweenSets: 150
+        ),
+
+        // MARK: Kettlebell complexes & finishers (from Chronicles of Strength)
+        RecommendedWorkout(
+            id: "kb-great-destroyer", name: "The Great Destroyer", type: .reps,
+            blurb: "Double-KB complex, 10 reps each — don’t set the bells down. 2 rounds.",
+            purposes: [.strength, .weightLoss], muscles: [.fullBody, .glutes, .shoulders, .back],
+            exercises: [
+                RecExercise(name: "Double Kettlebell Swing", equipment: .kettlebell, sets: 2, reps: 10),
+                RecExercise(name: "Double Kettlebell Snatch", equipment: .kettlebell, sets: 2, reps: 10),
+                RecExercise(name: "Double Kettlebell Front Squat", equipment: .kettlebell, sets: 2, reps: 10),
+                RecExercise(name: "Double Kettlebell Clean & Press", equipment: .kettlebell, sets: 2, reps: 10),
+                RecExercise(name: "Push-Up", equipment: .bodyweight, sets: 2, reps: 10),
+                RecExercise(name: "Bent-Over Row", equipment: .kettlebell, sets: 2, reps: 10),
+            ],
+            restBetweenSets: 120
+        ),
+        RecommendedWorkout(
+            id: "kb-fibonacci-finisher", name: "Fibonacci Finisher", type: .forTime,
+            blurb: "5 rounds in 10 min: 8-5-3-2 reps, then a 1-min plank.",
+            purposes: [.weightLoss], muscles: [.fullBody, .core],
+            sessions: [
+                RecSession(name: "Double Kettlebell Clean", equipment: .kettlebell, reps: 8),
+                RecSession(name: "Kettlebell Front Squat", equipment: .kettlebell, reps: 5),
+                RecSession(name: "Push-Up", equipment: .bodyweight, reps: 3),
+                RecSession(name: "Renegade Row", equipment: .kettlebell, reps: 2),
+                RecSession(name: "Plank (1 min)", equipment: .bodyweight, reps: 1),
+            ],
+            timeCapMinutes: 10
+        ),
+        RecommendedWorkout(
+            id: "kb-armor-building", name: "Armor Building Complex", type: .emom,
+            blurb: "Heavy double-KB EMOM: clean, press, front squats.",
+            purposes: [.strength], muscles: [.fullBody, .shoulders, .quads],
+            sessions: [
+                RecSession(name: "Double Kettlebell Clean", equipment: .kettlebell, reps: 2),
+                RecSession(name: "Double Kettlebell Press", equipment: .kettlebell, reps: 1),
+                RecSession(name: "Double Kettlebell Front Squat", equipment: .kettlebell, reps: 3),
+            ],
+            emomMinutes: 10
+        ),
+        RecommendedWorkout(
+            id: "kb-single-finisher", name: "Single Kettlebell Finisher", type: .amrap,
+            blurb: "AMRAP 15: 3 reps each of swing, snatch, press, squat.",
+            purposes: [.weightLoss, .strength], muscles: [.fullBody],
+            sessions: [
+                RecSession(name: "One-Arm Kettlebell Swing", equipment: .kettlebell, reps: 3),
+                RecSession(name: "Kettlebell Snatch", equipment: .kettlebell, reps: 3),
+                RecSession(name: "Kettlebell Press", equipment: .kettlebell, reps: 3),
+                RecSession(name: "Kettlebell Squat", equipment: .kettlebell, reps: 3),
+            ],
+            timeCapMinutes: 15
+        ),
+        RecommendedWorkout(
+            id: "dumbbell-complex", name: "Dumbbell Complex", type: .reps,
+            blurb: "Six moves, one pair of dumbbells, 4 rounds.",
+            purposes: [.weightLoss, .strength], muscles: [.fullBody],
+            exercises: [
+                RecExercise(name: "Dumbbell Romanian Deadlift", equipment: .dumbbell, sets: 4, reps: 8),
+                RecExercise(name: "Dumbbell Row", equipment: .dumbbell, sets: 4, reps: 8),
+                RecExercise(name: "Dumbbell Clean", equipment: .dumbbell, sets: 4, reps: 6),
+                RecExercise(name: "Dumbbell Front Squat", equipment: .dumbbell, sets: 4, reps: 8),
+                RecExercise(name: "Dumbbell Push Press", equipment: .dumbbell, sets: 4, reps: 6),
+            ],
+            restBetweenSets: 90
+        ),
+        RecommendedWorkout(
+            id: "bodyweight-finisher", name: "Bodyweight Finisher", type: .amrap,
+            blurb: "No-equipment 6-minute AMRAP.",
+            purposes: [.weightLoss], muscles: [.fullBody, .quads, .core],
+            sessions: [
+                RecSession(name: "Jump Squat", equipment: .bodyweight, reps: 10),
+                RecSession(name: "Push-Up", equipment: .bodyweight, reps: 10),
+                RecSession(name: "Mountain Climbers", equipment: .bodyweight, reps: 20),
+            ],
+            timeCapMinutes: 6
+        ),
+
+        // MARK: Extra mobility options (used for recovery recommendations)
+        RecommendedWorkout(
+            id: "lower-mobility", name: "Lower Body Mobility", type: .reps,
+            blurb: "Loosen hips, hamstrings and ankles.",
+            purposes: [.mobility], muscles: [.quads, .hamstrings, .glutes, .calves],
+            exercises: [
+                RecExercise(name: "Deep Squat Hold", equipment: .bodyweight, sets: 1, reps: 1, isTimed: true, durationSeconds: 45),
+                RecExercise(name: "Hip Flexor Stretch", equipment: .bodyweight, sets: 2, reps: 1, isTimed: true, durationSeconds: 30),
+                RecExercise(name: "Hamstring Stretch", equipment: .bodyweight, sets: 2, reps: 1, isTimed: true, durationSeconds: 30),
+                RecExercise(name: "Ankle Rocks", equipment: .bodyweight, sets: 1, reps: 1, isTimed: true, durationSeconds: 30),
+                RecExercise(name: "Glute Bridge Hold", equipment: .bodyweight, sets: 2, reps: 1, isTimed: true, durationSeconds: 30),
+            ],
+            restBetweenSets: 15
+        ),
+        RecommendedWorkout(
+            id: "upper-mobility", name: "Shoulder & Upper Mobility", type: .reps,
+            blurb: "Open up shoulders, chest and t-spine.",
+            purposes: [.mobility], muscles: [.shoulders, .chest, .back],
+            exercises: [
+                RecExercise(name: "Thoracic Rotation", equipment: .bodyweight, sets: 2, reps: 1, isTimed: true, durationSeconds: 30),
+                RecExercise(name: "Shoulder Dislocates", equipment: .bodyweight, sets: 1, reps: 1, isTimed: true, durationSeconds: 30),
+                RecExercise(name: "Doorway Chest Stretch", equipment: .bodyweight, sets: 2, reps: 1, isTimed: true, durationSeconds: 30),
+                RecExercise(name: "Wall Slides", equipment: .bodyweight, sets: 1, reps: 1, isTimed: true, durationSeconds: 30),
+                RecExercise(name: "Neck CARs", equipment: .bodyweight, sets: 1, reps: 1, isTimed: true, durationSeconds: 30),
+            ],
+            restBetweenSets: 15
+        ),
     ]
 }

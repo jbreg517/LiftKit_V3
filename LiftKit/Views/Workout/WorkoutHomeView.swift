@@ -6,6 +6,8 @@ struct WorkoutHomeView: View {
     @Query(sort: \WorkoutTemplate.lastUsedAt, order: .reverse) private var templates: [WorkoutTemplate]
     @Query private var profiles: [UserProfile]
     @Query(sort: \WorkoutSchedule.date) private var schedules: [WorkoutSchedule]
+    @Query(sort: \WorkoutSession.startedAt) private var sessions: [WorkoutSession]
+    @Query private var healthProfiles: [HealthProfile]
 
     @Bindable var vm: WorkoutViewModel
 
@@ -195,9 +197,14 @@ struct WorkoutHomeView: View {
     }
 
     // MARK: - Recommended section
+    /// Top 6 picks, personalized by recent training, recovery load and goal.
+    private var recommendedPicks: [WorkoutRecommender.Pick] {
+        WorkoutRecommender.top(6, sessions: sessions, health: healthProfiles.first)
+    }
+
     private var recommendedSection: some View {
         VStack(alignment: .leading, spacing: LKSpacing.sm) {
-            Text("RECOMMENDED")
+            Text("RECOMMENDED FOR YOU")
                 .font(LKFont.caption)
                 .foregroundColor(LKColor.textMuted)
                 .tracking(2)
@@ -205,15 +212,38 @@ struct WorkoutHomeView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: LKSpacing.md) {
-                    ForEach(RecommendedWorkouts.all) { rec in
-                        RecommendedCard(rec: rec) {
+                    ForEach(recommendedPicks) { pick in
+                        RecommendedCard(rec: pick.workout, reason: pick.reason) {
                             HapticManager.shared.buttonTap()
-                            vm.loadRecommended(rec)
+                            vm.loadRecommended(pick.workout)
                         }
                     }
                 }
                 .padding(.horizontal, LKSpacing.md)
             }
+
+            NavigationLink(destination: AllWorkoutsView(vm: vm)) {
+                HStack(spacing: LKSpacing.sm) {
+                    Image(systemName: "square.grid.2x2.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(LKColor.accent)
+                    Text("Additional Workouts")
+                        .font(LKFont.bodyBold)
+                        .foregroundColor(LKColor.accent)
+                    Spacer()
+                }
+                .padding(LKSpacing.md)
+                .frame(maxWidth: .infinity)
+                .background(LKColor.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: LKRadius.large)
+                        .strokeBorder(LKColor.surfaceElevated, lineWidth: 1)
+                )
+                .cornerRadius(LKRadius.large)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, LKSpacing.md)
         }
     }
 
@@ -301,6 +331,7 @@ struct WorkoutHomeView: View {
 // MARK: - Recommended Card
 struct RecommendedCard: View {
     let rec: RecommendedWorkout
+    var reason: String? = nil
     let onTap: () -> Void
 
     var body: some View {
@@ -320,11 +351,22 @@ struct RecommendedCard: View {
                     .foregroundColor(LKColor.textPrimary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
-                Text(rec.blurb)
-                    .font(LKFont.caption)
-                    .foregroundColor(LKColor.textSecondary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
+                if let reason {
+                    HStack(alignment: .top, spacing: 3) {
+                        Image(systemName: "sparkles").font(.system(size: 9))
+                        Text(reason)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(LKColor.accent)
+                } else {
+                    Text(rec.blurb)
+                        .font(LKFont.caption)
+                        .foregroundColor(LKColor.textSecondary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
                 Spacer(minLength: 0)
                 HStack(spacing: 4) {
                     ForEach(rec.purposes) { p in

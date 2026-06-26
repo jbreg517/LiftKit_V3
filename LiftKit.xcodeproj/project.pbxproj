@@ -33,6 +33,7 @@
 		A70000000000000000000038 /* RecommendedWorkouts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000038 /* RecommendedWorkouts.swift */; };
 		A70000000000000000000040 /* WorkoutReminders.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000040 /* WorkoutReminders.swift */; };
 		A70000000000000000000045 /* HealthCalculations.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000045 /* HealthCalculations.swift */; };
+		A70000000000000000000048 /* WorkoutRecommender.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000048 /* WorkoutRecommender.swift */; };
 		A70000000000000000000019 /* PRDetectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000019 /* PRDetectionService.swift */; };
 		A7000000000000000000001A /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6000000000000000000001A /* HapticManager.swift */; };
 		A7000000000000000000001B /* ScreenSleepManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6000000000000000000001B /* ScreenSleepManager.swift */; };
@@ -42,6 +43,7 @@
 		A7000000000000000000001F /* WorkoutSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6000000000000000000001F /* WorkoutSetupView.swift */; };
 		A70000000000000000000020 /* ActiveWorkoutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000020 /* ActiveWorkoutView.swift */; };
 		A70000000000000000000037 /* ExercisePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000037 /* ExercisePickerView.swift */; };
+		A70000000000000000000049 /* AllWorkoutsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000049 /* AllWorkoutsView.swift */; };
 		A70000000000000000000022 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000022 /* HistoryView.swift */; };
 		A70000000000000000000023 /* ProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000023 /* ProgressView.swift */; };
 		A70000000000000000000042 /* BodyTrackingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000042 /* BodyTrackingView.swift */; };
@@ -115,6 +117,7 @@
 		A60000000000000000000038 /* RecommendedWorkouts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendedWorkouts.swift; sourceTree = "<group>"; };
 		A60000000000000000000040 /* WorkoutReminders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutReminders.swift; sourceTree = "<group>"; };
 		A60000000000000000000045 /* HealthCalculations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthCalculations.swift; sourceTree = "<group>"; };
+		A60000000000000000000048 /* WorkoutRecommender.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutRecommender.swift; sourceTree = "<group>"; };
 		A60000000000000000000019 /* PRDetectionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRDetectionService.swift; sourceTree = "<group>"; };
 		A6000000000000000000001A /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
 		A6000000000000000000001B /* ScreenSleepManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenSleepManager.swift; sourceTree = "<group>"; };
@@ -124,6 +127,7 @@
 		A6000000000000000000001F /* WorkoutSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSetupView.swift; sourceTree = "<group>"; };
 		A60000000000000000000020 /* ActiveWorkoutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveWorkoutView.swift; sourceTree = "<group>"; };
 		A60000000000000000000037 /* ExercisePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExercisePickerView.swift; sourceTree = "<group>"; };
+		A60000000000000000000049 /* AllWorkoutsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllWorkoutsView.swift; sourceTree = "<group>"; };
 		A60000000000000000000022 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		A60000000000000000000023 /* ProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressView.swift; sourceTree = "<group>"; };
 		A60000000000000000000042 /* BodyTrackingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BodyTrackingView.swift; sourceTree = "<group>"; };
@@ -262,6 +266,7 @@
 				A60000000000000000000038 /* RecommendedWorkouts.swift */,
 				A60000000000000000000040 /* WorkoutReminders.swift */,
 				A60000000000000000000045 /* HealthCalculations.swift */,
+				A60000000000000000000048 /* WorkoutRecommender.swift */,
 				A60000000000000000000019 /* PRDetectionService.swift */,
 				A6000000000000000000001A /* HapticManager.swift */,
 				A6000000000000000000001B /* ScreenSleepManager.swift */,
@@ -303,6 +308,7 @@
 				A6000000000000000000001F /* WorkoutSetupView.swift */,
 				A60000000000000000000020 /* ActiveWorkoutView.swift */,
 				A60000000000000000000037 /* ExercisePickerView.swift */,
+				A60000000000000000000049 /* AllWorkoutsView.swift */,
 			);
 			path = Workout;
 			sourceTree = "<group>";
@@ -544,6 +550,7 @@
 				A70000000000000000000038 /* RecommendedWorkouts.swift in Sources */,
 				A70000000000000000000040 /* WorkoutReminders.swift in Sources */,
 				A70000000000000000000045 /* HealthCalculations.swift in Sources */,
+				A70000000000000000000048 /* WorkoutRecommender.swift in Sources */,
 				A70000000000000000000019 /* PRDetectionService.swift in Sources */,
 				A7000000000000000000001A /* HapticManager.swift in Sources */,
 				A7000000000000000000001B /* ScreenSleepManager.swift in Sources */,
@@ -553,6 +560,7 @@
 				A7000000000000000000001F /* WorkoutSetupView.swift in Sources */,
 				A70000000000000000000020 /* ActiveWorkoutView.swift in Sources */,
 				A70000000000000000000037 /* ExercisePickerView.swift in Sources */,
+				A70000000000000000000049 /* AllWorkoutsView.swift in Sources */,
 				A70000000000000000000022 /* HistoryView.swift in Sources */,
 				A70000000000000000000023 /* ProgressView.swift in Sources */,
 				A70000000000000000000042 /* BodyTrackingView.swift in Sources */,
