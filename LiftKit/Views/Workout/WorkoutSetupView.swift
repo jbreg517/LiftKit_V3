@@ -44,6 +44,18 @@ struct WorkoutSetupView: View {
                     .font(LKFont.bodyBold)
                     .foregroundColor(LKColor.danger)
             }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button { startWorkout() } label: {
+                    Text("Start")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.black)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(LKColor.accent)
+                        .clipShape(Capsule())
+                }
+                .accessibilityLabel("Start workout")
+            }
         }
         .sheet(item: $numberEntry) { item in
             NumberEntrySheet(item: item)
@@ -152,7 +164,7 @@ struct WorkoutSetupView: View {
             Image(systemName: type.sfSymbol)
                 .font(.system(size: 36, weight: .semibold))
                 .foregroundColor(LKColor.accent)
-            Text(type.rawValue)
+            Text(type.displayName)
                 .font(LKFont.title)
                 .foregroundColor(LKColor.textPrimary)
             Text(type.subtitle)
@@ -169,7 +181,7 @@ struct WorkoutSetupView: View {
     private var nameSection: some View {
         VStack(alignment: .leading, spacing: LKSpacing.xs) {
             LKSectionLabel(text: "WORKOUT NAME")
-            TextField("e.g. Morning \(type.rawValue)", text: $vm.workoutName)
+            TextField("e.g. Morning \(type.displayName)", text: $vm.workoutName)
                 .font(LKFont.body)
                 .foregroundColor(LKColor.textPrimary)
                 .padding(LKSpacing.md)
@@ -209,15 +221,17 @@ struct WorkoutSetupView: View {
 
     // MARK: - Start
 
+    private func startWorkout() {
+        HapticManager.shared.buttonTap()
+        vm.selectedTimerType = type
+        vm.startTimedWorkout(context: context)
+        vm.showTypePicker = false
+        vm.showWorkoutSetup = false
+    }
+
     private var startButton: some View {
-        Button {
-            HapticManager.shared.buttonTap()
-            vm.selectedTimerType = type
-            vm.startTimedWorkout(context: context)
-            vm.showTypePicker = false
-            vm.showWorkoutSetup = false
-        } label: {
-            Label("Start \(type.rawValue)", systemImage: "play.fill")
+        Button { startWorkout() } label: {
+            Label("Start \(type.displayName)", systemImage: "play.fill")
         }
         .buttonStyle(LKPrimaryButtonStyle())
     }

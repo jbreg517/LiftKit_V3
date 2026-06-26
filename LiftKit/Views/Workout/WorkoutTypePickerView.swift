@@ -59,7 +59,7 @@ struct WorkoutTypeCard: View {
                     .font(.system(size: 30, weight: .semibold))
                     .foregroundColor(LKColor.accent)
 
-                Text(type.rawValue)
+                Text(type.displayName)
                     .font(LKFont.bodyBold)
                     .foregroundColor(LKColor.textPrimary)
                     .lineLimit(1)

@@ -7,6 +7,7 @@ final class WorkoutTemplate {
     var name: String = ""
     var createdAt: Date = Date()
     var lastUsedAt: Date = Date()
+    var isFavorite: Bool = false
 
     @Relationship(deleteRule: .cascade, inverse: \TemplateExercise.template)
     var exercises: [TemplateExercise] = []

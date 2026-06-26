@@ -89,28 +89,33 @@ struct RootTabView: View {
     @AppStorage("hasOnboarded") private var hasOnboarded = false
 
     var body: some View {
-        TabView {
+        TabView(selection: $vm.selectedTab) {
             WorkoutHomeView(vm: vm)
+                .tag(0)
                 .tabItem {
                     Label("Workout", systemImage: "figure.strengthtraining.traditional")
                 }
 
             HistoryView(vm: vm)
+                .tag(1)
                 .tabItem {
                     Label("History", systemImage: "clock.arrow.circlepath")
                 }
 
             ProgressView()
+                .tag(2)
                 .tabItem {
                     Label("Progress", systemImage: "chart.line.uptrend.xyaxis")
                 }
 
             HealthView(vm: vm)
+                .tag(3)
                 .tabItem {
                     Label("Health", systemImage: "heart.text.square.fill")
                 }
 
             SettingsView()
+                .tag(4)
                 .tabItem {
                     Label("Settings", systemImage: "gearshape.fill")
                 }

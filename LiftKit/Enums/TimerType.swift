@@ -10,6 +10,11 @@ enum TimerType: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// User-facing name. Stored data keeps the `rawValue`; only the label differs.
+    var displayName: String {
+        self == .manual ? "Self-Paced" : rawValue
+    }
+
     var subtitle: String {
         switch self {
         case .amrap:     return "As many rounds as possible"
@@ -17,7 +22,7 @@ enum TimerType: String, CaseIterable, Identifiable {
         case .forTime:   return "Complete for time"
         case .intervals: return "Timed work & rest intervals"
         case .reps:      return "Track sets and reps"
-        case .manual:    return "Free-form count-up timer"
+        case .manual:    return "Set your exercises and go at your own pace — the timer counts up while you work through your list."
         }
     }
 

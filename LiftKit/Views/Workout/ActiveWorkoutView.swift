@@ -1044,6 +1044,15 @@ struct WorkoutCompleteOverlay: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, LKSpacing.xl)
 
+                Button {
+                    vm.selectedTab = 1   // History tab
+                    vm.endWorkout(context: context)
+                } label: {
+                    Label("Review & Edit in History", systemImage: "square.and.pencil")
+                }
+                .buttonStyle(LKSecondaryButtonStyle())
+                .padding(.horizontal, LKSpacing.xl)
+
                 Text("Tap anywhere to continue")
                     .font(LKFont.caption)
                     .foregroundColor(LKColor.textMuted)

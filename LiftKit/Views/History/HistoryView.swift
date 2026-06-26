@@ -78,7 +78,7 @@ struct SessionRow: View {
                     .foregroundColor(LKColor.textPrimary)
                 Spacer()
                 if let type = session.timerType {
-                    Text(type.rawValue)
+                    Text(type.displayName)
                         .font(.caption2)
                         .foregroundColor(LKColor.textSecondary)
                         .padding(.horizontal, 8)

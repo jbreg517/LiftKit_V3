@@ -277,11 +277,15 @@ struct WorkoutHomeView: View {
                     context.delete(template)
                     try? context.save()
                 }) {
-                    PlanCard(template: template) {
+                    PlanCard(template: template, onTap: {
                         vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
                         vm.markTemplateUsed(template, context: context)
                         vm.showWorkoutSetup = true
-                    }
+                    }, onToggleFavorite: {
+                        template.isFavorite.toggle()
+                        try? context.save()
+                        HapticManager.shared.buttonTap()
+                    })
                 }
                 .padding(.horizontal, LKSpacing.md)
             }
@@ -401,36 +405,49 @@ struct RecommendedCard: View {
 struct PlanCard: View {
     let template: WorkoutTemplate
     let onTap: () -> Void
+    let onToggleFavorite: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            HStack {
-                VStack(alignment: .leading, spacing: LKSpacing.xs) {
-                    Text(template.name)
-                        .font(LKFont.bodyBold)
-                        .foregroundColor(LKColor.textPrimary)
-                    Text("\(template.exercises.count) exercises")
-                        .font(LKFont.caption)
-                        .foregroundColor(LKColor.textMuted)
+        HStack(spacing: 0) {
+            Button(action: onTap) {
+                HStack {
+                    VStack(alignment: .leading, spacing: LKSpacing.xs) {
+                        Text(template.name)
+                            .font(LKFont.bodyBold)
+                            .foregroundColor(LKColor.textPrimary)
+                        Text("\(template.exercises.count) exercises")
+                            .font(LKFont.caption)
+                            .foregroundColor(LKColor.textMuted)
+                    }
+                    Spacer()
+                    Text(template.lastUsedAt.relativeFormatted)
+                        .font(.system(size: 12))
+                        .foregroundColor(LKColor.textSecondary)
                 }
-                Spacer()
-                Text(template.lastUsedAt.relativeFormatted)
-                    .font(.system(size: 12))
-                    .foregroundColor(LKColor.textSecondary)
+                .padding(LKSpacing.md)
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
             }
-            .padding(LKSpacing.md)
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(template.name), \(template.exercises.count) exercises")
+            .accessibilityHint("Double tap to start this workout")
+
+            Button(action: onToggleFavorite) {
+                Image(systemName: template.isFavorite ? "star.fill" : "star")
+                    .font(.system(size: 16))
+                    .foregroundColor(template.isFavorite ? LKColor.accent : LKColor.textMuted)
+                    .padding(.horizontal, LKSpacing.md)
+                    .frame(maxHeight: .infinity)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(template.isFavorite ? "Unfavorite \(template.name)" : "Favorite \(template.name)")
         }
-        .buttonStyle(.plain)
         .background(LKColor.surface)
         .overlay(
             RoundedRectangle(cornerRadius: LKRadius.large)
                 .strokeBorder(LKColor.surfaceElevated, lineWidth: 1)
         )
         .cornerRadius(LKRadius.large)
-        .accessibilityLabel("\(template.name), \(template.exercises.count) exercises")
-        .accessibilityHint("Double tap to start this workout")
     }
 }
 
@@ -468,11 +485,15 @@ struct AllTemplatesView: View {
                         context.delete(template)
                         try? context.save()
                     }) {
-                        PlanCard(template: template) {
+                        PlanCard(template: template, onTap: {
                             vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
                             vm.markTemplateUsed(template, context: context)
                             vm.showWorkoutSetup = true
-                        }
+                        }, onToggleFavorite: {
+                            template.isFavorite.toggle()
+                            try? context.save()
+                            HapticManager.shared.buttonTap()
+                        })
                     }
                 }
             }
@@ -539,6 +560,7 @@ struct SeriesScheduleSheet: View {
     @Query(sort: \WorkoutTemplate.lastUsedAt, order: .reverse) private var templates: [WorkoutTemplate]
 
     @State private var selectedIDs: [UUID] = []
+    @State private var search = ""
     @State private var weekdays: Set<Int> = []
     @State private var startDate = Date()
     @State private var endDate = Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date()
@@ -549,6 +571,19 @@ struct SeriesScheduleSheet: View {
 
     private var selected: [WorkoutTemplate] {
         selectedIDs.compactMap { id in templates.first { $0.id == id } }
+    }
+
+    /// While searching: matching plans. Otherwise: favorites + 5 most recent,
+    /// plus any already-selected plans (so selections never vanish).
+    private var visibleTemplates: [WorkoutTemplate] {
+        let trimmed = search.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty {
+            return templates.filter { $0.name.localizedCaseInsensitiveContains(trimmed) }
+        }
+        let favorites = templates.filter { $0.isFavorite }
+        let recent = Array(templates.prefix(5))   // templates already sorted most-recent first
+        var seen = Set<UUID>()
+        return (favorites + recent + selected).filter { seen.insert($0.id).inserted }
     }
 
     private var occurrenceCount: Int {
@@ -568,7 +603,7 @@ struct SeriesScheduleSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    ForEach(templates) { t in
+                    ForEach(visibleTemplates) { t in
                         let order = selectedIDs.firstIndex(of: t.id)
                         Button {
                             toggle(t)
@@ -586,6 +621,11 @@ struct SeriesScheduleSheet: View {
                                     Image(systemName: "circle")
                                         .foregroundColor(LKColor.textMuted)
                                 }
+                                if t.isFavorite {
+                                    Image(systemName: "star.fill")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(LKColor.accent)
+                                }
                                 Text(t.name).foregroundColor(LKColor.textPrimary)
                                 Spacer()
                             }
@@ -595,7 +635,7 @@ struct SeriesScheduleSheet: View {
                 } header: {
                     Text("Workouts (alternate in this order)")
                 } footer: {
-                    Text("Pick up to \(maxTemplates). They rotate across your chosen days — e.g. A, B, A, B…")
+                    Text("Pick up to \(maxTemplates). They rotate across your chosen days — e.g. A, B, A, B… Showing favorites and recent; search to find others.")
                 }
 
                 Section("Repeat On") {
@@ -633,6 +673,7 @@ struct SeriesScheduleSheet: View {
             .background(LKColor.background.ignoresSafeArea())
             .navigationTitle("Schedule a Series")
             .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $search, prompt: "Search workouts")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }.foregroundColor(LKColor.textSecondary)

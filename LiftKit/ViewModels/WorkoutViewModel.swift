@@ -152,6 +152,8 @@ let completionMessages: [String] = [
 @Observable
 final class WorkoutViewModel {
     // MARK: Navigation state
+    /// Selected bottom tab (0 Workout, 1 History, 2 Progress, 3 Health, 4 Settings).
+    var selectedTab           = 0
     var showTypePicker        = false
     var showLogin             = false
     var showActiveWorkout     = false

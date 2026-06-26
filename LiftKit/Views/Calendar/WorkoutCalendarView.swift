@@ -108,7 +108,10 @@ struct WorkoutCalendarView: View {
         let isToday    = calendar.isDateInToday(date)
         let isSelected = selectedDate.map { calendar.isDate($0, inSameDayAs: date) } ?? false
         let hasHistory  = sessions.contains { !$0.isActive && calendar.isDate($0.startedAt, inSameDayAs: date) }
-        let hasSchedule = schedules.contains { !$0.isCompleted && calendar.isDate($0.date, inSameDayAs: date) }
+        let incompleteSchedule = schedules.contains { !$0.isCompleted && calendar.isDate($0.date, inSameDayAs: date) }
+        let isPast = calendar.startOfDay(for: date) < calendar.startOfDay(for: Date())
+        let isPastDue  = incompleteSchedule && isPast
+        let isUpcoming = incompleteSchedule && !isPast
 
         return Button {
             withAnimation(.easeInOut(duration: 0.2)) {
@@ -128,11 +131,17 @@ struct WorkoutCalendarView: View {
                             .frame(width: 5, height: 5)
                             .accessibilityLabel("Completed workout")
                     }
-                    if hasSchedule {
+                    if isUpcoming {
                         Circle()
                             .fill(LKColor.work)
                             .frame(width: 5, height: 5)
                             .accessibilityLabel("Scheduled workout")
+                    }
+                    if isPastDue {
+                        Circle()
+                            .fill(LKColor.textMuted)
+                            .frame(width: 5, height: 5)
+                            .accessibilityLabel("Missed workout")
                     }
                 }
             }
@@ -177,21 +186,24 @@ struct WorkoutCalendarView: View {
             }
 
             ForEach(daySchedules) { sched in
+                let overdue = !sched.isCompleted && calendar.startOfDay(for: sched.date) < calendar.startOfDay(for: Date())
+                let statusColor: Color = sched.isCompleted ? LKColor.accent : (overdue ? LKColor.textMuted : LKColor.work)
+                let statusText = sched.isCompleted ? "Done" : (overdue ? "Overdue" : "Planned")
                 Button {
                     scheduleEditTarget = ScheduleEditTarget(schedule: sched, isNew: false)
                 } label: {
                     HStack {
-                        Circle().fill(LKColor.work).frame(width: 8, height: 8)
+                        Circle().fill(statusColor).frame(width: 8, height: 8)
                         Text(sched.displayName)
                             .font(LKFont.body)
                             .foregroundColor(LKColor.textPrimary)
                         Spacer()
-                        Text("Planned")
+                        Text(statusText)
                             .font(LKFont.caption)
-                            .foregroundColor(LKColor.work)
+                            .foregroundColor(statusColor)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(LKColor.work.opacity(0.15))
+                            .background(statusColor.opacity(0.15))
                             .clipShape(Capsule())
                     }
                 }
