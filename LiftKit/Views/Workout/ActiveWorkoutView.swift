@@ -177,9 +177,9 @@ struct ActiveWorkoutView: View {
     private var navTitle: String {
         if vm.activeSessionCards.indices.contains(vm.currentSessionIndex) {
             let name = vm.activeSessionCards[vm.currentSessionIndex].name
-            return name.isEmpty ? type.rawValue : name
+            return name.isEmpty ? type.displayName : name
         }
-        return type.rawValue
+        return type.displayName
     }
 
     // MARK: - Timer Controls

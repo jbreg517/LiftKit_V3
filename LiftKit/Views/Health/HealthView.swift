@@ -801,7 +801,7 @@ struct HealthGoalsSheet: View {
     @State private var goal: WeightGoalType = .maintain
     @State private var rate: Double = 1.0
     @State private var goalWeight = ""
-    @State private var proteinPerLb: Double = 0.8
+    @State private var displayProtein: Double = 0.8   // g per lb (imperial) or g per kg (metric)
     @State private var fatPercent: Double = 0.30
     @State private var loaded = false
     @AppStorage("unitSystem") private var unitSystemRaw = "imperial"
@@ -813,6 +813,10 @@ struct HealthGoalsSheet: View {
         let v = units.weightFromLb(lb)
         let num = v == v.rounded() ? "\(Int(v))" : String(format: "%.2g", v)
         return "\(num) \(units.weightLabel)/wk"
+    }
+
+    private var proteinDisplayOptions: [Double] {
+        units == .metric ? [1.4, 1.6, 1.8, 2.0, 2.2] : [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
     }
 
     var body: some View {
@@ -864,9 +868,9 @@ struct HealthGoalsSheet: View {
                     }
                 }
                 Section {
-                    Picker("Protein", selection: $proteinPerLb) {
-                        ForEach([0.5, 0.6, 0.7, 0.8, 0.9, 1.0], id: \.self) { v in
-                            Text(String(format: "%.1f g/lb", v)).tag(v)
+                    Picker("Protein", selection: $displayProtein) {
+                        ForEach(proteinDisplayOptions, id: \.self) { v in
+                            Text(String(format: units == .metric ? "%.1f g/kg" : "%.1f g/lb", v)).tag(v)
                         }
                     }
                     Picker("Fat", selection: $fatPercent) {
@@ -911,7 +915,10 @@ struct HealthGoalsSheet: View {
         goal = p.goalType
         rate = p.weeklyRateLb
         if p.goalWeightLb > 0 { goalWeight = String(Int(units.weightFromLb(p.goalWeightLb).rounded())) }
-        if p.proteinPerLb > 0 { proteinPerLb = p.proteinPerLb }
+        if p.proteinPerLb > 0 {
+            let disp = units == .metric ? p.proteinPerLb / 0.453592 : p.proteinPerLb
+            displayProtein = proteinDisplayOptions.min(by: { abs($0 - disp) < abs($1 - disp) }) ?? disp
+        }
         if p.fatPercent > 0 { fatPercent = p.fatPercent }
     }
 
@@ -931,7 +938,7 @@ struct HealthGoalsSheet: View {
         p.weeklyRateLb = rate
         let goalDisplay = Double(goalWeight.trimmingCharacters(in: .whitespaces)) ?? 0
         p.goalWeightLb = goalDisplay > 0 ? units.weightToLb(goalDisplay) : 0
-        p.proteinPerLb = proteinPerLb
+        p.proteinPerLb = units == .metric ? displayProtein * 0.453592 : displayProtein
         p.fatPercent = fatPercent
         try? context.save()
         dismiss()
