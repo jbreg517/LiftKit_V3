@@ -102,3 +102,74 @@ workflows:
         notify:
           success: true
           failure: true
+
+  # ---------------------------------------------------------------------------
+  # Signed App Store / TestFlight build.
+  #
+  # ONE-TIME SETUP IN THE CODEMAGIC UI (cannot be done from this file):
+  #   1. Apple Developer Program enrollment + the App ID `com.liftkit.app`
+  #      registered at developer.apple.com.
+  #   2. Codemagic > Teams/Personal > Integrations > "App Store Connect":
+  #      upload an App Store Connect API key (Issuer ID, Key ID, .p8 file).
+  #      Name it EXACTLY the same string used in `integrations:` below.
+  #   3. App record created in App Store Connect (so TestFlight has a target).
+  #
+  # Trigger: manual (no `triggering:` block) so it only runs when you start it
+  # from the Codemagic UI — keeps it deliberate and saves build minutes.
+  # To auto-cut a build on a git tag instead, add:
+  #   triggering: { events: [tag], tag_patterns: [{ pattern: 'v*', include: true }] }
+  # ---------------------------------------------------------------------------
+  ios-testflight:
+    name: LiftKit — TestFlight (signed)
+    max_build_duration: 60
+
+    integrations:
+      app_store_connect: LiftKit App Store Connect   # <-- match the key name in Codemagic UI
+
+    environment:
+      xcode: 16.2
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.liftkit.app
+
+    scripts:
+      - name: Set version and build number
+        script: |
+          set -eo pipefail
+          BUILD=$(git rev-list --count HEAD)
+          VERSION=$(grep -oE 'static let current = "[0-9.]+"' LiftKit/Views/Settings/SettingsView.swift | grep -oE '[0-9]+\.[0-9]+' | head -1)
+          echo "Version $VERSION, build $BUILD"
+          PLIST="LiftKit/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$PLIST"
+          [ -n "$VERSION" ] && /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
+
+      - name: Set up code signing
+        script: |
+          # Pulls the App Store distribution cert + provisioning profile fetched
+          # via the app_store_connect integration and applies manual signing.
+          xcode-project use-profiles
+
+      - name: Build signed IPA
+        script: |
+          set -eo pipefail
+          xcode-project build-ipa \
+            --project LiftKit.xcodeproj \
+            --scheme LiftKit
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_*.log
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        # To push straight to external testers, list beta group names here:
+        # beta_groups:
+        #   - "External Testers"
+      email:
+        recipients:
+          - jbreg517@gmail.com
+        notify:
+          success: true
+          failure: true

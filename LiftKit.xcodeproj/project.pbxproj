@@ -54,6 +54,7 @@
 		A70000000000000000000027 /* ScheduleEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000027 /* ScheduleEditView.swift */; };
 		A70000000000000000000028 /* NumberEntrySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000028 /* NumberEntrySheet.swift */; };
 		A70000000000000000000029 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000029 /* Assets.xcassets */; };
+		A7000000000000000000004A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A6000000000000000000004A /* PrivacyInfo.xcprivacy */; };
 		A7000000000000000000002A /* Charts.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A60000000000000000000004 /* Charts.framework */; };
 		A7000000000000000000002B /* AuthenticationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A60000000000000000000005 /* AuthenticationServices.framework */; };
 		A7000000000000000000002C /* UserNotifications.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A60000000000000000000031 /* UserNotifications.framework */; };
@@ -138,6 +139,7 @@
 		A60000000000000000000027 /* ScheduleEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleEditView.swift; sourceTree = "<group>"; };
 		A60000000000000000000028 /* NumberEntrySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumberEntrySheet.swift; sourceTree = "<group>"; };
 		A60000000000000000000029 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A6000000000000000000004A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A6000000000000000000002A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A6000000000000000000002B /* LiftKit.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LiftKit.entitlements; sourceTree = "<group>"; };
 		A6000000000000000000002C /* TimerEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerEngineTests.swift; sourceTree = "<group>"; };
@@ -203,6 +205,7 @@
 				A50000000000000000000008 /* ViewModels */,
 				A50000000000000000000009 /* Views */,
 				A60000000000000000000029 /* Assets.xcassets */,
+				A6000000000000000000004A /* PrivacyInfo.xcprivacy */,
 				A6000000000000000000002A /* Info.plist */,
 				A6000000000000000000002B /* LiftKit.entitlements */,
 			);
@@ -514,6 +517,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A70000000000000000000029 /* Assets.xcassets in Resources */,
+				A7000000000000000000004A /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
