@@ -5,7 +5,7 @@ import UIKit
 /// App version, bumped on every commit/push so the running build is
 /// identifiable in Settings. Increment by 0.01 each push.
 enum AppVersion {
-    static let current = "0.28"
+    static let current = "0.29"
 }
 
 struct SettingsView: View {
@@ -18,6 +18,7 @@ struct SettingsView: View {
     @AppStorage("workoutRemindersEnabled") private var remindersEnabled: Bool = true
     @AppStorage("reminderHour")       private var reminderHour: Int = 8
     @AppStorage("unitSystem")         private var unitSystem: String = "imperial"
+    @AppStorage("availableEquipment") private var availableEquipmentRaw = EquipmentPrefs.defaultRaw
 
     @Environment(\.modelContext) private var context
     @Query private var profiles: [UserProfile]
@@ -66,6 +67,17 @@ struct SettingsView: View {
         WorkoutReminders.cancelAll()
     }
 
+    private func equipmentBinding(_ e: Equipment) -> Binding<Bool> {
+        Binding(
+            get: { EquipmentPrefs.available(availableEquipmentRaw).contains(e) },
+            set: { on in
+                var set = EquipmentPrefs.available(availableEquipmentRaw)
+                if on { set.insert(e) } else { set.remove(e) }
+                availableEquipmentRaw = EquipmentPrefs.raw(from: set)
+            }
+        )
+    }
+
     @State private var showPrivacyPolicy = false
     @State private var showDisclaimer    = false
     @State private var showTour          = false
@@ -111,6 +123,17 @@ struct SettingsView: View {
                     Text("Units")
                 } footer: {
                     Text("Sets the default unit for new workouts and how body measurements are shown. Weights you’ve already logged keep the unit they were recorded in.")
+                }
+
+                Section {
+                    ForEach(EquipmentPrefs.selectable) { e in
+                        Toggle(e.rawValue, isOn: equipmentBinding(e))
+                            .tint(LKColor.accent)
+                    }
+                } header: {
+                    Text("Available Equipment")
+                } footer: {
+                    Text("Recommended workouts that need gear you don’t have are hidden. Bodyweight workouts always show.")
                 }
 
                 Section {

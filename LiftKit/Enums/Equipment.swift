@@ -27,3 +27,25 @@ enum Equipment: String, CaseIterable, Identifiable, Codable {
         }
     }
 }
+
+/// The user's "available equipment" preference (stored in UserDefaults as a
+/// comma-separated list of raw values under `availableEquipment`).
+enum EquipmentPrefs {
+    static let key = "availableEquipment"
+    /// Gear the user can mark as owned. Bodyweight / none / other need nothing.
+    static let selectable: [Equipment] = [.barbell, .dumbbell, .kettlebell, .machine, .cable, .resistanceBand]
+    static let defaultRaw = "Barbell,Dumbbell,Kettlebell,Machine,Cable,Band"
+
+    static func available(_ raw: String) -> Set<Equipment> {
+        Set(raw.split(separator: ",").compactMap { Equipment(rawValue: String($0)) })
+    }
+
+    static func raw(from set: Set<Equipment>) -> String {
+        selectable.filter { set.contains($0) }.map(\.rawValue).joined(separator: ",")
+    }
+
+    /// Equipment that never needs to be owned to count as available.
+    static func alwaysAvailable(_ e: Equipment) -> Bool {
+        e == .bodyweight || e == .none || e == .other
+    }
+}

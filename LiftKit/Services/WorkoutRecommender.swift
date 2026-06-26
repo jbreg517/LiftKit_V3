@@ -16,13 +16,17 @@ enum WorkoutRecommender {
         var id: String { workout.id }
     }
 
-    static func top(_ n: Int, sessions: [WorkoutSession], health: HealthProfile?) -> [Pick] {
-        Array(recommendations(sessions: sessions, health: health).prefix(n))
+    static func top(_ n: Int, sessions: [WorkoutSession], health: HealthProfile?,
+                    available: Set<Equipment>? = nil) -> [Pick] {
+        Array(recommendations(sessions: sessions, health: health, available: available).prefix(n))
     }
 
     static func recommendations(sessions: [WorkoutSession],
                                 health: HealthProfile?,
+                                available: Set<Equipment>? = nil,
                                 catalog: [RecommendedWorkout] = RecommendedWorkouts.all) -> [Pick] {
+        // Hide workouts that need gear the user doesn't have (bodyweight always ok).
+        let usable = available.map { avail in catalog.filter { $0.isDoable(with: avail) } } ?? catalog
         let cal = Calendar.current
         let now = Date()
         let weekAgo = cal.date(byAdding: .day, value: -7, to: now) ?? now
@@ -87,7 +91,7 @@ enum WorkoutRecommender {
         }
 
         // Stable sort: score desc, catalog order as tie-breaker.
-        return catalog.enumerated()
+        return usable.enumerated()
             .map { (offset, w) -> (Int, Double, Pick) in
                 let r = evaluate(w)
                 return (offset, r.score, Pick(workout: w, reason: r.reason))

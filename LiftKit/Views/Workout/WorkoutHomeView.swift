@@ -8,6 +8,7 @@ struct WorkoutHomeView: View {
     @Query(sort: \WorkoutSchedule.date) private var schedules: [WorkoutSchedule]
     @Query(sort: \WorkoutSession.startedAt) private var sessions: [WorkoutSession]
     @Query private var healthProfiles: [HealthProfile]
+    @AppStorage("availableEquipment") private var availableEquipmentRaw = EquipmentPrefs.defaultRaw
 
     @Bindable var vm: WorkoutViewModel
 
@@ -197,9 +198,11 @@ struct WorkoutHomeView: View {
     }
 
     // MARK: - Recommended section
-    /// Top 6 picks, personalized by recent training, recovery load and goal.
+    /// Top 6 picks, personalized by recent training, recovery load, goal, and
+    /// the equipment the user has marked available.
     private var recommendedPicks: [WorkoutRecommender.Pick] {
-        WorkoutRecommender.top(6, sessions: sessions, health: healthProfiles.first)
+        WorkoutRecommender.top(6, sessions: sessions, health: healthProfiles.first,
+                               available: EquipmentPrefs.available(availableEquipmentRaw))
     }
 
     private var recommendedSection: some View {

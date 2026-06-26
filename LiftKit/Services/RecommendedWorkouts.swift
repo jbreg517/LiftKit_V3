@@ -75,6 +75,26 @@ struct RecommendedWorkout: Identifiable {
     var rounds: Int = 8                   // .intervals
 }
 
+extension RecommendedWorkout {
+    /// All equipment this workout uses (across exercises & sessions).
+    var allEquipment: Set<Equipment> {
+        var s = Set<Equipment>()
+        for e in exercises { s.insert(e.equipment) }
+        for sess in sessions { s.insert(sess.equipment) }
+        return s
+    }
+    /// Equipment that must be owned (excludes gear-free items).
+    var requiredEquipment: Set<Equipment> {
+        allEquipment.filter { !EquipmentPrefs.alwaysAvailable($0) }
+    }
+    /// True when every required piece is in the available set.
+    func isDoable(with available: Set<Equipment>) -> Bool {
+        requiredEquipment.isSubset(of: available)
+    }
+    /// True when the workout uses the given equipment (for the chip filter).
+    func uses(_ e: Equipment) -> Bool { allEquipment.contains(e) }
+}
+
 // MARK: - The catalog
 
 enum RecommendedWorkouts {

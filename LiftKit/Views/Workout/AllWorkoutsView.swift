@@ -4,29 +4,52 @@ import SwiftUI
 /// the "Additional Workouts" button under the home recommendations.
 struct AllWorkoutsView: View {
     @Bindable var vm: WorkoutViewModel
+    @AppStorage("availableEquipment") private var availableEquipmentRaw = EquipmentPrefs.defaultRaw
 
-    @State private var typeFilter: TimerType?   // nil = All
+    @State private var typeFilter: TimerType?       // nil = All
+    @State private var equipmentFilter: Equipment?  // nil = All
 
-    private var filtered: [RecommendedWorkout] {
-        guard let t = typeFilter else { return RecommendedWorkouts.all }
-        return RecommendedWorkouts.all.filter { $0.type == t }
+    private var available: Set<Equipment> { EquipmentPrefs.available(availableEquipmentRaw) }
+
+    /// Catalog limited to what the user has equipment for.
+    private var doable: [RecommendedWorkout] {
+        RecommendedWorkouts.all.filter { $0.isDoable(with: available) }
     }
 
-    /// Only the workout types that actually appear in the catalog.
+    private var filtered: [RecommendedWorkout] {
+        doable.filter { w in
+            (typeFilter == nil || w.type == typeFilter) &&
+            (equipmentFilter == nil || w.uses(equipmentFilter!))
+        }
+    }
+
     private var availableTypes: [TimerType] {
-        TimerType.allCases.filter { type in RecommendedWorkouts.all.contains { $0.type == type } }
+        TimerType.allCases.filter { type in doable.contains { $0.type == type } }
+    }
+
+    private var equipmentChips: [Equipment] {
+        [.barbell, .dumbbell, .kettlebell, .machine, .cable, .bodyweight]
+            .filter { e in doable.contains { $0.uses(e) } }
     }
 
     var body: some View {
         ScrollView {
             VStack(spacing: LKSpacing.md) {
-                filterBar
+                typeBar
+                equipmentBar
                 ForEach(filtered) { rec in
                     WorkoutCatalogRow(rec: rec) {
                         HapticManager.shared.buttonTap()
                         vm.loadRecommended(rec)
                     }
                     .padding(.horizontal, LKSpacing.md)
+                }
+                if filtered.isEmpty {
+                    Text("No workouts match these filters. Adjust them or your available equipment in Settings.")
+                        .font(LKFont.caption)
+                        .foregroundColor(LKColor.textMuted)
+                        .multilineTextAlignment(.center)
+                        .padding(LKSpacing.lg)
                 }
             }
             .padding(.vertical, LKSpacing.md)
@@ -36,12 +59,24 @@ struct AllWorkoutsView: View {
         .background(LKColor.background.ignoresSafeArea())
     }
 
-    private var filterBar: some View {
+    private var typeBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: LKSpacing.sm) {
-                filterChip(label: "All", active: typeFilter == nil) { typeFilter = nil }
+                filterChip(label: "All Types", active: typeFilter == nil) { typeFilter = nil }
                 ForEach(availableTypes) { t in
                     filterChip(label: t.rawValue, active: typeFilter == t) { typeFilter = t }
+                }
+            }
+            .padding(.horizontal, LKSpacing.md)
+        }
+    }
+
+    private var equipmentBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: LKSpacing.sm) {
+                filterChip(label: "All Gear", active: equipmentFilter == nil) { equipmentFilter = nil }
+                ForEach(equipmentChips) { e in
+                    filterChip(label: e.rawValue, active: equipmentFilter == e) { equipmentFilter = e }
                 }
             }
             .padding(.horizontal, LKSpacing.md)
