@@ -350,6 +350,8 @@ final class WorkoutViewModel {
             let exercise = findOrCreateExercise(id: card.exerciseID, name: exName, equipment: card.equipment, context: context)
             let entry = WorkoutEntry(timerType: selectedTimerType, sortOrder: i)
             entry.equipmentRaw = card.equipment == .none ? nil : card.equipment.rawValue
+            entry.weight = card.weight > 0 ? card.weight : nil
+            entry.weightUnit = card.weightUnit.rawValue
             entry.session = session
             entry.exercise = exercise
             context.insert(entry)

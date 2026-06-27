@@ -5,7 +5,7 @@ import UIKit
 /// App version, bumped on every commit/push so the running build is
 /// identifiable in Settings. Increment by 0.01 each push.
 enum AppVersion {
-    static let current = "0.40"
+    static let current = "0.41"
 }
 
 struct SettingsView: View {

@@ -14,6 +14,12 @@ final class WorkoutEntry {
     /// keyed by exercise + equipment so e.g. kettlebell and barbell front squats
     /// track separately. nil = unspecified (legacy data).
     var equipmentRaw: String? = nil
+    /// Exercise-level weight for non-rep workouts (AMRAP/EMOM/etc., which don't
+    /// log per-set records). Rep workouts keep weight on each SetRecord.
+    var weight: Double? = nil
+    var weightUnit: String = WeightUnit.lb.rawValue
+    /// Exercise-level RPE for non-rep workouts.
+    var rpe: Double? = nil
     /// Superset group index within the session (nil = standalone).
     var supersetGroup: Int? = nil
 
@@ -46,6 +52,10 @@ final class WorkoutEntry {
     var equipmentEnum: Equipment? {
         guard let e = equipmentRaw else { return nil }
         return Equipment(rawValue: e)
+    }
+
+    var weightUnitEnum: WeightUnit {
+        WeightUnit(rawValue: weightUnit) ?? .lb
     }
 
     var sortedSets: [SetRecord] {

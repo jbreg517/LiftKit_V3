@@ -128,6 +128,14 @@ struct SetDraft {
     var setType: SetType
 }
 
+/// Staged edits to an exercise entry: equipment for any workout, plus
+/// exercise-level weight/RPE for non-rep workouts (which have no per-set records).
+struct EntryDraft {
+    var equipment: Equipment?
+    var weight: Double?
+    var rpe: Double?
+}
+
 /// Identifiable wrapper so we don't use the SwiftData model directly as a sheet item.
 struct EditingSetTarget: Identifiable {
     let id: UUID
@@ -145,19 +153,54 @@ struct WorkoutDetailView: View {
 
     // Staged edits (applied only on Save; dropped on Discard).
     @State private var drafts: [UUID: SetDraft] = [:]
+    @State private var entryDrafts: [UUID: EntryDraft] = [:]
     @State private var deletedSetIDs: Set<UUID> = []
     @State private var draftNotes: String = ""
     @State private var notesEdited = false
     @State private var showDiscardConfirm = false
 
+    private let rpeOptions: [Double] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
     private var isDirty: Bool {
-        !drafts.isEmpty || !deletedSetIDs.isEmpty || notesEdited
+        !drafts.isEmpty || !entryDrafts.isEmpty || !deletedSetIDs.isEmpty || notesEdited
     }
 
     /// Current (draft-aware) values for a set.
     private func effective(_ set: SetRecord) -> SetDraft {
         drafts[set.id] ?? SetDraft(weight: set.weight, reps: set.reps,
                                    duration: set.duration, rpe: set.rpe, setType: set.setType)
+    }
+
+    /// Current (draft-aware) values for an exercise entry. Equipment falls back
+    /// to the exercise's default for legacy entries that never stored their own.
+    private func effectiveEntry(_ entry: WorkoutEntry) -> EntryDraft {
+        entryDrafts[entry.id] ?? EntryDraft(
+            equipment: entry.equipmentEnum ?? entry.exercise?.equipmentEnum,
+            weight: entry.weight,
+            rpe: entry.rpe
+        )
+    }
+
+    private func entryWeightBinding(_ entry: WorkoutEntry) -> Binding<Double> {
+        Binding(
+            get: { effectiveEntry(entry).weight ?? 0 },
+            set: { var d = effectiveEntry(entry); d.weight = $0 > 0 ? $0 : nil; entryDrafts[entry.id] = d }
+        )
+    }
+
+    private func entryRPEBinding(_ entry: WorkoutEntry) -> Binding<Double?> {
+        Binding(
+            get: { effectiveEntry(entry).rpe },
+            set: { var d = effectiveEntry(entry); d.rpe = $0; entryDrafts[entry.id] = d }
+        )
+    }
+
+    private func setEntryEquipment(_ entry: WorkoutEntry, _ eq: Equipment) {
+        var d = effectiveEntry(entry); d.equipment = eq; entryDrafts[entry.id] = d
+    }
+
+    private func rpeLabel(_ v: Double) -> String {
+        v == v.rounded() ? "\(Int(v))" : String(format: "%.1f", v)
     }
 
     var body: some View {
@@ -296,6 +339,14 @@ struct WorkoutDetailView: View {
                 set.setType = d.setType
             }
         }
+        for entry in session.entries {
+            if let d = entryDrafts[entry.id] {
+                let eq = d.equipment ?? .none
+                entry.equipmentRaw = eq == .none ? nil : eq.rawValue
+                entry.weight = d.weight
+                entry.rpe = d.rpe
+            }
+        }
         if notesEdited {
             let trimmed = draftNotes.trimmingCharacters(in: .whitespacesAndNewlines)
             session.notes = trimmed.isEmpty ? nil : trimmed
@@ -311,6 +362,7 @@ struct WorkoutDetailView: View {
 
     private func clearDrafts() {
         drafts.removeAll()
+        entryDrafts.removeAll()
         deletedSetIDs.removeAll()
         draftNotes = ""
         notesEdited = false
@@ -346,6 +398,8 @@ struct WorkoutDetailView: View {
 
     private func exerciseSection(entry: WorkoutEntry) -> some View {
         let sets = entry.sortedSets
+        let eff = effectiveEntry(entry)
+        let eq = eff.equipment ?? .none
         return VStack(alignment: .leading, spacing: LKSpacing.sm) {
             HStack {
                 Text(entry.exercise?.name ?? "Exercise")
@@ -358,19 +412,64 @@ struct WorkoutDetailView: View {
                         .accessibilityLabel("Superset")
                 }
                 Spacer()
-                if let eq = entry.exercise?.equipmentEnum, eq != .none {
-                    Label(eq.rawValue, systemImage: eq.sfSymbol)
-                        .font(LKFont.caption)
-                        .foregroundColor(LKColor.textSecondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(LKColor.surfaceElevated)
-                        .clipShape(Capsule())
+                if isEditing {
+                    LKEquipmentMenu(
+                        equipment: eq,
+                        label: eq == .none ? "Equipment" : eq.rawValue,
+                        isPlaceholder: eq == .none
+                    ) { setEntryEquipment(entry, $0) }
+                } else if eq != .none {
+                    Label {
+                        Text(eq.rawValue)
+                    } icon: {
+                        EquipmentIcon(equipment: eq, size: 13)
+                    }
+                    .font(LKFont.caption)
+                    .foregroundColor(LKColor.textSecondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(LKColor.surfaceElevated)
+                    .clipShape(Capsule())
                 }
             }
 
-            if !sets.isEmpty {
-                // Summary: "3 sets · 30 reps · 95 lb"
+            if sets.isEmpty {
+                // Non-rep workout: weight + RPE live on the exercise itself.
+                if isEditing {
+                    Stepper(value: entryWeightBinding(entry), in: 0...2000, step: 5) {
+                        Text(eff.weight != nil
+                             ? "Weight: \(Int(eff.weight!)) \(entry.weightUnitEnum.rawValue)"
+                             : "Weight: not set")
+                            .font(LKFont.body)
+                            .foregroundColor(LKColor.textPrimary)
+                    }
+                    Picker("RPE", selection: entryRPEBinding(entry)) {
+                        Text("—").tag(Double?.none)
+                        ForEach(rpeOptions, id: \.self) { v in
+                            Text(rpeLabel(v)).tag(Double?.some(v))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .tint(LKColor.accent)
+                } else {
+                    HStack(spacing: 6) {
+                        if let w = eff.weight, w > 0 {
+                            Text("\(Int(w)) \(entry.weightUnitEnum.rawValue)")
+                        }
+                        if let r = eff.rpe {
+                            if (eff.weight ?? 0) > 0 { Text("·").foregroundColor(LKColor.textMuted) }
+                            Text("RPE \(rpeLabel(r))")
+                        }
+                        if (eff.weight ?? 0) == 0 && eff.rpe == nil {
+                            Text("No weight logged — tap Edit to add")
+                                .foregroundColor(LKColor.textMuted)
+                        }
+                    }
+                    .font(LKFont.caption)
+                    .foregroundColor(LKColor.textSecondary)
+                }
+            } else {
+                // Rep workout: per-set summary + editable set rows.
                 let totalReps = sets.compactMap(\.reps).reduce(0, +)
                 let firstWeight = sets.first?.weight
                 let unit = sets.first?.weightUnit ?? ""
