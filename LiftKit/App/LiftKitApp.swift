@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import UserNotifications
 import UIKit
+import AppIntents
 
 @main
 struct LiftKitApp: App {
@@ -22,7 +23,31 @@ struct LiftKitApp: App {
         configureAudioSession()
     }
 
-    var sharedModelContainer: ModelContainer = {
+    var body: some Scene {
+        WindowGroup {
+            RootTabView(vm: vm)
+                .preferredColorScheme(preferredScheme)
+        }
+        .modelContainer(LiftKitStore.container)
+    }
+
+    private func requestNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+    }
+
+    private func configureAudioSession() {
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, options: .mixWithOthers)
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch { }
+    }
+}
+
+// MARK: - Shared model container
+// One container shared by the app and the App Intents entity query, so Siri can
+// look up templates from the same store the UI uses.
+enum LiftKitStore {
+    static let container: ModelContainer = {
         let schema = Schema([
             Exercise.self,
             WorkoutSession.self,
@@ -64,25 +89,6 @@ struct LiftKitApp: App {
             fatalError("Could not create ModelContainer: \(error)")
         }
     }()
-
-    var body: some Scene {
-        WindowGroup {
-            RootTabView(vm: vm)
-                .preferredColorScheme(preferredScheme)
-        }
-        .modelContainer(sharedModelContainer)
-    }
-
-    private func requestNotificationPermission() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
-    }
-
-    private func configureAudioSession() {
-        do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, options: .mixWithOthers)
-            try AVAudioSession.sharedInstance().setActive(true)
-        } catch { }
-    }
 }
 
 // MARK: - Root Tab View
@@ -190,10 +196,16 @@ struct RootTabView: View {
 // scene events). `windowScene(_:performActionFor:)` handles warm launches and
 // `scene(_:willConnectTo:)` handles cold launches.
 
+/// Live-workout control verbs issued by Siri / App Intents.
+enum WorkoutControl: Equatable { case pause, resume, end }
+
 /// Holds the pending quick-action identifier until SwiftUI can act on it.
 final class QuickActions: ObservableObject {
     static let shared = QuickActions()
+    /// Start command: a quick-action / Siri request to start a template.
     @Published var pending: String?
+    /// Control command for the live workout (Siri pause / resume / end).
+    @Published var control: WorkoutControl?
 
     static let scheduledType  = "com.liftkit.quick.scheduled"
     static let favoritePrefix = "com.liftkit.quick.favorite."
@@ -398,3 +410,122 @@ struct TourView: View {
 }
 
 import AVFoundation
+
+// MARK: - Siri / App Intents (Phase 1)
+//
+// Voice + Shortcuts support via the App Intents framework — no Siri entitlement
+// required. "Start" reuses the quick-action bridge (loads the template, opens
+// its setup); pause / resume / end signal the live workout via QuickActions,
+// which ActiveWorkoutView applies to the running timer.
+
+/// A saved workout template, exposed to Siri/Shortcuts as a selectable value.
+struct WorkoutTemplateEntity: AppEntity {
+    let id: UUID
+    let name: String
+
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Workout"
+    var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(name)") }
+    static var defaultQuery = WorkoutTemplateQuery()
+}
+
+struct WorkoutTemplateQuery: EntityStringQuery {
+    @MainActor
+    func entities(for identifiers: [UUID]) async throws -> [WorkoutTemplateEntity] {
+        try fetchAll().filter { identifiers.contains($0.id) }
+            .map { WorkoutTemplateEntity(id: $0.id, name: $0.name) }
+    }
+
+    @MainActor
+    func entities(matching string: String) async throws -> [WorkoutTemplateEntity] {
+        try fetchAll()
+            .filter { $0.name.localizedCaseInsensitiveContains(string) }
+            .map { WorkoutTemplateEntity(id: $0.id, name: $0.name) }
+    }
+
+    @MainActor
+    func suggestedEntities() async throws -> [WorkoutTemplateEntity] {
+        try fetchAll().map { WorkoutTemplateEntity(id: $0.id, name: $0.name) }
+    }
+
+    @MainActor
+    private func fetchAll() throws -> [WorkoutTemplate] {
+        let descriptor = FetchDescriptor<WorkoutTemplate>(
+            sortBy: [SortDescriptor(\.lastUsedAt, order: .reverse)]
+        )
+        return try LiftKitStore.container.mainContext.fetch(descriptor)
+    }
+}
+
+struct StartWorkoutIntent: AppIntent {
+    static var title: LocalizedStringResource = "Start Workout"
+    static var description = IntentDescription("Open a saved workout, ready to start.")
+    static var openAppWhenRun = true
+
+    @Parameter(title: "Workout")
+    var workout: WorkoutTemplateEntity
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        QuickActions.shared.pending = QuickActions.favoritePrefix + workout.id.uuidString
+        return .result()
+    }
+}
+
+struct PauseWorkoutIntent: AppIntent {
+    static var title: LocalizedStringResource = "Pause Workout"
+    static var openAppWhenRun = true
+    @MainActor func perform() async throws -> some IntentResult {
+        QuickActions.shared.control = .pause
+        return .result()
+    }
+}
+
+struct ResumeWorkoutIntent: AppIntent {
+    static var title: LocalizedStringResource = "Resume Workout"
+    static var openAppWhenRun = true
+    @MainActor func perform() async throws -> some IntentResult {
+        QuickActions.shared.control = .resume
+        return .result()
+    }
+}
+
+struct EndWorkoutIntent: AppIntent {
+    static var title: LocalizedStringResource = "End Workout"
+    static var openAppWhenRun = true
+    @MainActor func perform() async throws -> some IntentResult {
+        QuickActions.shared.control = .end
+        return .result()
+    }
+}
+
+struct LiftKitShortcuts: AppShortcutsProvider {
+    static var appShortcuts: [AppShortcut] {
+        AppShortcut(
+            intent: StartWorkoutIntent(),
+            phrases: [
+                "Start my \(\.$workout) workout in \(.applicationName)",
+                "Start a workout in \(.applicationName)"
+            ],
+            shortTitle: "Start Workout",
+            systemImageName: "play.fill"
+        )
+        AppShortcut(
+            intent: PauseWorkoutIntent(),
+            phrases: ["Pause my workout in \(.applicationName)", "Pause \(.applicationName)"],
+            shortTitle: "Pause Workout",
+            systemImageName: "pause.fill"
+        )
+        AppShortcut(
+            intent: ResumeWorkoutIntent(),
+            phrases: ["Resume my workout in \(.applicationName)", "Resume \(.applicationName)"],
+            shortTitle: "Resume Workout",
+            systemImageName: "play.fill"
+        )
+        AppShortcut(
+            intent: EndWorkoutIntent(),
+            phrases: ["End my workout in \(.applicationName)", "Finish my workout in \(.applicationName)"],
+            shortTitle: "End Workout",
+            systemImageName: "stop.fill"
+        )
+    }
+}

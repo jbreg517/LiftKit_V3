@@ -12,6 +12,7 @@ struct ActiveWorkoutView: View {
     @Environment(\.modelContext) private var context
     @Bindable var vm: WorkoutViewModel
     @AppStorage("weightIncrement") private var weightIncrement: Double = 5
+    @ObservedObject private var quickActions = QuickActions.shared
 
     @State private var engine = TimerEngine(notificationPrefix: "main")
     @State private var restEngine = TimerEngine(notificationPrefix: "rest")
@@ -101,6 +102,10 @@ struct ActiveWorkoutView: View {
                 startMainTimer()
             }
             if type == .reps { startRepsTimer() }
+            quickActions.control = nil   // discard any stale Siri command
+        }
+        .onChange(of: quickActions.control) { _, cmd in
+            handleVoiceControl(cmd)
         }
         .onDisappear {
             countdownTimer?.invalidate()
@@ -450,6 +455,28 @@ struct ActiveWorkoutView: View {
         case .emom:      return "Minute \(engine.currentRound)"
         case .intervals: return engine.phase == .work ? "Work" : "Rest"
         default:         return type.rawValue
+        }
+    }
+
+    // MARK: - Siri / voice control
+
+    /// Applies a Siri pause/resume/end command to the live workout. Pause/resume
+    /// act on the main timer (and the rest timer if it's the one running); end
+    /// saves and closes the workout.
+    private func handleVoiceControl(_ cmd: WorkoutControl?) {
+        guard let cmd else { return }
+        quickActions.control = nil
+        switch cmd {
+        case .pause:
+            engine.pause()
+            restEngine.pause()
+            HapticManager.shared.buttonTap()
+        case .resume:
+            if engine.phase == .work || engine.phase == .rest { engine.resume() }
+            if restEngine.phase == .work || restEngine.phase == .rest { restEngine.resume() }
+            HapticManager.shared.buttonTap()
+        case .end:
+            vm.endWorkout(context: context)
         }
     }
 
