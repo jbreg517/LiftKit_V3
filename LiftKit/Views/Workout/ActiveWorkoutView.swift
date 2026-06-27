@@ -35,6 +35,12 @@ struct ActiveWorkoutView: View {
 
     private var type: TimerType { vm.activeConfig.type }
 
+    // Landscape on iPhone reports a compact height. iPad stays .regular, so the
+    // condensed "big timer / small controls" layout only kicks in on phones.
+    @Environment(\.verticalSizeClass) private var vSizeClass
+    private var isLandscapePhone: Bool { vSizeClass == .compact }
+    private var stackSpacing: CGFloat { isLandscapePhone ? LKSpacing.sm : LKSpacing.lg }
+
     var body: some View {
         ZStack {
             // Background
@@ -46,13 +52,19 @@ struct ActiveWorkoutView: View {
 
                 // Content
                 Group {
-                    switch type {
-                    case .amrap:     amrapContent
-                    case .emom:      emomContent
-                    case .forTime:   forTimeContent
-                    case .intervals: intervalsContent
-                    case .reps:      repsContent
-                    case .manual:    manualContent
+                    if type == .reps {
+                        repsContent   // already its own ScrollView
+                    } else {
+                        // Timer-centric screens center when they fit and scroll
+                        // only if a short landscape height can't show everything,
+                        // so nothing ever clips.
+                        GeometryReader { geo in
+                            ScrollView {
+                                timerCentricContent
+                                    .frame(minWidth: geo.size.width, minHeight: geo.size.height)
+                            }
+                            .scrollBounceBehavior(.basedOnSize)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -184,13 +196,16 @@ struct ActiveWorkoutView: View {
 
     // MARK: - Timer Controls
     private func timerControls(engine: TimerEngine) -> some View {
-        HStack(spacing: LKSpacing.xl) {
+        // In landscape (compact height) the controls shrink so the timer can dominate.
+        let mainSize: CGFloat = isLandscapePhone ? 60 : 88
+        let sideSize: CGFloat = isLandscapePhone ? 44 : 60
+        return HStack(spacing: isLandscapePhone ? LKSpacing.lg : LKSpacing.xl) {
             // Skip
             Button { engine.skip(); HapticManager.shared.buttonTap() } label: {
                 Image(systemName: "forward.fill")
-                    .font(.title2)
+                    .font(isLandscapePhone ? .body : .title2)
                     .foregroundColor(LKColor.textSecondary)
-                    .frame(width: 60, height: 60)
+                    .frame(width: sideSize, height: sideSize)
                     .background(LKColor.surfaceElevated)
                     .clipShape(Circle())
             }
@@ -202,9 +217,9 @@ struct ActiveWorkoutView: View {
                 HapticManager.shared.buttonTap()
             } label: {
                 Image(systemName: engine.isRunning ? "pause.fill" : "play.fill")
-                    .font(.title)
+                    .font(isLandscapePhone ? .title2 : .title)
                     .foregroundColor(LKColor.onAccent)
-                    .frame(width: 88, height: 88)
+                    .frame(width: mainSize, height: mainSize)
                     .background(LKColor.accent)
                     .clipShape(Circle())
             }
@@ -216,9 +231,9 @@ struct ActiveWorkoutView: View {
                 HapticManager.shared.buttonTap()
             } label: {
                 Image(systemName: "stop.fill")
-                    .font(.title2)
+                    .font(isLandscapePhone ? .body : .title2)
                     .foregroundColor(LKColor.danger)
-                    .frame(width: 60, height: 60)
+                    .frame(width: sideSize, height: sideSize)
                     .background(LKColor.surfaceElevated)
                     .clipShape(Circle())
             }
@@ -228,12 +243,14 @@ struct ActiveWorkoutView: View {
 
     // MARK: - Hero timer
     private func heroTimer(text: String, color: Color = LKColor.textPrimary) -> some View {
+        // Landscape uses the extra width for a much larger readable timer.
         Text(text)
-            .font(LKFont.timer(112))
+            .font(LKFont.timer(isLandscapePhone ? 150 : 112))
             .foregroundColor(color)
             .contentTransition(.numericText())
             .minimumScaleFactor(0.5)
             .lineLimit(1)
+            .frame(maxWidth: .infinity)
     }
 
     // MARK: - Phase label
@@ -291,7 +308,8 @@ struct ActiveWorkoutView: View {
     // MARK: - Notes display
     private func notesDisplay() -> some View {
         Group {
-            if let notes = vm.activeSession?.notes, !notes.isEmpty {
+            // Hidden in landscape focus mode to keep the timer dominant.
+            if !isLandscapePhone, let notes = vm.activeSession?.notes, !notes.isEmpty {
                 Text(notes)
                     .font(LKFont.caption)
                     .foregroundColor(LKColor.textSecondary)
@@ -307,7 +325,7 @@ struct ActiveWorkoutView: View {
     // MARK: - Multi-session indicator
     private func multiSessionIndicator() -> some View {
         Group {
-            if vm.activeSessionCards.count > 1 {
+            if !isLandscapePhone, vm.activeSessionCards.count > 1 {
                 Text("Workout \(vm.currentSessionIndex + 1) of \(vm.activeSessionCards.count)")
                     .font(LKFont.body)
                     .foregroundColor(LKColor.textSecondary)
@@ -482,9 +500,22 @@ struct ActiveWorkoutView: View {
     // MARK: TYPE-SPECIFIC CONTENT
     // MARK: ============================================================
 
+    // All timer-centric screens (everything except .reps, which is its own list).
+    @ViewBuilder
+    private var timerCentricContent: some View {
+        switch type {
+        case .amrap:     amrapContent
+        case .emom:      emomContent
+        case .forTime:   forTimeContent
+        case .intervals: intervalsContent
+        case .manual:    manualContent
+        case .reps:      EmptyView()   // handled separately in body
+        }
+    }
+
     // MARK: - AMRAP
     private var amrapContent: some View {
-        VStack(spacing: LKSpacing.lg) {
+        VStack(spacing: stackSpacing) {
             Spacer()
             multiSessionIndicator()
             phaseLabel(engine)
@@ -539,7 +570,7 @@ struct ActiveWorkoutView: View {
 
     // MARK: - EMOM
     private var emomContent: some View {
-        VStack(spacing: LKSpacing.lg) {
+        VStack(spacing: stackSpacing) {
             Spacer()
             let sessionIdx = (engine.currentRound - 1) % max(1, vm.activeSessionCards.count)
             let sessionName = vm.activeSessionCards.indices.contains(sessionIdx)
@@ -581,7 +612,7 @@ struct ActiveWorkoutView: View {
     // MARK: - For Time
     private var forTimeContent: some View {
         let isOverCap = engine.elapsedTime > vm.activeConfig.totalDuration
-        return VStack(spacing: LKSpacing.lg) {
+        return VStack(spacing: stackSpacing) {
             Spacer()
             multiSessionIndicator()
             if isOverCap {
@@ -626,7 +657,7 @@ struct ActiveWorkoutView: View {
 
     // MARK: - Intervals
     private var intervalsContent: some View {
-        VStack(spacing: LKSpacing.lg) {
+        VStack(spacing: stackSpacing) {
             Spacer()
             multiSessionIndicator()
             phaseLabel(engine)
@@ -954,7 +985,7 @@ struct ActiveWorkoutView: View {
 
     // MARK: - Manual
     private var manualContent: some View {
-        VStack(spacing: LKSpacing.lg) {
+        VStack(spacing: stackSpacing) {
             Spacer()
             let sessionName = vm.activeSessionCards.first?.name ?? ""
             if !sessionName.isEmpty {
@@ -964,15 +995,15 @@ struct ActiveWorkoutView: View {
             }
             heroTimer(text: engine.formattedTime)
             activeWeightChip(sessionIndex: 0)
-            // Large play/pause
+            // Large play/pause (shrinks in landscape)
             Button {
                 if engine.isRunning { engine.pause() } else { engine.resume() }
                 HapticManager.shared.buttonTap()
             } label: {
                 Image(systemName: engine.isRunning ? "pause.fill" : "play.fill")
-                    .font(.title)
+                    .font(isLandscapePhone ? .title2 : .title)
                     .foregroundColor(LKColor.onAccent)
-                    .frame(width: 88, height: 88)
+                    .frame(width: isLandscapePhone ? 60 : 88, height: isLandscapePhone ? 60 : 88)
                     .background(LKColor.accent)
                     .clipShape(Circle())
             }
@@ -987,7 +1018,7 @@ struct ActiveWorkoutView: View {
                         Text("Next")
                     }
                     .foregroundColor(LKColor.textSecondary)
-                    .frame(width: 60, height: 60)
+                    .frame(width: isLandscapePhone ? 48 : 60, height: isLandscapePhone ? 48 : 60)
                     .background(LKColor.surfaceElevated)
                     .clipShape(Circle())
                 }
