@@ -1,9 +1,11 @@
 import SwiftUI
 import SwiftData
 import UserNotifications
+import UIKit
 
 @main
 struct LiftKitApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var vm = WorkoutViewModel()
     @AppStorage("appearance") private var appearance = "system"
 
@@ -87,6 +89,11 @@ struct LiftKitApp: App {
 struct RootTabView: View {
     @Bindable var vm: WorkoutViewModel
     @AppStorage("hasOnboarded") private var hasOnboarded = false
+    @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject private var quickActions = QuickActions.shared
+    @Query private var templates: [WorkoutTemplate]
+    @Query private var schedules: [WorkoutSchedule]
 
     var body: some View {
         TabView(selection: $vm.selectedTab) {
@@ -124,6 +131,118 @@ struct RootTabView: View {
         .fullScreenCover(isPresented: Binding(get: { !hasOnboarded }, set: { _ in })) {
             OnboardingView { hasOnboarded = true }
         }
+        .onAppear { handlePendingQuickAction() }            // cold launch
+        .onChange(of: quickActions.pending) { _, _ in
+            handlePendingQuickAction()                       // warm launch
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { refreshQuickActions() }
+        }
+    }
+
+    // MARK: Quick actions (Home Screen long-press)
+
+    /// Rebuild the icon's quick actions: today's scheduled workout + up to 3
+    /// favorite templates. Refreshed whenever the app backgrounds.
+    private func refreshQuickActions() {
+        let cal = Calendar.current
+        let todays = schedules.first {
+            !$0.isCompleted && $0.template != nil && cal.isDateInToday($0.date)
+        }
+        let favorites = templates
+            .filter { $0.isFavorite }
+            .sorted { $0.lastUsedAt > $1.lastUsedAt }
+            .prefix(3)
+            .map { (id: $0.id, name: $0.name) }
+        QuickActions.updateShortcuts(scheduledName: todays?.template?.name,
+                                     favorites: Array(favorites))
+    }
+
+    private func handlePendingQuickAction() {
+        guard let type = quickActions.pending else { return }
+        quickActions.pending = nil
+        vm.selectedTab = 0   // Workout tab hosts the setup sheet
+
+        let cal = Calendar.current
+        let template: WorkoutTemplate?
+        if type == QuickActions.scheduledType {
+            template = (schedules.first { !$0.isCompleted && $0.template != nil && cal.isDateInToday($0.date) }
+                        ?? schedules.first { !$0.isCompleted && $0.template != nil })?.template
+        } else if type.hasPrefix(QuickActions.favoritePrefix),
+                  let id = UUID(uuidString: String(type.dropFirst(QuickActions.favoritePrefix.count))) {
+            template = templates.first { $0.id == id }
+        } else {
+            template = nil
+        }
+
+        guard let template else { return }
+        vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
+        vm.markTemplateUsed(template, context: context)
+        vm.showWorkoutSetup = true
+    }
+}
+
+// MARK: - App / Scene delegates + Quick Actions
+//
+// SwiftUI's App lifecycle needs a small UIKit bridge to receive Home Screen
+// quick-action taps. The AppDelegate installs a minimal scene delegate; SwiftUI
+// still owns the window (this is Apple's supported pattern for side-channel
+// scene events). `windowScene(_:performActionFor:)` handles warm launches and
+// `scene(_:willConnectTo:)` handles cold launches.
+
+/// Holds the pending quick-action identifier until SwiftUI can act on it.
+final class QuickActions: ObservableObject {
+    static let shared = QuickActions()
+    @Published var pending: String?
+
+    static let scheduledType  = "com.liftkit.quick.scheduled"
+    static let favoritePrefix = "com.liftkit.quick.favorite."
+
+    static func updateShortcuts(scheduledName: String?, favorites: [(id: UUID, name: String)]) {
+        var items: [UIApplicationShortcutItem] = []
+        if let name = scheduledName {
+            items.append(UIApplicationShortcutItem(
+                type: scheduledType,
+                localizedTitle: "Today's Workout",
+                localizedSubtitle: name,
+                icon: UIApplicationShortcutIcon(systemImageName: "calendar"),
+                userInfo: nil))
+        }
+        for fav in favorites.prefix(3) {
+            items.append(UIApplicationShortcutItem(
+                type: favoritePrefix + fav.id.uuidString,
+                localizedTitle: fav.name,
+                localizedSubtitle: "Favorite",
+                icon: UIApplicationShortcutIcon(systemImageName: "star.fill"),
+                userInfo: nil))
+        }
+        UIApplication.shared.shortcutItems = items
+    }
+}
+
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication,
+                     configurationForConnecting connectingSceneSession: UISceneSession,
+                     options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        let config = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
+        config.delegateClass = SceneDelegate.self
+        return config
+    }
+}
+
+final class SceneDelegate: NSObject, UIWindowSceneDelegate {
+    func scene(_ scene: UIScene, willConnectTo session: UISceneSession,
+               options connectionOptions: UIScene.ConnectionOptions) {
+        if let item = connectionOptions.shortcutItem {
+            QuickActions.shared.pending = item.type
+        }
+    }
+
+    func windowScene(_ windowScene: UIWindowScene,
+                     performActionFor shortcutItem: UIApplicationShortcutItem,
+                     completionHandler: @escaping (Bool) -> Void) {
+        QuickActions.shared.pending = shortcutItem.type
+        completionHandler(true)
     }
 }
 
