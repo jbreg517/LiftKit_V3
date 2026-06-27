@@ -670,19 +670,49 @@ final class WorkoutViewModel {
         try? context.save()
     }
 
+    // MARK: - Active-time clock
+    // Measures real working time: started after the initial countdown and paused
+    // whenever the workout is paused, so the recorded duration excludes both.
+
+    private var clockSegmentStart: Date?
+    private var clockAccumulated: TimeInterval = 0
+
+    func workoutClockStart() {
+        clockAccumulated = 0
+        clockSegmentStart = Date()
+    }
+    func workoutClockPause() {
+        if let s = clockSegmentStart {
+            clockAccumulated += Date().timeIntervalSince(s)
+            clockSegmentStart = nil
+        }
+    }
+    func workoutClockResume() {
+        if clockSegmentStart == nil { clockSegmentStart = Date() }
+    }
+    var activeWorkoutSeconds: TimeInterval {
+        clockAccumulated + (clockSegmentStart.map { Date().timeIntervalSince($0) } ?? 0)
+    }
+
     // MARK: - Complete workout
 
     func completeWorkout(context: ModelContext) {
         guard let session = activeSession else { return }
+        workoutClockPause()
         session.completedAt = Date()
+        session.activeSeconds = activeWorkoutSeconds
         try? context.save()
         isShowingComplete = true
     }
 
     func endWorkout(context: ModelContext) {
         guard let session = activeSession else { return }
+        workoutClockPause()
         if session.completedAt == nil {
             session.completedAt = Date()
+        }
+        if session.activeSeconds == nil {
+            session.activeSeconds = activeWorkoutSeconds
         }
         try? context.save()
         activeSession = nil

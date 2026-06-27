@@ -34,9 +34,7 @@ struct ActiveWorkoutView: View {
     @State private var timedRemaining = 0
     @State private var timedSetTimer: Timer?
 
-    // Reps: total-workout count-up (the main engine stays idle for reps).
-    // Anchored to a start date so it stays correct across backgrounding.
-    @State private var repsStart: Date?
+    // Reps: ELAPSED header display, driven off the view model's active clock.
     @State private var repsElapsed: TimeInterval = 0
     @State private var repsTimer: Timer?
 
@@ -227,7 +225,8 @@ struct ActiveWorkoutView: View {
 
             // Pause / Resume
             Button {
-                if engine.isRunning { engine.pause() } else { engine.resume() }
+                if engine.isRunning { engine.pause(); vm.workoutClockPause() }
+                else { engine.resume(); vm.workoutClockResume() }
                 HapticManager.shared.buttonTap()
             } label: {
                 Image(systemName: engine.isRunning ? "pause.fill" : "play.fill")
@@ -470,10 +469,12 @@ struct ActiveWorkoutView: View {
         case .pause:
             engine.pause()
             restEngine.pause()
+            vm.workoutClockPause()
             HapticManager.shared.buttonTap()
         case .resume:
             if engine.phase == .work || engine.phase == .rest { engine.resume() }
             if restEngine.phase == .work || restEngine.phase == .rest { restEngine.resume() }
+            vm.workoutClockResume()
             HapticManager.shared.buttonTap()
         case .end:
             vm.endWorkout(context: context)
@@ -482,15 +483,14 @@ struct ActiveWorkoutView: View {
 
     // MARK: - Start helpers
 
-    /// Total-workout count-up for the reps screen. Recomputes from a fixed start
-    /// date each tick, so it stays accurate even if the app was backgrounded.
+    /// Drives the reps ELAPSED header off the shared active-time clock, so it
+    /// shows working time (no countdown, no paused time) and matches the recorded
+    /// duration. Anchored in the view model, so it survives backgrounding.
     private func startRepsTimer() {
-        let start = repsStart ?? Date()
-        repsStart = start
-        repsElapsed = Date().timeIntervalSince(start)
+        repsElapsed = vm.activeWorkoutSeconds
         repsTimer?.invalidate()
         let t = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [self] _ in
-            if let s = repsStart { repsElapsed = Date().timeIntervalSince(s) }
+            repsElapsed = vm.activeWorkoutSeconds
         }
         repsTimer = t
         RunLoop.main.add(t, forMode: .common)
@@ -515,6 +515,7 @@ struct ActiveWorkoutView: View {
     }
 
     private func startMainTimer() {
+        vm.workoutClockStart()   // active-time clock begins after the countdown
         engine.start(config: vm.activeConfig)
         engine.onComplete = {
             DispatchQueue.main.async {
@@ -1120,7 +1121,8 @@ struct ActiveWorkoutView: View {
             activeWeightChip(sessionIndex: 0)
             // Large play/pause (shrinks in landscape)
             Button {
-                if engine.isRunning { engine.pause() } else { engine.resume() }
+                if engine.isRunning { engine.pause(); vm.workoutClockPause() }
+                else { engine.resume(); vm.workoutClockResume() }
                 HapticManager.shared.buttonTap()
             } label: {
                 Image(systemName: engine.isRunning ? "pause.fill" : "play.fill")

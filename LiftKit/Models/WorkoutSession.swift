@@ -9,6 +9,9 @@ final class WorkoutSession {
     var completedAt: Date?
     var notes: String?
     var workoutType: String?
+    /// Active workout seconds, excluding the start countdown and any paused time.
+    /// Recorded at completion. Older sessions (nil) fall back to wall-clock.
+    var activeSeconds: TimeInterval?
     /// Elapsed seconds at each recorded split (AMRAP round / For Time checkpoint).
     var splits: [Double] = []
 
@@ -33,6 +36,9 @@ final class WorkoutSession {
     }
 
     var duration: TimeInterval {
+        // Prefer measured active time (excludes countdown + pauses). Fall back to
+        // wall-clock for older sessions or while a workout is still in progress.
+        if let active = activeSeconds { return active }
         guard let end = completedAt else {
             return Date().timeIntervalSince(startedAt)
         }
