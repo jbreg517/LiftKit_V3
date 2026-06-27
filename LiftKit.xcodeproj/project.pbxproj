@@ -27,6 +27,11 @@
 		A7000000000000000000004C /* FoodEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6000000000000000000004C /* FoodEntry.swift */; };
 		A7000000000000000000004D /* NutritionLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6000000000000000000004D /* NutritionLog.swift */; };
 		A7000000000000000000004E /* NutritionModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6000000000000000000004E /* NutritionModelTests.swift */; };
+		A7000000000000000000004F /* NutritionProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6000000000000000000004F /* NutritionProvider.swift */; };
+		A70000000000000000000050 /* USDAFoodDataClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000050 /* USDAFoodDataClient.swift */; };
+		A70000000000000000000051 /* OpenFoodFactsClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000051 /* OpenFoodFactsClient.swift */; };
+		A70000000000000000000052 /* FoodLookupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000052 /* FoodLookupService.swift */; };
+		A70000000000000000000053 /* FoodLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000053 /* FoodLookupTests.swift */; };
 		A70000000000000000000013 /* WorkoutTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000013 /* WorkoutTemplate.swift */; };
 		A70000000000000000000014 /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000014 /* UserProfile.swift */; };
 		A70000000000000000000015 /* WorkoutSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000015 /* WorkoutSchedule.swift */; };
@@ -116,6 +121,11 @@
 		A6000000000000000000004C /* FoodEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodEntry.swift; sourceTree = "<group>"; };
 		A6000000000000000000004D /* NutritionLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionLog.swift; sourceTree = "<group>"; };
 		A6000000000000000000004E /* NutritionModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionModelTests.swift; sourceTree = "<group>"; };
+		A6000000000000000000004F /* NutritionProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionProvider.swift; sourceTree = "<group>"; };
+		A60000000000000000000050 /* USDAFoodDataClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = USDAFoodDataClient.swift; sourceTree = "<group>"; };
+		A60000000000000000000051 /* OpenFoodFactsClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenFoodFactsClient.swift; sourceTree = "<group>"; };
+		A60000000000000000000052 /* FoodLookupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodLookupService.swift; sourceTree = "<group>"; };
+		A60000000000000000000053 /* FoodLookupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodLookupTests.swift; sourceTree = "<group>"; };
 		A60000000000000000000013 /* WorkoutTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutTemplate.swift; sourceTree = "<group>"; };
 		A60000000000000000000014 /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
 		A60000000000000000000015 /* WorkoutSchedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSchedule.swift; sourceTree = "<group>"; };
@@ -287,6 +297,10 @@
 				A60000000000000000000034 /* LiftKitActivityAttributes.swift */,
 				A60000000000000000000035 /* LiveActivityManager.swift */,
 				A6000000000000000000004D /* NutritionLog.swift */,
+				A6000000000000000000004F /* NutritionProvider.swift */,
+				A60000000000000000000050 /* USDAFoodDataClient.swift */,
+				A60000000000000000000051 /* OpenFoodFactsClient.swift */,
+				A60000000000000000000052 /* FoodLookupService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -412,6 +426,7 @@
 				A6000000000000000000002C /* TimerEngineTests.swift */,
 				A6000000000000000000002D /* FeatureGapTests.swift */,
 				A6000000000000000000004E /* NutritionModelTests.swift */,
+				A60000000000000000000053 /* FoodLookupTests.swift */,
 			);
 			path = LiftKitTests;
 			sourceTree = "<group>";
@@ -592,6 +607,10 @@
 				A70000000000000000000034 /* LiftKitActivityAttributes.swift in Sources */,
 				A70000000000000000000035 /* LiveActivityManager.swift in Sources */,
 				A7000000000000000000004D /* NutritionLog.swift in Sources */,
+				A7000000000000000000004F /* NutritionProvider.swift in Sources */,
+				A70000000000000000000050 /* USDAFoodDataClient.swift in Sources */,
+				A70000000000000000000051 /* OpenFoodFactsClient.swift in Sources */,
+				A70000000000000000000052 /* FoodLookupService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -602,6 +621,7 @@
 				A7000000000000000000002E /* TimerEngineTests.swift in Sources */,
 				A7000000000000000000002F /* FeatureGapTests.swift in Sources */,
 				A7000000000000000000004E /* NutritionModelTests.swift in Sources */,
+				A70000000000000000000053 /* FoodLookupTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

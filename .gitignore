@@ -36,6 +36,10 @@ xcuserdata/
 # Codemagic
 .cm/
 
+# Secrets (real key file; only the .template is committed)
+Secrets.xcconfig
+LiftKit/Secrets.xcconfig
+
 # CocoaPods (not used, but just in case)
 Pods/
 Podfile.lock
