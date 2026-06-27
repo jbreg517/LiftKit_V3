@@ -327,7 +327,7 @@ struct HealthView: View {
                     Text("Log your bodyweight for burn estimates.")
                         .font(LKFont.caption).foregroundColor(LKColor.textMuted)
                 }
-                Text("Estimated from duration and bodyweight. Your calorie target already includes everyday activity — don’t add these back twice.")
+                Text("Rough estimate. Strength workouts are based on the sets you logged (not elapsed time, so breaks don’t inflate it); timed workouts use their length. Your calorie target already includes everyday activity — don’t add these back twice.")
                     .font(.system(size: 11))
                     .foregroundColor(LKColor.textMuted)
             }
@@ -677,8 +677,27 @@ struct HealthView: View {
     }
     private func burn(for s: WorkoutSession) -> Double {
         guard let w = bodyweight(on: s.startedAt) else { return 0 }
-        return HealthCalculations.caloriesBurned(durationSeconds: s.duration, weightLb: w,
+        return HealthCalculations.caloriesBurned(durationSeconds: effectiveBurnSeconds(for: s),
+                                                 weightLb: w,
                                                  met: HealthCalculations.met(for: s.timerType))
+    }
+
+    /// Burn time that doesn't balloon when a session is spread across the day.
+    /// Strength (reps) workouts are estimated from the sets actually logged —
+    /// rep sets at a fixed active block, timed holds at their real seconds —
+    /// rather than wall-clock. Timer-driven workouts use elapsed time, clamped.
+    private func effectiveBurnSeconds(for s: WorkoutSession) -> Double {
+        let wall = s.duration
+        if s.timerType == .reps || s.timerType == nil {
+            let sets = s.entries.flatMap { $0.sets }
+            let repSets = sets.filter { !$0.isTimed && ($0.reps ?? 0) > 0 }.count
+            let holdSeconds = sets.filter { $0.isTimed }.compactMap { $0.duration }.reduce(0, +)
+            let est = HealthCalculations.strengthActiveSeconds(repSets: repSets, timedHoldSeconds: holdSeconds)
+            // Never exceed the real elapsed time (e.g. a very quick session).
+            return wall > 0 ? min(est, wall) : est
+        }
+        // Timer-driven workouts are bounded by their timers; clamp as a safety net.
+        return min(wall, 3 * 3600.0)
     }
 
     private struct TrendPoint: Identifiable {

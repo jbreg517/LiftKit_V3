@@ -94,4 +94,15 @@ enum HealthCalculations {
         let hours = durationSeconds / 3600.0
         return met * kg * hours
     }
+
+    /// Assumed active time per logged strength set — the working set plus a brief
+    /// elevated-effort window. Strength burn is counted per set (not wall-clock)
+    /// so a session broken up across the day doesn't inflate the estimate.
+    static let secondsPerStrengthSet: Double = 60
+
+    /// Effective active seconds for a strength workout: each rep-based set counts
+    /// as a fixed block; timed holds (e.g. planks) use their real seconds.
+    static func strengthActiveSeconds(repSets: Int, timedHoldSeconds: Double) -> Double {
+        Double(max(0, repSets)) * secondsPerStrengthSet + max(0, timedHoldSeconds)
+    }
 }
