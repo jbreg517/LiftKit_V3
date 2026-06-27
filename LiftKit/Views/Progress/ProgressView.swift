@@ -51,6 +51,7 @@ struct ProgressView: View {
                     weeklyVolume
                 }
                 .padding(.vertical, LKSpacing.md)
+                .readableWidth()
             }
             .navigationTitle("Progress")
             .background(LKColor.background.ignoresSafeArea())

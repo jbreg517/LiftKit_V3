@@ -32,15 +32,22 @@ enum LKColor {
 }
 
 // MARK: - Fonts
+// Built on Dynamic Type text styles (rather than fixed point sizes) so all
+// text scales with the user's accessibility text-size setting. The chosen
+// styles match the previous fixed sizes at the default setting:
+//   title 28 → .title · heading 20 → .title3 · body 16/17 → .body
+//   caption 12 → .caption · phase 14/15 → .subheadline · numeric 28 → .title
 enum LKFont {
-    static let title    = Font.system(size: 28, weight: .heavy)
-    static let heading  = Font.system(size: 20, weight: .bold)
-    static let body     = Font.system(size: 16, weight: .regular)
-    static let bodyBold = Font.system(size: 16, weight: .semibold)
-    static let caption  = Font.system(size: 12, weight: .regular)
-    static let numeric  = Font.system(size: 28, weight: .bold, design: .monospaced)
-    static let phase    = Font.system(size: 14, weight: .heavy)
+    static let title    = Font.system(.title,       design: .default,    weight: .heavy)
+    static let heading  = Font.system(.title3,      design: .default,    weight: .bold)
+    static let body     = Font.system(.body,        design: .default,    weight: .regular)
+    static let bodyBold = Font.system(.body,        design: .default,    weight: .semibold)
+    static let caption  = Font.system(.caption,     design: .default,    weight: .regular)
+    static let numeric  = Font.system(.title,       design: .monospaced, weight: .bold)
+    static let phase    = Font.system(.subheadline, design: .default,    weight: .heavy)
 
+    /// Large stopwatch numerals. Intentionally a fixed display size (like the
+    /// system Clock app) — it's sized to fit the screen, not to be read as text.
     static func timer(_ size: CGFloat) -> Font {
         Font.system(size: size, weight: .black, design: .monospaced)
     }
@@ -105,6 +112,14 @@ struct LKCardModifier: ViewModifier {
 extension View {
     func lkCard() -> some View {
         modifier(LKCardModifier())
+    }
+
+    /// Caps content to a comfortable reading width and centers it. On iPhone the
+    /// width is already under the cap so this is a no-op; on iPad it keeps the
+    /// single-column content from stretching edge-to-edge.
+    func readableWidth(_ maxWidth: CGFloat = 700) -> some View {
+        frame(maxWidth: maxWidth)
+            .frame(maxWidth: .infinity)
     }
 }
 

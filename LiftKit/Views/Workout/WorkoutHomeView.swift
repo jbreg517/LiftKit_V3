@@ -62,6 +62,7 @@ struct WorkoutHomeView: View {
                     plansSection
                 }
                 .padding(.vertical, LKSpacing.md)
+                .readableWidth()
             }
             .background(LKColor.background.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)

@@ -84,6 +84,7 @@ struct HealthView: View {
                 clearHealthButton
             }
             .padding(.vertical, LKSpacing.md)
+            .readableWidth()
         }
     }
 

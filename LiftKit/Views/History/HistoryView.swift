@@ -49,6 +49,7 @@ struct HistoryView: View {
                             }
                         }
                         .padding(.vertical, LKSpacing.md)
+                        .readableWidth()
                     }
                 }
             }
