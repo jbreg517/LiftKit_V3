@@ -135,6 +135,74 @@ struct LKSectionLabel: View {
     }
 }
 
+// MARK: - Equipment Icon
+/// Equipment glyphs. Free weights are custom-drawn because SF Symbols lack
+/// distinct barbell / dumbbell / kettlebell / band shapes; everything else
+/// uses its SF Symbol. The shapes fill with the inherited foreground color and
+/// scale to `size`. NOTE: custom glyphs render only in normal views — dropdown
+/// menu rows must keep the SF Symbol name (SwiftUI menus only show system images).
+struct EquipmentIcon: View {
+    let equipment: Equipment
+    var size: CGFloat = 16
+
+    private var lineW: CGFloat { max(1.5, size * 0.12) }
+
+    var body: some View {
+        switch equipment {
+        case .barbell:        barbell
+        case .dumbbell:       dumbbell
+        case .kettlebell:     kettlebell
+        case .resistanceBand: band
+        default:
+            Image(systemName: equipment.sfSymbol).font(.system(size: size))
+        }
+    }
+
+    // Long thin bar with two plates per side.
+    private var barbell: some View {
+        ZStack {
+            Capsule().frame(width: size * 0.98, height: size * 0.12)
+            RoundedRectangle(cornerRadius: size * 0.05).frame(width: size * 0.10, height: size * 0.55).offset(x: -size * 0.30)
+            RoundedRectangle(cornerRadius: size * 0.05).frame(width: size * 0.10, height: size * 0.40).offset(x: -size * 0.42)
+            RoundedRectangle(cornerRadius: size * 0.05).frame(width: size * 0.10, height: size * 0.55).offset(x: size * 0.30)
+            RoundedRectangle(cornerRadius: size * 0.05).frame(width: size * 0.10, height: size * 0.40).offset(x: size * 0.42)
+        }
+        .frame(width: size, height: size)
+    }
+
+    // Short solid bar with chunky endcaps.
+    private var dumbbell: some View {
+        ZStack {
+            Capsule().frame(width: size * 0.60, height: size * 0.14)
+            RoundedRectangle(cornerRadius: size * 0.08).frame(width: size * 0.20, height: size * 0.50).offset(x: -size * 0.32)
+            RoundedRectangle(cornerRadius: size * 0.08).frame(width: size * 0.20, height: size * 0.50).offset(x: size * 0.32)
+        }
+        .frame(width: size, height: size)
+    }
+
+    // Round bell with a loop handle on top.
+    private var kettlebell: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.14)
+                .stroke(lineWidth: lineW)
+                .frame(width: size * 0.42, height: size * 0.36)
+                .offset(y: -size * 0.30)
+            Circle()
+                .frame(width: size * 0.66, height: size * 0.66)
+                .offset(y: size * 0.13)
+        }
+        .frame(width: size, height: size)
+    }
+
+    // Resistance loop band.
+    private var band: some View {
+        Capsule()
+            .stroke(lineWidth: lineW)
+            .frame(width: size * 0.92, height: size * 0.50)
+            .frame(width: size, height: size)
+    }
+}
+
 // MARK: - Hex Color Initializer
 extension Color {
     init(hex: String) {

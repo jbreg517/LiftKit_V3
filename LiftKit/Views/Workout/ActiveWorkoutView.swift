@@ -278,7 +278,11 @@ struct ActiveWorkoutView: View {
             : SessionCard()
         return HStack(spacing: LKSpacing.sm) {
             if card.equipment != .none {
-                Label(card.equipment.rawValue, systemImage: card.equipment.sfSymbol)
+                Label {
+                    Text(card.equipment.rawValue)
+                } icon: {
+                    EquipmentIcon(equipment: card.equipment, size: 13)
+                }
                     .font(LKFont.caption)
                     .foregroundColor(LKColor.textSecondary)
                     .padding(.horizontal, LKSpacing.sm)
@@ -853,8 +857,7 @@ struct ActiveWorkoutView: View {
     private func weightControls(exIdx: Int, ex: ActiveExercise) -> some View {
         HStack(spacing: LKSpacing.sm) {
             if ex.equipment != .none {
-                Image(systemName: ex.equipment.sfSymbol)
-                    .font(.system(size: 15))
+                EquipmentIcon(equipment: ex.equipment, size: 15)
                     .foregroundColor(LKColor.textSecondary)
                     .frame(width: 30, height: 30)
                     .background(LKColor.surfaceElevated)
@@ -967,6 +970,41 @@ struct ActiveWorkoutView: View {
             }
         }
         .accessibilityLabel(setCircleAccessibility(set: set, isRunning: isRunning))
+        .contextMenu {
+            // Rep sets get a long-press menu: Complete on top, then a scrollable
+            // 0…planned rep picker. (Timed holds keep their tap-to-start flow.)
+            if !set.isTimed {
+                Button {
+                    completeSet(exIdx: exIdx, setIdx: setIdx, reps: set.plannedReps)
+                } label: {
+                    Label("Complete (\(set.plannedReps) reps)", systemImage: "checkmark.circle.fill")
+                }
+                Section("Reps completed") {
+                    ForEach(0...max(0, set.plannedReps), id: \.self) { n in
+                        Button("\(n) rep\(n == 1 ? "" : "s")") {
+                            completeSet(exIdx: exIdx, setIdx: setIdx, reps: n)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Records a chosen rep count for a set. If the set was already logged it
+    /// edits the existing record; otherwise it logs it (and starts rest).
+    private func completeSet(exIdx: Int, setIdx: Int, reps: Int) {
+        guard exIdx < vm.activeExercises.count,
+              setIdx < vm.activeExercises[exIdx].sets.count else { return }
+        if vm.activeExercises[exIdx].sets[setIdx].isCompleted {
+            let s = vm.activeExercises[exIdx].sets[setIdx]
+            vm.updateSet(exerciseIndex: exIdx, setIndex: setIdx,
+                         repsOrDuration: reps, rpe: s.rpe, setType: s.setType, context: context)
+        } else {
+            vm.activeExercises[exIdx].sets[setIdx].actualReps = reps
+            vm.logSet(exerciseIndex: exIdx, setIndex: setIdx, context: context)
+            if !vm.isShowingComplete { startRestIfNeeded() }
+        }
+        HapticManager.shared.setLogged()
     }
 
     private func setCircleFill(set: ActiveSet, isRunning: Bool) -> Color {

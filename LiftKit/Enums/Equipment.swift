@@ -33,8 +33,9 @@ enum Equipment: String, CaseIterable, Identifiable, Codable {
 enum EquipmentPrefs {
     static let key = "availableEquipment"
     /// Gear the user can mark as owned. Bodyweight / none / other need nothing.
-    static let selectable: [Equipment] = [.barbell, .dumbbell, .kettlebell, .machine, .cable, .resistanceBand]
-    static let defaultRaw = "Barbell,Dumbbell,Kettlebell,Machine,Cable,Band"
+    /// Cable was retired as a user-facing option (see `alwaysAvailable`).
+    static let selectable: [Equipment] = [.barbell, .dumbbell, .kettlebell, .machine, .resistanceBand]
+    static let defaultRaw = "Barbell,Dumbbell,Kettlebell,Machine,Band"
 
     static func available(_ raw: String) -> Set<Equipment> {
         Set(raw.split(separator: ",").compactMap { Equipment(rawValue: String($0)) })
@@ -44,8 +45,10 @@ enum EquipmentPrefs {
         selectable.filter { set.contains($0) }.map(\.rawValue).joined(separator: ",")
     }
 
-    /// Equipment that never needs to be owned to count as available.
+    /// Equipment that never needs to be owned to count as available. Cable is
+    /// here (rather than in `selectable`) so it's no longer a user toggle, but
+    /// any existing cable-tagged exercises still count as doable.
     static func alwaysAvailable(_ e: Equipment) -> Bool {
-        e == .bodyweight || e == .none || e == .other
+        e == .bodyweight || e == .none || e == .other || e == .cable
     }
 }

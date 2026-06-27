@@ -707,7 +707,7 @@ struct SessionCardView: View {
             HStack(alignment: .center, spacing: 8) {
                 HStack(spacing: 0) {
                     LKEquipmentMenu(
-                        sfSymbol: card.equipment.sfSymbol,
+                        equipment: card.equipment,
                         label: card.equipment == .none ? "Equipment" : card.equipment.rawValue,
                         isPlaceholder: card.equipment == .none
                     ) { card.equipment = $0; prefillWeight() }
@@ -812,7 +812,7 @@ struct ExerciseCardView: View {
             // Equipment + weight
             HStack(spacing: LKSpacing.md) {
                 LKEquipmentMenu(
-                    sfSymbol: card.equipment.sfSymbol,
+                    equipment: card.equipment,
                     label: card.equipment == .none ? "Equipment" : card.equipment.rawValue,
                     isPlaceholder: card.equipment == .none
                 ) { card.equipment = $0; refreshSuggestion(resetWeightIfNone: true) }
@@ -974,21 +974,21 @@ struct ExerciseCardView: View {
 // MARK: - Reusable card components
 
 struct LKEquipmentMenu: View {
-    let sfSymbol: String
+    let equipment: Equipment
     let label: String
     let isPlaceholder: Bool
     let onSelect: (Equipment) -> Void
 
     var body: some View {
         Menu {
-            ForEach(Equipment.allCases) { eq in
+            ForEach(Equipment.allCases.filter { $0 != .cable }) { eq in
                 Button { onSelect(eq) } label: {
                     Label(eq.rawValue, systemImage: eq.sfSymbol)
                 }
             }
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: sfSymbol).font(.system(size: 11))
+                EquipmentIcon(equipment: equipment, size: 11)
                 Text(label)
                     .font(.system(size: 12, weight: .medium))
                     .lineLimit(1)
