@@ -33,6 +33,12 @@ struct ActiveWorkoutView: View {
     @State private var timedRemaining = 0
     @State private var timedSetTimer: Timer?
 
+    // Reps: total-workout count-up (the main engine stays idle for reps).
+    // Anchored to a start date so it stays correct across backgrounding.
+    @State private var repsStart: Date?
+    @State private var repsElapsed: TimeInterval = 0
+    @State private var repsTimer: Timer?
+
     private var type: TimerType { vm.activeConfig.type }
 
     // Landscape on iPhone reports a compact height. iPad stays .regular, so the
@@ -94,12 +100,15 @@ struct ActiveWorkoutView: View {
             } else {
                 startMainTimer()
             }
+            if type == .reps { startRepsTimer() }
         }
         .onDisappear {
             countdownTimer?.invalidate()
             countdownTimer = nil
             timedSetTimer?.invalidate()
             timedSetTimer = nil
+            repsTimer?.invalidate()
+            repsTimer = nil
             engine.stop()
             restEngine.stop()
             LiveActivityManager.shared.stop()
@@ -441,6 +450,21 @@ struct ActiveWorkoutView: View {
     }
 
     // MARK: - Start helpers
+
+    /// Total-workout count-up for the reps screen. Recomputes from a fixed start
+    /// date each tick, so it stays accurate even if the app was backgrounded.
+    private func startRepsTimer() {
+        let start = repsStart ?? Date()
+        repsStart = start
+        repsElapsed = Date().timeIntervalSince(start)
+        repsTimer?.invalidate()
+        let t = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [self] _ in
+            if let s = repsStart { repsElapsed = Date().timeIntervalSince(s) }
+        }
+        repsTimer = t
+        RunLoop.main.add(t, forMode: .common)
+    }
+
     private func startInitialCountdown() {
         initialCountdown = 10
         showInitialCountdown = true
@@ -675,6 +699,8 @@ struct ActiveWorkoutView: View {
     // MARK: - Reps
     private var repsContent: some View {
         VStack(spacing: 0) {
+            // Total workout time
+            repsTimerHeader
             // Rest banner
             if restEngine.phase == .rest || restEngine.phase == .work {
                 restBanner
@@ -699,6 +725,25 @@ struct ActiveWorkoutView: View {
                 .padding(LKSpacing.md)
             }
         }
+    }
+
+    private var repsTimerHeader: some View {
+        HStack(spacing: LKSpacing.sm) {
+            Image(systemName: "stopwatch")
+                .font(LKFont.bodyBold)
+                .foregroundColor(LKColor.textSecondary)
+            Text("ELAPSED")
+                .font(LKFont.caption)
+                .foregroundColor(LKColor.textMuted)
+                .tracking(1)
+            Text(TimerEngine.format(repsElapsed))
+                .font(LKFont.numeric)
+                .foregroundColor(LKColor.textPrimary)
+                .contentTransition(.numericText())
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, LKSpacing.sm)
+        .background(LKColor.surface)
     }
 
     private var restBanner: some View {
@@ -758,11 +803,14 @@ struct ActiveWorkoutView: View {
                             .foregroundColor(LKColor.accent)
                             .tracking(1)
                     }
-                    accessoryButtons(ex: ex)
                 }
                 Spacer()
                 weightControls(exIdx: exIdx, ex: ex)
             }
+
+            // Plates / warm-up live on their own full-width row so they stay
+            // on a single line instead of wrapping next to the weight stepper.
+            accessoryButtons(ex: ex)
 
             if let last = ex.previousSummary {
                 Text(last)
@@ -781,15 +829,21 @@ struct ActiveWorkoutView: View {
         .lkCard()
     }
 
-    /// "Show Plates" / "Warm-up" buttons shown under the exercise name.
+    /// "Show Plates" / "Warm-up" buttons. Rendered as a single-line row; emits
+    /// nothing when neither applies (so no empty gap appears in the card).
     @ViewBuilder
     private func accessoryButtons(ex: ActiveExercise) -> some View {
-        HStack(spacing: LKSpacing.sm) {
-            if ex.equipment == .barbell {
-                showPlatesButton(weight: ex.weight, unit: ex.weightUnit)
-            }
-            if !ex.isTimed && ex.weight > 0 {
-                warmupButton(weight: ex.weight, unit: ex.weightUnit)
+        let showPlates = ex.equipment == .barbell
+        let showWarmup = !ex.isTimed && ex.weight > 0
+        if showPlates || showWarmup {
+            HStack(spacing: LKSpacing.sm) {
+                if showPlates {
+                    showPlatesButton(weight: ex.weight, unit: ex.weightUnit)
+                }
+                if showWarmup {
+                    warmupButton(weight: ex.weight, unit: ex.weightUnit)
+                }
+                Spacer(minLength: 0)
             }
         }
     }
@@ -855,11 +909,13 @@ struct ActiveWorkoutView: View {
         } label: {
             Label("Show Plates", systemImage: "circle.grid.2x2.fill")
                 .font(.system(size: 12, weight: .semibold))
+                .lineLimit(1)
                 .foregroundColor(LKColor.accent)
                 .padding(.horizontal, LKSpacing.sm)
                 .padding(.vertical, 5)
                 .background(LKColor.surfaceElevated)
                 .clipShape(Capsule())
+                .fixedSize()
         }
     }
 
@@ -870,11 +926,13 @@ struct ActiveWorkoutView: View {
         } label: {
             Label("Warm-up", systemImage: "flame.fill")
                 .font(.system(size: 12, weight: .semibold))
+                .lineLimit(1)
                 .foregroundColor(LKColor.accent)
                 .padding(.horizontal, LKSpacing.sm)
                 .padding(.vertical, 5)
                 .background(LKColor.surfaceElevated)
                 .clipShape(Capsule())
+                .fixedSize()
         }
     }
 
