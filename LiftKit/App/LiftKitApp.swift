@@ -61,6 +61,8 @@ enum LiftKitStore {
             BodyMetric.self,
             HealthProfile.self,
             NutritionDay.self,
+            FoodItem.self,
+            FoodEntry.self,
         ])
 
         // iCloud sync is opt-in (default OFF) and only works on a properly
@@ -137,7 +139,10 @@ struct RootTabView: View {
         .fullScreenCover(isPresented: Binding(get: { !hasOnboarded }, set: { _ in })) {
             OnboardingView { hasOnboarded = true }
         }
-        .onAppear { handlePendingQuickAction() }            // cold launch
+        .onAppear {
+            NutritionLog.backfillEntriesIfNeeded(context: context)   // one-time data migration
+            handlePendingQuickAction()                               // cold launch
+        }
         .onChange(of: quickActions.pending) { _, _ in
             handlePendingQuickAction()                       // warm launch
         }
