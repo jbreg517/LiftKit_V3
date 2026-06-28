@@ -21,6 +21,8 @@ struct HealthView: View {
     @State private var showNutritionAdd = false
     @State private var showLogin = false
     @State private var showClearHealth = false
+    @State private var selectedDate = Calendar.current.startOfDay(for: Date())
+    @State private var addMealType: MealType = .snack
     @AppStorage("unitSystem") private var unitSystemRaw = "imperial"
 
     private var isPremium: Bool { userProfiles.first?.isPremium ?? false }
@@ -57,7 +59,9 @@ struct HealthView: View {
             .sheet(isPresented: $showGoals) { HealthGoalsSheet() }
             .sheet(isPresented: $showWeightAdd) { AddBodyMetricSheet(defaultType: .bodyweight) }
             .sheet(isPresented: $showNutritionAdd) {
-                NutritionQuickAddSheet { p, c, f, a in addMacros(p: p, c: c, f: f, a: a) }
+                NutritionQuickAddSheet(mealName: addMealType.label) { p, c, f, a in
+                    addManualEntry(p: p, c: c, f: f, a: a)
+                }
             }
             .sheet(isPresented: $showLogin) { LoginView(vm: vm) }
             .alert("Delete health data?", isPresented: $showClearHealth) {
@@ -77,7 +81,7 @@ struct HealthView: View {
                 adaptiveSection
                 weightGoalSection
                 targetNudgeSection
-                nutritionSection
+                foodLogSection
                 burnSection
                 trendsSection
                 measurementsLink
@@ -223,21 +227,19 @@ struct HealthView: View {
         }
     }
 
-    // MARK: - Nutrition (today)
-    private var nutritionSection: some View {
-        let day = todayLog
+    // MARK: - Food log (selected day)
+    private var foodLogSection: some View {
+        let day = selectedDay
         let consumed = day?.calories ?? 0
         return VStack(alignment: .leading, spacing: LKSpacing.sm) {
             HStack {
-                Text("TODAY’S INTAKE")
+                Text("FOOD LOG")
                     .font(LKFont.caption).foregroundColor(LKColor.textMuted).tracking(2)
                 Spacer()
-                if day != nil {
-                    Button("Clear") { clearToday() }
-                        .font(LKFont.caption).foregroundColor(LKColor.textMuted)
-                }
+                dateStepper
             }
             .padding(.horizontal, LKSpacing.md)
+
             VStack(alignment: .leading, spacing: LKSpacing.sm) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("\(kcal(consumed))")
@@ -254,17 +256,125 @@ struct HealthView: View {
                     calorieBar(consumed: consumed, goal: goal)
                 }
                 macroRow(day)
-                Button { showNutritionAdd = true } label: {
-                    Label("Log Macros", systemImage: "plus")
-                        .font(LKFont.bodyBold)
-                }
-                .buttonStyle(LKSecondaryButtonStyle())
             }
             .padding(LKSpacing.md)
             .background(LKColor.surface)
             .cornerRadius(LKRadius.large)
             .padding(.horizontal, LKSpacing.md)
+
+            ForEach(MealType.allCases) { meal in
+                mealSection(meal)
+            }
         }
+    }
+
+    private var dateStepper: some View {
+        HStack(spacing: LKSpacing.md) {
+            Button { stepDay(-1) } label: {
+                Image(systemName: "chevron.left")
+            }
+            .accessibilityLabel("Previous day")
+            Text(dateLabel)
+                .font(LKFont.caption).foregroundColor(LKColor.textSecondary)
+                .frame(minWidth: 96)
+            Button { stepDay(1) } label: {
+                Image(systemName: "chevron.right")
+            }
+            .disabled(!canGoForward)
+            .opacity(canGoForward ? 1 : 0.3)
+            .accessibilityLabel("Next day")
+        }
+        .foregroundColor(LKColor.accent)
+    }
+
+    private func mealSection(_ meal: MealType) -> some View {
+        let items = entries(for: meal)
+        let mealKcal = items.reduce(0) { $0 + $1.calories }
+        return VStack(alignment: .leading, spacing: LKSpacing.xs) {
+            HStack {
+                Text(meal.label).font(LKFont.bodyBold).foregroundColor(LKColor.textPrimary)
+                Spacer()
+                if !items.isEmpty {
+                    Text("\(kcal(mealKcal)) kcal")
+                        .font(LKFont.caption).foregroundColor(LKColor.textMuted)
+                }
+                Button {
+                    addMealType = meal
+                    showNutritionAdd = true
+                } label: {
+                    Image(systemName: "plus.circle.fill").font(.title3).foregroundColor(LKColor.accent)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Add to \(meal.label)")
+            }
+            if items.isEmpty {
+                Text("—").font(LKFont.caption).foregroundColor(LKColor.textMuted)
+            } else {
+                ForEach(items) { entry in
+                    entryRow(entry)
+                }
+            }
+        }
+        .padding(LKSpacing.md)
+        .background(LKColor.surface)
+        .cornerRadius(LKRadius.large)
+        .padding(.horizontal, LKSpacing.md)
+    }
+
+    private func entryRow(_ entry: FoodEntry) -> some View {
+        HStack(alignment: .top, spacing: LKSpacing.sm) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(entry.foodItem?.name ?? "Manual entry")
+                    .font(LKFont.body).foregroundColor(LKColor.textPrimary).lineLimit(1)
+                Text(entrySubtitle(entry))
+                    .font(.system(size: 11)).foregroundColor(LKColor.textMuted).lineLimit(1)
+            }
+            Spacer()
+            Text("\(kcal(entry.calories)) kcal")
+                .font(LKFont.caption).foregroundColor(LKColor.textSecondary)
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .contextMenu {
+            Button(role: .destructive) { deleteEntry(entry) } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+
+    private func entrySubtitle(_ entry: FoodEntry) -> String {
+        let m = entry.macros
+        let macroText = "P\(Int(m.proteinG.rounded())) · C\(Int(m.carbG.rounded())) · F\(Int(m.fatG.rounded()))"
+        if let food = entry.foodItem, !food.servingDescription.isEmpty {
+            let serving = entry.quantity == 1
+                ? food.servingDescription
+                : String(format: "%g× %@", entry.quantity, food.servingDescription)
+            return "\(serving)  ·  \(macroText)"
+        }
+        return macroText
+    }
+
+    // MARK: - Selected-day helpers
+    private var selectedDay: NutritionDay? {
+        nutritionDays.first { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
+    }
+    private func entries(for meal: MealType) -> [FoodEntry] {
+        (selectedDay?.sortedEntries ?? []).filter { $0.mealType == meal }
+    }
+    private var canGoForward: Bool {
+        selectedDate < Calendar.current.startOfDay(for: Date())
+    }
+    private func stepDay(_ days: Int) {
+        let cal = Calendar.current
+        guard let next = cal.date(byAdding: .day, value: days, to: selectedDate) else { return }
+        selectedDate = min(cal.startOfDay(for: next), cal.startOfDay(for: Date()))
+    }
+    private var dateLabel: String {
+        let cal = Calendar.current
+        if cal.isDateInToday(selectedDate) { return "Today" }
+        if cal.isDateInYesterday(selectedDate) { return "Yesterday" }
+        let f = DateFormatter(); f.dateFormat = "EEE, MMM d"
+        return f.string(from: selectedDate)
     }
 
     private func macroRow(_ day: NutritionDay?) -> some View {
@@ -650,9 +760,6 @@ struct HealthView: View {
         }
     }
 
-    private var todayLog: NutritionDay? {
-        nutritionDays.first { Calendar.current.isDateInToday($0.date) }
-    }
     private var completedSessions: [WorkoutSession] {
         sessions.filter { !$0.isActive }
     }
@@ -717,22 +824,15 @@ struct HealthView: View {
     }
 
     // MARK: - Mutations
-    private func addMacros(p: Double, c: Double, f: Double, a: Double) {
-        let day: NutritionDay
-        if let existing = todayLog {
-            day = existing
-        } else {
-            day = NutritionDay(date: Date())
-            context.insert(day)
-        }
-        day.proteinG += p
-        day.carbG += c
-        day.fatG += f
-        day.alcoholG += a
-        try? context.save()
+    private func addManualEntry(p: Double, c: Double, f: Double, a: Double) {
+        let macros = Macros(proteinG: p, carbG: c, fatG: f, alcoholG: a)
+        guard macros.calories > 0 else { return }
+        NutritionLog.addEntry(macros: macros, mealType: addMealType, food: nil,
+                              quantity: 1, enteredAsGrams: false,
+                              on: selectedDate, context: context)
     }
-    private func clearToday() {
-        if let day = todayLog { context.delete(day); try? context.save() }
+    private func deleteEntry(_ entry: FoodEntry) {
+        NutritionLog.remove(entry, context: context)
     }
 
     private func clearHealthData() {
@@ -747,6 +847,7 @@ struct HealthView: View {
 
 // MARK: - Log macros sheet (manual entry, adds to today's totals)
 struct NutritionQuickAddSheet: View {
+    var mealName: String? = nil
     let onAdd: (Double, Double, Double, Double) -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -775,7 +876,7 @@ struct NutritionQuickAddSheet: View {
             }
             .scrollContentBackground(.hidden)
             .background(LKColor.background.ignoresSafeArea())
-            .navigationTitle("Log Macros")
+            .navigationTitle(mealName.map { "Add to \($0)" } ?? "Log Macros")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
