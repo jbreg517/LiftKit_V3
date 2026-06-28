@@ -56,6 +56,7 @@ enum NutritionLog {
                          food: FoodItem?,
                          quantity: Double,
                          enteredAsGrams: Bool,
+                         name: String? = nil,
                          on date: Date,
                          context: ModelContext) -> FoodEntry {
         let day = nutritionDay(for: date, context: context)
@@ -64,7 +65,8 @@ enum NutritionLog {
                               quantity: quantity,
                               enteredAsGrams: enteredAsGrams,
                               macros: macros,
-                              foodItem: food)
+                              foodItem: food,
+                              name: name)
         entry.nutritionDay = day
         context.insert(entry)
         food?.lastUsedAt = Date()
@@ -72,6 +74,19 @@ enum NutritionLog {
         day.recalcTotals()
         try? context.save()
         return entry
+    }
+
+    /// Update a logged serving's macros / meal / name and refresh day totals.
+    static func updateEntry(_ entry: FoodEntry, macros: Macros, mealType: MealType,
+                            name: String?, context: ModelContext) {
+        entry.proteinG = macros.proteinG
+        entry.carbG = macros.carbG
+        entry.fatG = macros.fatG
+        entry.alcoholG = macros.alcoholG
+        entry.mealType = mealType
+        if entry.foodItem == nil { entry.customName = name }
+        entry.nutritionDay?.recalcTotals()
+        try? context.save()
     }
 
     /// Remove a logged serving and refresh the day's cached totals.

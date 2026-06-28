@@ -20,6 +20,8 @@ final class FoodEntry {
     /// Comma-joined UUIDs of the HealthKit samples this entry created (for
     /// edit/delete propagation). Empty when not mirrored to Apple Health.
     var healthKitSampleIDs: String = ""
+    /// Optional name for a manual entry (when there's no `foodItem`).
+    var customName: String?
 
     @Relationship(deleteRule: .nullify) var foodItem: FoodItem?
     var nutritionDay: NutritionDay?
@@ -29,7 +31,8 @@ final class FoodEntry {
          quantity: Double = 1,
          enteredAsGrams: Bool = false,
          macros: Macros = Macros(),
-         foodItem: FoodItem? = nil) {
+         foodItem: FoodItem? = nil,
+         name: String? = nil) {
         self.loggedAt = loggedAt
         self.mealTypeRaw = mealType.rawValue
         self.quantity = quantity
@@ -39,6 +42,7 @@ final class FoodEntry {
         self.fatG = macros.fatG
         self.alcoholG = macros.alcoholG
         self.foodItem = foodItem
+        self.customName = name
     }
 
     var mealType: MealType {
@@ -51,6 +55,9 @@ final class FoodEntry {
     }
 
     var calories: Double { macros.calories }
+
+    /// Name shown in the log: the linked food, else a manual entry's name.
+    var displayName: String { foodItem?.name ?? customName ?? "Manual entry" }
 
     /// HealthKit sample UUIDs round-tripped through `healthKitSampleIDs`.
     var healthKitSampleUUIDs: [UUID] {

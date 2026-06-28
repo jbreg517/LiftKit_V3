@@ -20,6 +20,7 @@ struct HealthView: View {
     @State private var showWeightAdd = false
     @State private var showFoodEntry = false
     @State private var expandedMeals: Set<MealType> = []
+    @State private var editingEntry: FoodEntry?
     @State private var showLogin = false
     @State private var showClearHealth = false
     @State private var selectedDate = Calendar.current.startOfDay(for: Date())
@@ -61,6 +62,9 @@ struct HealthView: View {
             .sheet(isPresented: $showWeightAdd) { AddBodyMetricSheet(defaultType: .bodyweight) }
             .sheet(isPresented: $showFoodEntry) {
                 FoodEntryView(initialMeal: addMealType, date: selectedDate)
+            }
+            .sheet(item: $editingEntry) { entry in
+                EditEntrySheet(entry: entry)
             }
             .sheet(isPresented: $showLogin) { LoginView(vm: vm) }
             .alert("Delete health data?", isPresented: $showClearHealth) {
@@ -303,21 +307,12 @@ struct HealthView: View {
                     Image(systemName: "chevron.right")
                         .font(.caption).foregroundColor(LKColor.textMuted)
                         .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                    VStack(alignment: .leading, spacing: 1) {
-                        HStack(spacing: 6) {
-                            Text(meal.label).font(LKFont.bodyBold).foregroundColor(LKColor.textPrimary)
-                            Text("\(items.count)")
-                                .font(LKFont.caption).foregroundColor(LKColor.textMuted)
-                        }
-                        if !items.isEmpty {
-                            Text("P\(Int(total.proteinG.rounded())) · C\(Int(total.carbG.rounded())) · F\(Int(total.fatG.rounded()))")
-                                .font(.system(size: 11)).foregroundColor(LKColor.textMuted)
-                        }
-                    }
-                    Spacer()
+                    Text(meal.label).font(LKFont.bodyBold)
+                        .foregroundColor(LKColor.textPrimary).lineLimit(1)
+                    Spacer(minLength: LKSpacing.sm)
+                    yellowPill("\(items.count) item\(items.count == 1 ? "" : "s")")
                     if !items.isEmpty {
-                        Text("\(kcal(total.calories)) kcal")
-                            .font(LKFont.caption).foregroundColor(LKColor.textSecondary)
+                        yellowPill("\(kcal(total.calories)) kcal")
                     }
                 }
                 .contentShape(Rectangle())
@@ -332,13 +327,30 @@ struct HealthView: View {
                 .accessibilityLabel("Add to \(meal.label)")
             }
 
+            if !items.isEmpty {
+                HStack(spacing: LKSpacing.lg) {
+                    macroCircle(total.proteinG, LKColor.rest, "P")
+                    macroCircle(total.carbG, LKColor.work, "C")
+                    macroCircle(total.fatG, LKColor.accent, "F")
+                    macroCircle(total.alcoholG, LKColor.danger, "A")
+                    Spacer()
+                }
+                .padding(.leading, 22)
+            }
+
             if isExpanded {
                 if items.isEmpty {
                     Text("No entries yet")
                         .font(LKFont.caption).foregroundColor(LKColor.textMuted)
                         .padding(.leading, 22)
                 } else {
-                    ForEach(items) { entry in entryRow(entry) }
+                    ForEach(items) { entry in
+                        MealEntryCard(title: entry.displayName,
+                                      subtitle: entrySubtitle(entry),
+                                      kcalText: kcal(entry.calories),
+                                      onTap: { editingEntry = entry },
+                                      onDelete: { deleteEntry(entry) })
+                    }
                 }
             }
         }
@@ -346,27 +358,6 @@ struct HealthView: View {
         .background(LKColor.surface)
         .cornerRadius(LKRadius.large)
         .padding(.horizontal, LKSpacing.md)
-    }
-
-    private func entryRow(_ entry: FoodEntry) -> some View {
-        HStack(alignment: .top, spacing: LKSpacing.sm) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(entry.foodItem?.name ?? "Manual entry")
-                    .font(LKFont.body).foregroundColor(LKColor.textPrimary).lineLimit(1)
-                Text(entrySubtitle(entry))
-                    .font(.system(size: 11)).foregroundColor(LKColor.textMuted).lineLimit(1)
-            }
-            Spacer()
-            Text("\(kcal(entry.calories)) kcal")
-                .font(LKFont.caption).foregroundColor(LKColor.textSecondary)
-        }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .contextMenu {
-            Button(role: .destructive) { deleteEntry(entry) } label: {
-                Label("Delete", systemImage: "trash")
-            }
-        }
     }
 
     private func entrySubtitle(_ entry: FoodEntry) -> String {
@@ -384,6 +375,29 @@ struct HealthView: View {
             return "\(serving)  ·  \(macroText)"
         }
         return macroText
+    }
+
+    private func yellowPill(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundColor(.black)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(LKColor.accent))
+    }
+
+    private func macroCircle(_ grams: Double, _ color: Color, _ label: String) -> some View {
+        VStack(spacing: 2) {
+            ZStack {
+                Circle().fill(color).frame(width: 30, height: 30)
+                Text("\(Int(grams.rounded()))")
+                    .font(.system(size: 11, weight: .bold)).foregroundColor(.white)
+                    .minimumScaleFactor(0.6).lineLimit(1)
+            }
+            Text(label).font(.system(size: 9, weight: .semibold)).foregroundColor(LKColor.textMuted)
+        }
     }
 
     // MARK: - Selected-day helpers
@@ -884,9 +898,10 @@ struct HealthView: View {
 // MARK: - Log macros sheet (manual entry, adds to today's totals)
 struct NutritionQuickAddSheet: View {
     var mealName: String? = nil
-    let onAdd: (Double, Double, Double, Double) -> Void
+    let onAdd: (String, Double, Double, Double, Double) -> Void
     @Environment(\.dismiss) private var dismiss
 
+    @State private var name = ""
     @State private var protein = ""
     @State private var carb = ""
     @State private var fat = ""
@@ -899,6 +914,9 @@ struct NutritionQuickAddSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Food") {
+                    TextField("Name (optional)", text: $name)
+                }
                 Section {
                     macroField("Protein", $protein)
                     macroField("Carbs", $carb)
@@ -920,7 +938,7 @@ struct NutritionQuickAddSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
-                        onAdd(g(protein), g(carb), g(fat), g(alcohol))
+                        onAdd(name, g(protein), g(carb), g(fat), g(alcohol))
                         HapticManager.shared.buttonTap()
                         dismiss()
                     }.bold().disabled(!hasInput)
@@ -930,6 +948,150 @@ struct NutritionQuickAddSheet: View {
         .presentationDetents([.medium])
     }
 
+    private func macroField(_ label: String, _ text: Binding<String>) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            TextField("0", text: text)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 80)
+            Text("g").foregroundColor(LKColor.textMuted)
+        }
+    }
+}
+
+// MARK: - Meal entry card (tap to edit, swipe left to delete)
+private struct MealEntryCard: View {
+    let title: String
+    let subtitle: String
+    let kcalText: String
+    let onTap: () -> Void
+    let onDelete: () -> Void
+
+    @State private var offset: CGFloat = 0
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(LKColor.danger)
+                .overlay(
+                    Image(systemName: "trash.fill")
+                        .foregroundColor(.white)
+                        .padding(.trailing, 22),
+                    alignment: .trailing
+                )
+            HStack(alignment: .top, spacing: LKSpacing.sm) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title).font(LKFont.body).foregroundColor(LKColor.textPrimary).lineLimit(1)
+                    Text(subtitle).font(.system(size: 11)).foregroundColor(LKColor.textMuted).lineLimit(1)
+                }
+                Spacer()
+                Text("\(kcalText) kcal").font(LKFont.caption).foregroundColor(LKColor.textSecondary)
+            }
+            .padding(LKSpacing.sm)
+            .background(LKColor.surfaceElevated)
+            .cornerRadius(10)
+            .offset(x: offset)
+            .contentShape(Rectangle())
+            .onTapGesture { if offset == 0 { onTap() } }
+            .gesture(
+                DragGesture(minimumDistance: 12)
+                    .onChanged { value in
+                        if value.translation.width < 0 { offset = max(value.translation.width, -100) }
+                    }
+                    .onEnded { value in
+                        if value.translation.width < -60 { onDelete() }
+                        withAnimation(.easeOut(duration: 0.15)) { offset = 0 }
+                    }
+            )
+        }
+    }
+}
+
+// MARK: - Edit entry sheet
+struct EditEntrySheet: View {
+    let entry: FoodEntry
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+
+    @State private var name = ""
+    @State private var mealType: MealType = .snack
+    @State private var protein = ""
+    @State private var carb = ""
+    @State private var fat = ""
+    @State private var alcohol = ""
+    @State private var loaded = false
+
+    private var isManual: Bool { entry.foodItem == nil }
+    private func g(_ s: String) -> Double { Double(s.trimmingCharacters(in: .whitespaces)) ?? 0 }
+    private var macros: Macros { Macros(proteinG: g(protein), carbG: g(carb), fatG: g(fat), alcoholG: g(alcohol)) }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    if isManual {
+                        HStack {
+                            Text("Name")
+                            Spacer()
+                            TextField("Food name", text: $name).multilineTextAlignment(.trailing)
+                        }
+                    } else {
+                        HStack {
+                            Text("Food")
+                            Spacer()
+                            Text(entry.displayName).foregroundColor(LKColor.textMuted)
+                        }
+                    }
+                    Picker("Meal", selection: $mealType) {
+                        ForEach(MealType.allCases) { Text($0.label).tag($0) }
+                    }
+                }
+                Section {
+                    macroField("Protein", $protein)
+                    macroField("Carbs", $carb)
+                    macroField("Fat", $fat)
+                    macroField("Alcohol", $alcohol)
+                } footer: {
+                    Text("≈ \(Int(macros.calories.rounded())) kcal")
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(LKColor.background.ignoresSafeArea())
+            .navigationTitle("Edit Entry")
+            .navigationBarTitleDisplayMode(.inline)
+            .onAppear(perform: load)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }.foregroundColor(LKColor.textSecondary)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { save() }.bold().disabled(macros.calories <= 0)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func load() {
+        guard !loaded else { return }
+        loaded = true
+        name = entry.customName ?? ""
+        mealType = entry.mealType
+        let m = entry.macros
+        protein = num(m.proteinG); carb = num(m.carbG); fat = num(m.fatG); alcohol = num(m.alcoholG)
+    }
+    private func num(_ v: Double) -> String {
+        v == 0 ? "" : (v == v.rounded() ? "\(Int(v))" : String(format: "%g", v))
+    }
+    private func save() {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        NutritionLog.updateEntry(entry, macros: macros, mealType: mealType,
+                                 name: trimmed.isEmpty ? nil : trimmed, context: context)
+        HapticManager.shared.buttonTap()
+        dismiss()
+    }
     private func macroField(_ label: String, _ text: Binding<String>) -> some View {
         HStack {
             Text(label)

@@ -42,8 +42,8 @@ struct FoodEntryView: View {
                     }
                 }
                 .sheet(isPresented: $showManual) {
-                    NutritionQuickAddSheet(mealName: mealType.label) { p, c, f, a in
-                        logManual(p: p, c: c, f: f, a: a)
+                    NutritionQuickAddSheet(mealName: mealType.label) { name, p, c, f, a in
+                        logManual(name: name, p: p, c: c, f: f, a: a)
                     }
                 }
         }
@@ -78,12 +78,6 @@ struct FoodEntryView: View {
             .padding(.horizontal, LKSpacing.md)
 
             List {
-                Button { showManual = true } label: {
-                    Label("Enter macros manually", systemImage: "square.and.pencil")
-                        .foregroundColor(LKColor.accent)
-                }
-                .listRowBackground(LKColor.surface)
-
                 if isSearching {
                     HStack { Spacer(); ProgressView(); Spacer() }
                         .listRowBackground(Color.clear)
@@ -104,6 +98,15 @@ struct FoodEntryView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+
+            Divider()
+            Button { showManual = true } label: {
+                Label("Enter manually", systemImage: "square.and.pencil")
+                    .font(LKFont.bodyBold)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(LKSecondaryButtonStyle())
+            .padding(LKSpacing.md)
         }
     }
 
@@ -160,11 +163,14 @@ struct FoodEntryView: View {
         dismiss()
     }
 
-    private func logManual(p: Double, c: Double, f: Double, a: Double) {
+    private func logManual(name: String, p: Double, c: Double, f: Double, a: Double) {
         let macros = Macros(proteinG: p, carbG: c, fatG: f, alcoholG: a)
         guard macros.calories > 0 else { return }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         NutritionLog.addEntry(macros: macros, mealType: mealType, food: nil,
-                              quantity: 1, enteredAsGrams: false, on: date, context: context)
+                              quantity: 1, enteredAsGrams: false,
+                              name: trimmed.isEmpty ? nil : trimmed,
+                              on: date, context: context)
         dismiss()
     }
 }
@@ -181,44 +187,28 @@ private struct ServingDetail: View {
 
     private var amountValue: Double { Double(amount.trimmingCharacters(in: .whitespaces)) ?? 0 }
 
+    /// Macros for the amount the user is about to log.
     private var previewMacros: Macros {
         let servings = asGrams
             ? (result.servingGrams > 0 ? amountValue / result.servingGrams : 0)
             : amountValue
         return result.macrosPerServing.scaled(by: servings)
     }
+    /// Reference macros per 100 g (nil when the serving weight is unknown).
+    private var per100: Macros? {
+        result.servingGrams > 0 ? result.macrosPerServing.scaled(by: 100 / result.servingGrams) : nil
+    }
 
     var body: some View {
-        Form {
-            Section {
-                Text(result.name).font(LKFont.bodyBold).foregroundColor(LKColor.textPrimary)
-                if let brand = result.brand, !brand.isEmpty {
-                    Text(brand).font(LKFont.caption).foregroundColor(LKColor.textMuted)
-                }
-                Text(result.servingDescription).font(LKFont.caption).foregroundColor(LKColor.textMuted)
+        ScrollView {
+            VStack(spacing: LKSpacing.lg) {
+                headerCard
+                amountCard
+                primaryCard
+                nutritionCard
             }
-
-            Section {
-                if result.servingGrams > 0 {
-                    Picker("Measure", selection: $asGrams) {
-                        Text("Servings").tag(false)
-                        Text("Grams").tag(true)
-                    }
-                    .pickerStyle(.segmented)
-                }
-                HStack {
-                    Text(asGrams ? "Grams" : "Servings")
-                    Spacer()
-                    TextField(asGrams ? "0" : "1", text: $amount)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 90)
-                }
-            } footer: {
-                Text("≈ \(Int(previewMacros.calories.rounded())) kcal · P\(Int(previewMacros.proteinG.rounded())) C\(Int(previewMacros.carbG.rounded())) F\(Int(previewMacros.fatG.rounded()))")
-            }
+            .padding(.vertical, LKSpacing.md)
         }
-        .scrollContentBackground(.hidden)
         .background(LKColor.background.ignoresSafeArea())
         .onChange(of: asGrams) { _, grams in
             amount = grams ? (result.servingGrams > 0 ? "\(Int(result.servingGrams))" : "0") : "1"
@@ -230,5 +220,151 @@ private struct ServingDetail: View {
                     .disabled(previewMacros.calories <= 0)
             }
         }
+    }
+
+    // MARK: - Cards
+
+    private var headerCard: some View {
+        VStack(alignment: .leading, spacing: LKSpacing.xs) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    if let brand = result.brand, !brand.isEmpty {
+                        Text(brand).font(LKFont.caption).foregroundColor(LKColor.textMuted)
+                    }
+                    Text(result.name)
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundColor(LKColor.textPrimary)
+                }
+                Spacer()
+                sourceBadge
+            }
+            Text("Serving: \(result.servingDescription)")
+                .font(LKFont.caption).foregroundColor(LKColor.textMuted)
+        }
+        .card()
+    }
+
+    private var amountCard: some View {
+        VStack(alignment: .leading, spacing: LKSpacing.sm) {
+            if result.servingGrams > 0 {
+                Picker("Measure", selection: $asGrams) {
+                    Text("Servings").tag(false)
+                    Text("Grams").tag(true)
+                }
+                .pickerStyle(.segmented)
+            }
+            HStack {
+                Text(asGrams ? "Amount (g)" : "Servings")
+                    .foregroundColor(LKColor.textSecondary)
+                Spacer()
+                TextField(asGrams ? "0" : "1", text: $amount)
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 90)
+                    .foregroundColor(LKColor.textPrimary)
+            }
+        }
+        .card()
+    }
+
+    /// "This entry" — the chosen amount, in the same pill + circle format as the log.
+    private var primaryCard: some View {
+        VStack(alignment: .leading, spacing: LKSpacing.sm) {
+            Text("THIS ENTRY")
+                .font(LKFont.caption).foregroundColor(LKColor.textMuted).tracking(2)
+            HStack {
+                pill("\(Int(previewMacros.calories.rounded())) kcal")
+                Spacer()
+            }
+            HStack(spacing: LKSpacing.lg) {
+                circle(previewMacros.proteinG, LKColor.rest, "P")
+                circle(previewMacros.carbG, LKColor.work, "C")
+                circle(previewMacros.fatG, LKColor.accent, "F")
+                circle(previewMacros.alcoholG, LKColor.danger, "A")
+                Spacer()
+            }
+        }
+        .card()
+    }
+
+    /// Nutrition-label style: per serving and per 100 g.
+    private var nutritionCard: some View {
+        VStack(alignment: .leading, spacing: LKSpacing.xs) {
+            Text("NUTRITION")
+                .font(LKFont.caption).foregroundColor(LKColor.textMuted).tracking(2)
+                .padding(.bottom, 2)
+            nutrHeader
+            Divider()
+            nutrRow("Calories", fmt(result.macrosPerServing.calories, "kcal"), per100.map { fmt($0.calories, "kcal") })
+            nutrRow("Protein",  fmt(result.macrosPerServing.proteinG, "g"),    per100.map { fmt($0.proteinG, "g") })
+            nutrRow("Carbs",    fmt(result.macrosPerServing.carbG, "g"),       per100.map { fmt($0.carbG, "g") })
+            nutrRow("Fat",      fmt(result.macrosPerServing.fatG, "g"),        per100.map { fmt($0.fatG, "g") })
+            nutrRow("Alcohol",  fmt(result.macrosPerServing.alcoholG, "g"),    per100.map { fmt($0.alcoholG, "g") })
+        }
+        .card()
+    }
+
+    // MARK: - Row bits
+
+    private var nutrHeader: some View {
+        HStack {
+            Text(" ")
+            Spacer()
+            Text("Per serving").font(.system(size: 11)).foregroundColor(LKColor.textMuted)
+                .frame(width: 92, alignment: .trailing)
+            Text("Per 100 g").font(.system(size: 11)).foregroundColor(LKColor.textMuted)
+                .frame(width: 78, alignment: .trailing)
+        }
+    }
+
+    private func nutrRow(_ name: String, _ serving: String, _ per100Value: String?) -> some View {
+        HStack {
+            Text(name).font(LKFont.body).foregroundColor(LKColor.textPrimary)
+            Spacer()
+            Text(serving).font(LKFont.body).foregroundColor(LKColor.textSecondary)
+                .frame(width: 92, alignment: .trailing)
+            Text(per100Value ?? "—").font(LKFont.body).foregroundColor(LKColor.textSecondary)
+                .frame(width: 78, alignment: .trailing)
+        }
+    }
+
+    private func fmt(_ v: Double, _ unit: String) -> String { "\(Int(v.rounded())) \(unit)" }
+
+    private var sourceBadge: some View {
+        Text(result.source.label)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundColor(LKColor.accent)
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(Capsule().fill(LKColor.surfaceElevated))
+    }
+    private func pill(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 12, weight: .semibold)).foregroundColor(.black)
+            .lineLimit(1).fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(Capsule().fill(LKColor.accent))
+    }
+    private func circle(_ grams: Double, _ color: Color, _ label: String) -> some View {
+        VStack(spacing: 2) {
+            ZStack {
+                Circle().fill(color).frame(width: 30, height: 30)
+                Text("\(Int(grams.rounded()))")
+                    .font(.system(size: 11, weight: .bold)).foregroundColor(.white)
+                    .minimumScaleFactor(0.6).lineLimit(1)
+            }
+            Text(label).font(.system(size: 9, weight: .semibold)).foregroundColor(LKColor.textMuted)
+        }
+    }
+}
+
+private extension View {
+    /// Standard Health-tab card chrome (surface, rounded, inset).
+    func card() -> some View {
+        self
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(LKSpacing.md)
+            .background(LKColor.surface)
+            .cornerRadius(LKRadius.large)
+            .padding(.horizontal, LKSpacing.md)
     }
 }
