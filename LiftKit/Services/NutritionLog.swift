@@ -83,6 +83,25 @@ enum NutritionLog {
         try? context.save()
     }
 
+    // MARK: - Food cache
+
+    /// Find an existing cached `FoodItem` matching the lookup result (by barcode,
+    /// else name + source), or create + insert one. Refreshes `lastUsedAt`.
+    static func findOrCreateFoodItem(from result: FoodResult, context: ModelContext) -> FoodItem {
+        let all = (try? context.fetch(FetchDescriptor<FoodItem>())) ?? []
+        let match = all.first { item in
+            if let bc = result.barcode, !bc.isEmpty { return item.barcode == bc }
+            return item.name == result.name && item.sourceRaw == result.source.rawValue
+        }
+        if let match {
+            match.lastUsedAt = Date()
+            return match
+        }
+        let item = FoodItem(result)
+        context.insert(item)
+        return item
+    }
+
     // MARK: - Lookup
 
     /// The `NutritionDay` for the given calendar day, creating one if needed.

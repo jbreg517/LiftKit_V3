@@ -57,6 +57,7 @@
 		A70000000000000000000023 /* ProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000023 /* ProgressView.swift */; };
 		A70000000000000000000042 /* BodyTrackingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000042 /* BodyTrackingView.swift */; };
 		A70000000000000000000046 /* HealthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000046 /* HealthView.swift */; };
+		A70000000000000000000054 /* FoodEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000054 /* FoodEntryView.swift */; };
 		A70000000000000000000024 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000024 /* SettingsView.swift */; };
 		A70000000000000000000025 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000025 /* LoginView.swift */; };
 		A70000000000000000000026 /* WorkoutCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000026 /* WorkoutCalendarView.swift */; };
@@ -151,6 +152,7 @@
 		A60000000000000000000023 /* ProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressView.swift; sourceTree = "<group>"; };
 		A60000000000000000000042 /* BodyTrackingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BodyTrackingView.swift; sourceTree = "<group>"; };
 		A60000000000000000000046 /* HealthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthView.swift; sourceTree = "<group>"; };
+		A60000000000000000000054 /* FoodEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodEntryView.swift; sourceTree = "<group>"; };
 		A60000000000000000000024 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A60000000000000000000025 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		A60000000000000000000026 /* WorkoutCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutCalendarView.swift; sourceTree = "<group>"; };
@@ -362,6 +364,7 @@
 			isa = PBXGroup;
 			children = (
 				A60000000000000000000046 /* HealthView.swift */,
+				A60000000000000000000054 /* FoodEntryView.swift */,
 			);
 			path = Health;
 			sourceTree = "<group>";
@@ -598,6 +601,7 @@
 				A70000000000000000000023 /* ProgressView.swift in Sources */,
 				A70000000000000000000042 /* BodyTrackingView.swift in Sources */,
 				A70000000000000000000046 /* HealthView.swift in Sources */,
+				A70000000000000000000054 /* FoodEntryView.swift in Sources */,
 				A70000000000000000000024 /* SettingsView.swift in Sources */,
 				A70000000000000000000025 /* LoginView.swift in Sources */,
 				A70000000000000000000026 /* WorkoutCalendarView.swift in Sources */,

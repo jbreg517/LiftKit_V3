@@ -96,7 +96,7 @@ enum Atwater {
 }
 
 /// A lightweight macro tuple (grams). Calories are derived, never stored.
-struct Macros: Equatable {
+struct Macros: Equatable, Hashable {
     var proteinG: Double = 0
     var carbG: Double = 0
     var fatG: Double = 0

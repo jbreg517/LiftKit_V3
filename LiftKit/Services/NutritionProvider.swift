@@ -6,7 +6,7 @@ import Foundation
 /// Facts produce the same shape. Calories are always derived from macros
 /// (Atwater) downstream — never carried here. Persist by converting to a
 /// `FoodItem` via `FoodItem.init(_:)`.
-struct FoodResult: Equatable, Identifiable {
+struct FoodResult: Equatable, Identifiable, Hashable {
     var id: String              // e.g. "usda:2001" or "off:3017620422003"
     var name: String
     var brand: String?

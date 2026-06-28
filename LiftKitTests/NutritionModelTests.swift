@@ -229,4 +229,25 @@ final class NutritionModelTests: XCTestCase {
         XCTAssertEqual(day.proteinG, 125, accuracy: 0.0001)
         XCTAssertEqual(day.sortedEntries.count, 2)
     }
+
+    // MARK: - Food cache dedupe
+
+    func testFindOrCreateDedupesByBarcode() throws {
+        let r = FoodResult(id: "off:1", name: "Soda", brand: "X", barcode: "111",
+                           source: .off, servingDescription: "330 ml", servingGrams: 330,
+                           macrosPerServing: Macros(carbG: 35))
+        let a = NutritionLog.findOrCreateFoodItem(from: r, context: context)
+        let b = NutritionLog.findOrCreateFoodItem(from: r, context: context)
+        XCTAssertTrue(a === b)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<FoodItem>()).count, 1)
+    }
+
+    func testFindOrCreateDedupesByNameAndSource() throws {
+        let r = FoodResult(id: "usda:1", name: "Banana", brand: nil, barcode: nil,
+                           source: .usda, servingDescription: "1 medium", servingGrams: 118,
+                           macrosPerServing: Macros(carbG: 27))
+        let a = NutritionLog.findOrCreateFoodItem(from: r, context: context)
+        let b = NutritionLog.findOrCreateFoodItem(from: r, context: context)
+        XCTAssertTrue(a === b)
+    }
 }

@@ -18,7 +18,8 @@ struct HealthView: View {
 
     @State private var showGoals = false
     @State private var showWeightAdd = false
-    @State private var showNutritionAdd = false
+    @State private var showFoodEntry = false
+    @State private var expandedMeals: Set<MealType> = []
     @State private var showLogin = false
     @State private var showClearHealth = false
     @State private var selectedDate = Calendar.current.startOfDay(for: Date())
@@ -58,10 +59,8 @@ struct HealthView: View {
             }
             .sheet(isPresented: $showGoals) { HealthGoalsSheet() }
             .sheet(isPresented: $showWeightAdd) { AddBodyMetricSheet(defaultType: .bodyweight) }
-            .sheet(isPresented: $showNutritionAdd) {
-                NutritionQuickAddSheet(mealName: addMealType.label) { p, c, f, a in
-                    addManualEntry(p: p, c: c, f: f, a: a)
-                }
+            .sheet(isPresented: $showFoodEntry) {
+                FoodEntryView(initialMeal: addMealType, date: selectedDate)
             }
             .sheet(isPresented: $showLogin) { LoginView(vm: vm) }
             .alert("Delete health data?", isPresented: $showClearHealth) {
@@ -262,6 +261,13 @@ struct HealthView: View {
             .cornerRadius(LKRadius.large)
             .padding(.horizontal, LKSpacing.md)
 
+            Button { presentFoodEntry(MealType.suggested()) } label: {
+                Label("Add Food", systemImage: "plus")
+                    .font(LKFont.bodyBold)
+            }
+            .buttonStyle(LKSecondaryButtonStyle())
+            .padding(.horizontal, LKSpacing.md)
+
             ForEach(MealType.allCases) { meal in
                 mealSection(meal)
             }
@@ -289,29 +295,50 @@ struct HealthView: View {
 
     private func mealSection(_ meal: MealType) -> some View {
         let items = entries(for: meal)
-        let mealKcal = items.reduce(0) { $0 + $1.calories }
-        return VStack(alignment: .leading, spacing: LKSpacing.xs) {
-            HStack {
-                Text(meal.label).font(LKFont.bodyBold).foregroundColor(LKColor.textPrimary)
-                Spacer()
-                if !items.isEmpty {
-                    Text("\(kcal(mealKcal)) kcal")
-                        .font(LKFont.caption).foregroundColor(LKColor.textMuted)
+        let total = items.reduce(Macros()) { $0 + $1.macros }
+        let isExpanded = expandedMeals.contains(meal)
+        return VStack(alignment: .leading, spacing: LKSpacing.sm) {
+            HStack(spacing: LKSpacing.sm) {
+                HStack(spacing: LKSpacing.sm) {
+                    Image(systemName: "chevron.right")
+                        .font(.caption).foregroundColor(LKColor.textMuted)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    VStack(alignment: .leading, spacing: 1) {
+                        HStack(spacing: 6) {
+                            Text(meal.label).font(LKFont.bodyBold).foregroundColor(LKColor.textPrimary)
+                            Text("\(items.count)")
+                                .font(LKFont.caption).foregroundColor(LKColor.textMuted)
+                        }
+                        if !items.isEmpty {
+                            Text("P\(Int(total.proteinG.rounded())) · C\(Int(total.carbG.rounded())) · F\(Int(total.fatG.rounded()))")
+                                .font(.system(size: 11)).foregroundColor(LKColor.textMuted)
+                        }
+                    }
+                    Spacer()
+                    if !items.isEmpty {
+                        Text("\(kcal(total.calories)) kcal")
+                            .font(LKFont.caption).foregroundColor(LKColor.textSecondary)
+                    }
                 }
-                Button {
-                    addMealType = meal
-                    showNutritionAdd = true
-                } label: {
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    withAnimation(.easeInOut(duration: 0.2)) { toggleMeal(meal) }
+                }
+
+                Button { presentFoodEntry(meal) } label: {
                     Image(systemName: "plus.circle.fill").font(.title3).foregroundColor(LKColor.accent)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Add to \(meal.label)")
             }
-            if items.isEmpty {
-                Text("—").font(LKFont.caption).foregroundColor(LKColor.textMuted)
-            } else {
-                ForEach(items) { entry in
-                    entryRow(entry)
+
+            if isExpanded {
+                if items.isEmpty {
+                    Text("No entries yet")
+                        .font(LKFont.caption).foregroundColor(LKColor.textMuted)
+                        .padding(.leading, 22)
+                } else {
+                    ForEach(items) { entry in entryRow(entry) }
                 }
             }
         }
@@ -346,9 +373,14 @@ struct HealthView: View {
         let m = entry.macros
         let macroText = "P\(Int(m.proteinG.rounded())) · C\(Int(m.carbG.rounded())) · F\(Int(m.fatG.rounded()))"
         if let food = entry.foodItem, !food.servingDescription.isEmpty {
-            let serving = entry.quantity == 1
-                ? food.servingDescription
-                : String(format: "%g× %@", entry.quantity, food.servingDescription)
+            let serving: String
+            if entry.enteredAsGrams, food.servingGrams > 0 {
+                serving = "\(Int((entry.quantity * food.servingGrams).rounded())) g"
+            } else if entry.quantity != 1 {
+                serving = String(format: "%g× %@", entry.quantity, food.servingDescription)
+            } else {
+                serving = food.servingDescription
+            }
             return "\(serving)  ·  \(macroText)"
         }
         return macroText
@@ -824,12 +856,16 @@ struct HealthView: View {
     }
 
     // MARK: - Mutations
-    private func addManualEntry(p: Double, c: Double, f: Double, a: Double) {
-        let macros = Macros(proteinG: p, carbG: c, fatG: f, alcoholG: a)
-        guard macros.calories > 0 else { return }
-        NutritionLog.addEntry(macros: macros, mealType: addMealType, food: nil,
-                              quantity: 1, enteredAsGrams: false,
-                              on: selectedDate, context: context)
+    private func presentFoodEntry(_ meal: MealType) {
+        addMealType = meal
+        showFoodEntry = true
+    }
+    private func toggleMeal(_ meal: MealType) {
+        if expandedMeals.contains(meal) {
+            expandedMeals.remove(meal)
+        } else {
+            expandedMeals.insert(meal)
+        }
     }
     private func deleteEntry(_ entry: FoodEntry) {
         NutritionLog.remove(entry, context: context)
