@@ -395,7 +395,17 @@ final class WorkoutViewModel {
         completedRounds = 0
         isShowingComplete = false
         completionMessage = completionMessages.randomElement() ?? ""
-        showActiveWorkout = true
+        presentActiveWorkout()
+    }
+
+    /// Presents the active-workout cover on the next runloop, after any open
+    /// sheet (e.g. the setup sheet) has dismissed. Presenting a full-screen
+    /// cover in the same tick a sheet is dismissing intermittently drops the
+    /// presentation and drops you back on the home screen.
+    func presentActiveWorkout() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [self] in
+            showActiveWorkout = true
+        }
     }
 
     func loadFromSession(_ session: WorkoutSession) {
@@ -490,7 +500,7 @@ final class WorkoutViewModel {
         try? context.save()
         activeSession = newSession
         activeConfig  = TimerConfig.defaultConfig(for: session.timerType ?? .manual)
-        showActiveWorkout = true
+        presentActiveWorkout()
     }
 
     // MARK: - Active workout actions

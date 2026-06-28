@@ -76,20 +76,14 @@ struct WorkoutHomeView: View {
         .sheet(isPresented: $vm.showTypePicker) {
             WorkoutTypePickerView(vm: vm)
         }
-        .sheet(isPresented: $vm.showWorkoutSetup) {
-            NavigationStack {
-                WorkoutSetupView(vm: vm, type: vm.selectedTimerType)
-            }
-        }
         .sheet(isPresented: $vm.showLogin) {
             LoginView(vm: vm)
         }
         .sheet(isPresented: $showSeriesSchedule) {
             SeriesScheduleSheet()
         }
-        .fullScreenCover(isPresented: $vm.showActiveWorkout) {
-            ActiveWorkoutView(vm: vm)
-        }
+        // Note: the workout-setup sheet and active-workout cover are presented
+        // once at the app root (RootTabView), not here — see LiftKitApp.
     }
 
     // MARK: - Due workouts (today / carried forward)

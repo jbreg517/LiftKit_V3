@@ -56,14 +56,8 @@ struct HistoryView: View {
             .navigationTitle("History")
             .background(LKColor.background.ignoresSafeArea())
         }
-        .sheet(isPresented: $vm.showWorkoutSetup) {
-            NavigationStack {
-                WorkoutSetupView(vm: vm, type: vm.selectedTimerType)
-            }
-        }
-        .fullScreenCover(isPresented: $vm.showActiveWorkout) {
-            ActiveWorkoutView(vm: vm)
-        }
+        // Note: the workout-setup sheet and active-workout cover are presented
+        // once at the app root (RootTabView), not here — see LiftKitApp.
     }
 }
 

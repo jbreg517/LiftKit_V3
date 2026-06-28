@@ -139,6 +139,18 @@ struct RootTabView: View {
         .fullScreenCover(isPresented: Binding(get: { !hasOnboarded }, set: { _ in })) {
             OnboardingView { hasOnboarded = true }
         }
+        // Workout setup + active workout are presented ONCE here at the root, not
+        // per-tab. Presenting the same binding from both the Workout and History
+        // tabs made these modals fight in the TabView and intermittently fail to
+        // appear (dropping back to the home screen).
+        .sheet(isPresented: $vm.showWorkoutSetup) {
+            NavigationStack {
+                WorkoutSetupView(vm: vm, type: vm.selectedTimerType)
+            }
+        }
+        .fullScreenCover(isPresented: $vm.showActiveWorkout) {
+            ActiveWorkoutView(vm: vm)
+        }
         .onAppear {
             NutritionLog.backfillEntriesIfNeeded(context: context)   // one-time data migration
             handlePendingQuickAction()                               // cold launch
