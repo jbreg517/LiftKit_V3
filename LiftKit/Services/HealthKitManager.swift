@@ -165,7 +165,18 @@ final class HealthKitManager {
             let energyType = HKQuantityType(.activeEnergyBurned)
             let quantity = HKQuantity(unit: .kilocalorie(), doubleValue: energyKcal)
             let sample = HKQuantitySample(type: energyType, quantity: quantity, start: start, end: end)
-            try await builder.add([sample])
+            // HKWorkoutBuilder.add(_:) has no async overload (only a completion
+            // handler), unlike beginCollection/endCollection/finishWorkout — so
+            // bridge it with a continuation.
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                builder.add([sample]) { _, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume()
+                    }
+                }
+            }
             try await builder.endCollection(at: end)
             _ = try await builder.finishWorkout()
         } catch {
