@@ -728,9 +728,40 @@ final class WorkoutViewModel {
             session.activeSeconds = activeWorkoutSeconds
         }
         try? context.save()
+        exportToHealthKitIfEnabled(session: session, context: context)
         activeSession = nil
         showActiveWorkout = false
         isShowingComplete = false
+    }
+
+    /// Writes the just-finished workout and its estimated burn to Apple Health
+    /// when the integration is on. Best-effort and fire-and-forget — it never
+    /// blocks finishing the workout, and is skipped if HealthKit is off or we
+    /// have no bodyweight to base the estimate on. Discarded workouts (deleted
+    /// before this point) are never written.
+    private func exportToHealthKitIfEnabled(session: WorkoutSession, context: ModelContext) {
+        guard UserDefaults.standard.bool(forKey: "healthKitEnabled") else { return }
+        let weightLb = latestBodyweightLb(context: context)
+        guard weightLb > 0 else { return }
+        let kcal = HealthCalculations.workoutCalories(for: session, bodyweightLb: weightLb)
+        guard kcal > 0 else { return }
+        let activity = HealthKitManager.activityType(for: session.timerType)
+        let start = session.startedAt
+        let end = session.completedAt ?? Date()
+        Task {
+            await HealthKitManager.shared.saveWorkout(
+                activityType: activity, start: start, end: end, energyKcal: kcal)
+        }
+    }
+
+    /// Most recent logged bodyweight in lb, or 0 if none has been recorded.
+    private func latestBodyweightLb(context: ModelContext) -> Double {
+        let bwRaw = BodyMetricType.bodyweight.rawValue
+        var descriptor = FetchDescriptor<BodyMetric>(
+            predicate: #Predicate { $0.typeRaw == bwRaw },
+            sortBy: [SortDescriptor(\.date, order: .reverse)])
+        descriptor.fetchLimit = 1
+        return (try? context.fetch(descriptor))?.first?.value ?? 0
     }
 
     func discardWorkout(context: ModelContext) {

@@ -24,6 +24,10 @@
 	<true/>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
+	<key>NSHealthShareUsageDescription</key>
+	<string>LiftKit reads the calories and macros you log in FuelKit (or any Apple Health app) so it can show your nutrition alongside your training. This stays on your device.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>LiftKit saves your completed workouts and their estimated calorie burn to Apple Health so your other apps can use them.</string>
 	<key>NSUserNotificationsUsageDescription</key>
 	<string>LiftKit uses notifications to alert you when timer phases change while the app is in the background.</string>
 	<key>UIApplicationSceneManifest</key>

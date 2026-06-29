@@ -105,4 +105,31 @@ enum HealthCalculations {
     static func strengthActiveSeconds(repSets: Int, timedHoldSeconds: Double) -> Double {
         Double(max(0, repSets)) * secondsPerStrengthSet + max(0, timedHoldSeconds)
     }
+
+    // MARK: - Session burn (single source of truth for the Health tab + Apple Health export)
+
+    /// Burn time that doesn't balloon when a session is spread across the day.
+    /// Strength (reps) workouts are estimated from the sets actually logged — rep
+    /// sets at a fixed active block, timed holds at their real seconds — rather
+    /// than wall-clock. Timer-driven workouts use elapsed time, clamped.
+    static func effectiveBurnSeconds(for session: WorkoutSession) -> Double {
+        let wall = session.duration
+        if session.timerType == .reps || session.timerType == nil {
+            let sets = session.entries.flatMap { $0.sets }
+            let repSets = sets.filter { !$0.isTimed && ($0.reps ?? 0) > 0 }.count
+            let holdSeconds = sets.filter { $0.isTimed }.compactMap { $0.duration }.reduce(0, +)
+            let est = strengthActiveSeconds(repSets: repSets, timedHoldSeconds: holdSeconds)
+            // Never exceed the real elapsed time (e.g. a very quick session).
+            return wall > 0 ? min(est, wall) : est
+        }
+        // Timer-driven workouts are bounded by their timers; clamp as a safety net.
+        return min(wall, 3 * 3600.0)
+    }
+
+    /// Estimated kcal burned for a completed session at the given bodyweight.
+    static func workoutCalories(for session: WorkoutSession, bodyweightLb: Double) -> Double {
+        caloriesBurned(durationSeconds: effectiveBurnSeconds(for: session),
+                       weightLb: bodyweightLb,
+                       met: met(for: session.timerType))
+    }
 }

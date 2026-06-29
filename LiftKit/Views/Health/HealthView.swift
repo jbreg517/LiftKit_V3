@@ -22,6 +22,9 @@ struct HealthView: View {
     @State private var showLogin = false
     @State private var showClearHealth = false
     @AppStorage("unitSystem") private var unitSystemRaw = "imperial"
+    @AppStorage("healthKitEnabled") private var healthKitEnabled = false
+    @State private var hkToday: HealthKitManager.DailyMacros?
+    @State private var hkSeries: [HealthKitManager.DailyMacros] = []
 
     private var isPremium: Bool { userProfiles.first?.isPremium ?? false }
     private var hp: HealthProfile? { healthProfiles.first }
@@ -86,6 +89,30 @@ struct HealthView: View {
             .padding(.vertical, LKSpacing.md)
             .readableWidth()
         }
+        .task(id: healthKitEnabled) { await refreshHealthKit() }
+    }
+
+    /// Pulls today's intake and a 14-day series from Apple Health when the
+    /// integration is on; clears them when it's off so the manual data shows.
+    private func refreshHealthKit() async {
+        guard healthKitEnabled else {
+            hkToday = nil
+            hkSeries = []
+            return
+        }
+        let today = await HealthKitManager.shared.macros(on: Date())
+        let start = Calendar.current.date(byAdding: .day, value: -14, to: Date()) ?? Date()
+        let series = await HealthKitManager.shared.dailyMacros(from: start, to: Date())
+        await MainActor.run {
+            hkToday = today
+            hkSeries = series
+        }
+    }
+
+    /// True when Apple Health has intake for today and we should show it instead
+    /// of the manual log.
+    private var usingHealthKit: Bool {
+        healthKitEnabled && (hkToday?.isEmpty == false)
     }
 
     // MARK: - Energy (BMR / TDEE / target)
@@ -225,14 +252,24 @@ struct HealthView: View {
 
     // MARK: - Nutrition (today)
     private var nutritionSection: some View {
+        let useHK = usingHealthKit
         let day = todayLog
-        let consumed = day?.calories ?? 0
+        let consumed = useHK ? (hkToday?.displayCalories ?? 0) : (day?.calories ?? 0)
+        let protein  = useHK ? (hkToday?.proteinG ?? 0) : (day?.proteinG ?? 0)
+        let carb     = useHK ? (hkToday?.carbG ?? 0) : (day?.carbG ?? 0)
+        let fat      = useHK ? (hkToday?.fatG ?? 0) : (day?.fatG ?? 0)
+        let alcohol  = useHK ? 0 : (day?.alcoholG ?? 0)
         return VStack(alignment: .leading, spacing: LKSpacing.sm) {
-            HStack {
+            HStack(spacing: LKSpacing.sm) {
                 Text("TODAY’S INTAKE")
                     .font(LKFont.caption).foregroundColor(LKColor.textMuted).tracking(2)
+                if useHK {
+                    Label("Apple Health", systemImage: "heart.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(LKColor.accent)
+                }
                 Spacer()
-                if day != nil {
+                if !useHK, day != nil {
                     Button("Clear") { clearToday() }
                         .font(LKFont.caption).foregroundColor(LKColor.textMuted)
                 }
@@ -253,12 +290,17 @@ struct HealthView: View {
                 if let goal = goalCalories {
                     calorieBar(consumed: consumed, goal: goal)
                 }
-                macroRow(day)
-                Button { showNutritionAdd = true } label: {
-                    Label("Log Macros", systemImage: "plus")
-                        .font(LKFont.bodyBold)
+                macroPills(protein: protein, carb: carb, fat: fat, alcohol: alcohol, showAlcohol: !useHK)
+                if useHK {
+                    Text("Pulled from Apple Health — log food in FuelKit (or any Health app) and it shows up here.")
+                        .font(LKFont.caption).foregroundColor(LKColor.textMuted)
+                } else {
+                    Button { showNutritionAdd = true } label: {
+                        Label("Log Macros", systemImage: "plus")
+                            .font(LKFont.bodyBold)
+                    }
+                    .buttonStyle(LKSecondaryButtonStyle())
                 }
-                .buttonStyle(LKSecondaryButtonStyle())
             }
             .padding(LKSpacing.md)
             .background(LKColor.surface)
@@ -267,13 +309,16 @@ struct HealthView: View {
         }
     }
 
-    private func macroRow(_ day: NutritionDay?) -> some View {
+    private func macroPills(protein: Double, carb: Double, fat: Double,
+                            alcohol: Double, showAlcohol: Bool) -> some View {
         let t = macroTargets
         return HStack(spacing: LKSpacing.sm) {
-            macroPill("Protein", day?.proteinG ?? 0, t?.proteinG, LKColor.rest)
-            macroPill("Carbs", day?.carbG ?? 0, t?.carbG, LKColor.work)
-            macroPill("Fat", day?.fatG ?? 0, t?.fatG, LKColor.accent)
-            macroPill("Alcohol", day?.alcoholG ?? 0, nil, LKColor.danger)
+            macroPill("Protein", protein, t?.proteinG, LKColor.rest)
+            macroPill("Carbs", carb, t?.carbG, LKColor.work)
+            macroPill("Fat", fat, t?.fatG, LKColor.accent)
+            if showAlcohol {
+                macroPill("Alcohol", alcohol, nil, LKColor.danger)
+            }
         }
     }
 
@@ -382,12 +427,12 @@ struct HealthView: View {
     }
 
     private var calorieTrend: some View {
-        let data = calorieSeries
+        let data = caloriePoints
         return VStack(alignment: .leading, spacing: LKSpacing.xs) {
             Text("Calories (last 14 days)").font(LKFont.caption).foregroundColor(LKColor.textSecondary)
                 .padding(.horizontal, LKSpacing.md)
             if data.isEmpty {
-                emptyChart("Log macros to see your intake trend.")
+                emptyChart(healthKitEnabled ? "No nutrition logged in Apple Health yet." : "Log macros to see your intake trend.")
             } else {
                 Chart {
                     ForEach(data) { d in
@@ -669,6 +714,20 @@ struct HealthView: View {
         return nutritionDays.filter { !$0.isEmpty && $0.date >= cutoff }.sorted { $0.date < $1.date }
     }
 
+    private struct CaloriePoint: Identifiable {
+        let id = UUID()
+        let date: Date
+        let calories: Double
+    }
+    /// Calorie-trend bars sourced from Apple Health when the integration is on
+    /// (and has data), otherwise from manually-logged nutrition days.
+    private var caloriePoints: [CaloriePoint] {
+        if healthKitEnabled, !hkSeries.isEmpty {
+            return hkSeries.map { CaloriePoint(date: $0.date, calories: $0.displayCalories) }
+        }
+        return calorieSeries.map { CaloriePoint(date: $0.date, calories: $0.calories) }
+    }
+
     private func bodyweight(on date: Date) -> Double? {
         let prior = bodyMetrics
             .filter { $0.type == .bodyweight && $0.date <= date }
@@ -677,27 +736,7 @@ struct HealthView: View {
     }
     private func burn(for s: WorkoutSession) -> Double {
         guard let w = bodyweight(on: s.startedAt) else { return 0 }
-        return HealthCalculations.caloriesBurned(durationSeconds: effectiveBurnSeconds(for: s),
-                                                 weightLb: w,
-                                                 met: HealthCalculations.met(for: s.timerType))
-    }
-
-    /// Burn time that doesn't balloon when a session is spread across the day.
-    /// Strength (reps) workouts are estimated from the sets actually logged —
-    /// rep sets at a fixed active block, timed holds at their real seconds —
-    /// rather than wall-clock. Timer-driven workouts use elapsed time, clamped.
-    private func effectiveBurnSeconds(for s: WorkoutSession) -> Double {
-        let wall = s.duration
-        if s.timerType == .reps || s.timerType == nil {
-            let sets = s.entries.flatMap { $0.sets }
-            let repSets = sets.filter { !$0.isTimed && ($0.reps ?? 0) > 0 }.count
-            let holdSeconds = sets.filter { $0.isTimed }.compactMap { $0.duration }.reduce(0, +)
-            let est = HealthCalculations.strengthActiveSeconds(repSets: repSets, timedHoldSeconds: holdSeconds)
-            // Never exceed the real elapsed time (e.g. a very quick session).
-            return wall > 0 ? min(est, wall) : est
-        }
-        // Timer-driven workouts are bounded by their timers; clamp as a safety net.
-        return min(wall, 3 * 3600.0)
+        return HealthCalculations.workoutCalories(for: s, bodyweightLb: w)
     }
 
     private struct TrendPoint: Identifiable {

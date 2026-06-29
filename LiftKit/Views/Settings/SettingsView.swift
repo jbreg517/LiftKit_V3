@@ -5,7 +5,7 @@ import UIKit
 /// App version, bumped on every commit/push so the running build is
 /// identifiable in Settings. Increment by 0.01 each push.
 enum AppVersion {
-    static let current = "0.42"
+    static let current = "0.43"
 }
 
 struct SettingsView: View {
@@ -14,6 +14,7 @@ struct SettingsView: View {
     @AppStorage("soundEnabled")       private var soundEnabled: Bool = true
     @AppStorage("hapticsEnabled")     private var hapticsEnabled: Bool = true
     @AppStorage("iCloudSyncEnabled")  private var iCloudSyncEnabled: Bool = false
+    @AppStorage("healthKitEnabled")   private var healthKitEnabled: Bool = false
     @AppStorage("appearance")         private var appearance: String = "system"
     @AppStorage("workoutRemindersEnabled") private var remindersEnabled: Bool = true
     @AppStorage("reminderHour")       private var reminderHour: Int = 8
@@ -39,6 +40,30 @@ struct SettingsView: View {
             WorkoutReminders.reschedule(schedules.filter { !$0.isCompleted })
         } else {
             WorkoutReminders.cancelAll()
+        }
+    }
+
+    /// Presents the Health permission sheet when the user turns the integration
+    /// on. If Health is unavailable or the request errors, we flip the toggle
+    /// back off and explain — otherwise we leave it on (the user's per-type read
+    /// choices are private to Health and reads simply return empty if declined).
+    private func requestHealthAuthorization() {
+        guard HealthKitManager.shared.isAvailable else {
+            healthKitEnabled = false
+            healthKitNote = "Apple Health isn’t available on this device."
+            return
+        }
+        requestingHealthAuth = true
+        healthKitNote = nil
+        Task {
+            let ok = await HealthKitManager.shared.requestAuthorization()
+            await MainActor.run {
+                requestingHealthAuth = false
+                if !ok {
+                    healthKitEnabled = false
+                    healthKitNote = "Couldn’t connect to Apple Health. You can grant access in Health ▸ Sharing and try again."
+                }
+            }
         }
     }
 
@@ -83,6 +108,8 @@ struct SettingsView: View {
     @State private var showTour          = false
     @State private var showClearAll      = false
     @State private var exportFile: ExportFile?
+    @State private var requestingHealthAuth = false
+    @State private var healthKitNote: String?
 
     var body: some View {
         NavigationStack {
@@ -169,6 +196,28 @@ struct SettingsView: View {
                     Text("Sync")
                 } footer: {
                     Text("Stores your workouts in your own private iCloud account so they sync across your devices. Nothing is shared with the developer or any third party. Requires an iCloud sign-in and an App Store build; relaunch the app after changing this.")
+                }
+
+                Section {
+                    Toggle("Sync with Apple Health", isOn: $healthKitEnabled)
+                        .tint(LKColor.accent)
+                        .disabled(!HealthKitManager.shared.isAvailable || requestingHealthAuth)
+                        .onChange(of: healthKitEnabled) { _, on in
+                            // Only react to enabling. A failed request flips the
+                            // toggle back off, and reacting to that would wipe the
+                            // explanatory note we set here.
+                            if on { requestHealthAuthorization() }
+                        }
+                    if requestingHealthAuth {
+                        HStack(spacing: LKSpacing.sm) {
+                            ProgressView()
+                            Text("Requesting access…").foregroundColor(LKColor.textMuted)
+                        }
+                    }
+                } header: {
+                    Text("Apple Health")
+                } footer: {
+                    Text(healthKitNote ?? "Reads the calories and macros you log in FuelKit (or any Apple Health app) and saves your completed workouts and their calorie burn back to Apple Health. Nothing is shared with the developer. You choose what to share in the Health permission prompt; manage it any time in Health ▸ Sharing.")
                 }
 
                 Section("Data") {
