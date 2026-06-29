@@ -269,3 +269,181 @@ struct WorkoutCalendarView: View {
         return days
     }
 }
+
+// MARK: - Upcoming Schedules
+//
+// A flat, manageable list of everything still ahead. Recurring series (sharing a
+// `seriesID`) collapse into one expandable row that can be cancelled as a unit;
+// one-off schedules are listed individually. Editing/deleting a single occurrence
+// reuses the same `ScheduleEditView` the calendar uses. Reached from the
+// "Schedule ▸ Manage Upcoming" menu on the Workout home.
+struct UpcomingSchedulesView: View {
+    @Bindable var vm: WorkoutViewModel
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+    @Query(sort: \WorkoutSchedule.date) private var allSchedules: [WorkoutSchedule]
+
+    @State private var editTarget: ScheduleEditTarget?
+    @State private var seriesToCancel: SeriesGroup?
+
+    private let cal = Calendar.current
+    private let weekdayLabels = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+
+    private struct SeriesGroup: Identifiable {
+        let id: UUID
+        let schedules: [WorkoutSchedule]
+    }
+
+    // MARK: Derived
+
+    private var upcoming: [WorkoutSchedule] {
+        let today = cal.startOfDay(for: Date())
+        return allSchedules.filter { !$0.isCompleted && cal.startOfDay(for: $0.date) >= today }
+    }
+    private var seriesGroups: [SeriesGroup] {
+        let withSeries = upcoming.filter { $0.seriesID != nil }
+        return Dictionary(grouping: withSeries) { $0.seriesID! }
+            .map { SeriesGroup(id: $0.key, schedules: $0.value.sorted { $0.date < $1.date }) }
+            .sorted { ($0.schedules.first?.date ?? .distantFuture) < ($1.schedules.first?.date ?? .distantFuture) }
+    }
+    private var oneOffs: [WorkoutSchedule] {
+        upcoming.filter { $0.seriesID == nil }
+    }
+
+    // MARK: Body
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if upcoming.isEmpty {
+                    ContentUnavailableView(
+                        "No Upcoming Workouts",
+                        systemImage: "calendar",
+                        description: Text("Schedule a series and it’ll show up here to edit or cancel."))
+                } else {
+                    List {
+                        if !seriesGroups.isEmpty {
+                            Section("Recurring Series") {
+                                ForEach(seriesGroups) { group in
+                                    DisclosureGroup {
+                                        ForEach(group.schedules) { sched in
+                                            occurrenceRow(sched)
+                                                .swipeActions(edge: .trailing) {
+                                                    Button(role: .destructive) { deleteSchedule(sched) } label: {
+                                                        Label("Delete", systemImage: "trash")
+                                                    }
+                                                }
+                                        }
+                                    } label: {
+                                        seriesLabel(group)
+                                    }
+                                    .swipeActions(edge: .trailing) {
+                                        Button(role: .destructive) { seriesToCancel = group } label: {
+                                            Label("Cancel Series", systemImage: "trash")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if !oneOffs.isEmpty {
+                            Section(seriesGroups.isEmpty ? "Upcoming" : "One-off") {
+                                ForEach(oneOffs) { sched in
+                                    occurrenceRow(sched)
+                                        .swipeActions(edge: .trailing) {
+                                            Button(role: .destructive) { deleteSchedule(sched) } label: {
+                                                Label("Delete", systemImage: "trash")
+                                            }
+                                        }
+                                }
+                            }
+                        }
+                    }
+                    .scrollContentBackground(.hidden)
+                }
+            }
+            .background(LKColor.background.ignoresSafeArea())
+            .navigationTitle("Upcoming")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .sheet(item: $editTarget) { target in
+                ScheduleEditView(schedule: target.schedule, vm: vm, isNew: target.isNew)
+            }
+            .confirmationDialog(
+                "Cancel this series?",
+                isPresented: Binding(get: { seriesToCancel != nil },
+                                     set: { if !$0 { seriesToCancel = nil } }),
+                presenting: seriesToCancel
+            ) { group in
+                Button("Cancel \(group.schedules.count) Upcoming", role: .destructive) {
+                    cancelSeries(group)
+                    seriesToCancel = nil
+                }
+                Button("Keep", role: .cancel) { seriesToCancel = nil }
+            } message: { group in
+                Text("Removes the \(group.schedules.count) upcoming session\(group.schedules.count == 1 ? "" : "s") in this series and their reminders. Past workouts are kept.")
+            }
+        }
+    }
+
+    // MARK: Rows
+
+    private func seriesLabel(_ group: SeriesGroup) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(planNames(group.schedules))
+                .font(LKFont.bodyBold).foregroundColor(LKColor.textPrimary)
+            Text("\(weekdaySummary(group.schedules)) · \(group.schedules.count) left · ends \(shortDate(group.schedules.map(\.date).max() ?? Date()))")
+                .font(LKFont.caption).foregroundColor(LKColor.textMuted)
+        }
+    }
+
+    private func occurrenceRow(_ sched: WorkoutSchedule) -> some View {
+        Button {
+            editTarget = ScheduleEditTarget(schedule: sched, isNew: false)
+        } label: {
+            HStack {
+                Text(sched.displayName).font(LKFont.body).foregroundColor(LKColor.textPrimary)
+                Spacer()
+                Text(rowDate(sched.date)).font(LKFont.caption).foregroundColor(LKColor.textMuted)
+                Image(systemName: "chevron.right").font(.caption2).foregroundColor(LKColor.textMuted)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: Mutations
+
+    private func deleteSchedule(_ sched: WorkoutSchedule) {
+        WorkoutReminders.cancel(sched)
+        context.delete(sched)
+        try? context.save()
+    }
+    private func cancelSeries(_ group: SeriesGroup) {
+        for s in group.schedules {
+            WorkoutReminders.cancel(s)
+            context.delete(s)
+        }
+        try? context.save()
+    }
+
+    // MARK: Formatting
+
+    /// Distinct plan names in first-seen order (a rotation reads "A → B → C").
+    private func planNames(_ schedules: [WorkoutSchedule]) -> String {
+        var seen = Set<String>()
+        return schedules.map(\.displayName).filter { seen.insert($0).inserted }.joined(separator: " → ")
+    }
+    private func weekdaySummary(_ schedules: [WorkoutSchedule]) -> String {
+        Set(schedules.map { cal.component(.weekday, from: $0.date) }).sorted()
+            .map { weekdayLabels[$0 - 1] }.joined(separator: "/")
+    }
+    private func shortDate(_ d: Date) -> String {
+        let f = DateFormatter(); f.dateFormat = "MMM d"; return f.string(from: d)
+    }
+    private func rowDate(_ d: Date) -> String {
+        let f = DateFormatter(); f.dateFormat = "EEE, MMM d"; return f.string(from: d)
+    }
+}

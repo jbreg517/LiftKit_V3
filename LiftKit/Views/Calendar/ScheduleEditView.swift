@@ -96,10 +96,14 @@ struct ScheduleEditView: View {
         schedule.customName = customName.isEmpty ? nil : customName
         schedule.notes = notes.isEmpty ? nil : notes
         try? context.save()
+        // Keep the local reminder in sync with the (possibly changed) date.
+        WorkoutReminders.cancel(schedule)
+        WorkoutReminders.schedule(schedule)
         dismiss()
     }
 
     private func delete() {
+        WorkoutReminders.cancel(schedule)
         context.delete(schedule)
         try? context.save()
         dismiss()

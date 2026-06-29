@@ -14,6 +14,7 @@ struct WorkoutHomeView: View {
 
     @State private var showCalendarPicker = false
     @State private var showSeriesSchedule = false
+    @State private var showUpcoming = false
 
     private var userProfile: UserProfile? { profiles.first }
     private var isPremium: Bool { userProfile?.isPremium ?? false }
@@ -81,6 +82,9 @@ struct WorkoutHomeView: View {
         }
         .sheet(isPresented: $showSeriesSchedule) {
             SeriesScheduleSheet()
+        }
+        .sheet(isPresented: $showUpcoming) {
+            UpcomingSchedulesView(vm: vm)
         }
         // Note: showWorkoutSetup / showActiveWorkout are presented at the root
         // (LiftKitApp.RootTabView) so only one presenter drives each binding.
@@ -255,9 +259,19 @@ struct WorkoutHomeView: View {
                     .tracking(2)
                 Spacer()
                 if !templates.isEmpty {
-                    Button {
-                        showSeriesSchedule = true
-                        HapticManager.shared.buttonTap()
+                    Menu {
+                        Button {
+                            showSeriesSchedule = true
+                            HapticManager.shared.buttonTap()
+                        } label: {
+                            Label("Schedule a Series", systemImage: "calendar.badge.plus")
+                        }
+                        Button {
+                            showUpcoming = true
+                            HapticManager.shared.buttonTap()
+                        } label: {
+                            Label("Manage Upcoming", systemImage: "calendar.badge.clock")
+                        }
                     } label: {
                         Label("Schedule", systemImage: "calendar")
                             .font(.system(size: 12, weight: .semibold))
@@ -700,12 +714,13 @@ struct SeriesScheduleSheet: View {
     private func createSeries() {
         let temps = selected
         guard !temps.isEmpty, !weekdays.isEmpty else { return }
+        let seriesID = UUID()
         var current = cal.startOfDay(for: startDate)
         let end = cal.startOfDay(for: endDate)
         var i = 0
         while current <= end {
             if weekdays.contains(cal.component(.weekday, from: current)) {
-                let sched = WorkoutSchedule(date: current, template: temps[i % temps.count])
+                let sched = WorkoutSchedule(date: current, template: temps[i % temps.count], seriesID: seriesID)
                 context.insert(sched)
                 WorkoutReminders.schedule(sched)
                 i += 1
@@ -805,11 +820,12 @@ struct RecurringScheduleSheet: View {
     }
 
     private func createSchedules() {
+        let seriesID = UUID()
         var current = cal.startOfDay(for: startDate)
         let end = cal.startOfDay(for: endDate)
         while current <= end {
             if weekdays.contains(cal.component(.weekday, from: current)) {
-                let sched = WorkoutSchedule(date: current, template: template)
+                let sched = WorkoutSchedule(date: current, template: template, seriesID: seriesID)
                 context.insert(sched)
                 WorkoutReminders.schedule(sched)
             }

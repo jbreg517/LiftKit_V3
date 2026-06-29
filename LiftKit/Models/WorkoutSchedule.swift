@@ -8,6 +8,11 @@ final class WorkoutSchedule {
     var customName: String?
     var notes: String?
     var isCompleted: Bool = false
+    /// Links the occurrences created together by one recurring schedule so the
+    /// whole series can be managed (e.g. cancelled) as a unit. nil for one-off
+    /// schedules. Optional with a nil default keeps this a lightweight,
+    /// CloudKit-compatible migration.
+    var seriesID: UUID?
 
     var template: WorkoutTemplate?
 
@@ -17,7 +22,8 @@ final class WorkoutSchedule {
         template: WorkoutTemplate? = nil,
         customName: String? = nil,
         notes: String? = nil,
-        isCompleted: Bool = false
+        isCompleted: Bool = false,
+        seriesID: UUID? = nil
     ) {
         self.id = id
         self.date = date
@@ -25,6 +31,7 @@ final class WorkoutSchedule {
         self.customName = customName
         self.notes = notes
         self.isCompleted = isCompleted
+        self.seriesID = seriesID
     }
 
     var displayName: String {
