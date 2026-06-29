@@ -152,13 +152,13 @@ final class HealthKitManager {
     /// estimated active-energy burn. No-op when disabled/unavailable, the burn is
     /// zero, or the interval is invalid. Failures are swallowed — writing to
     /// Health is best-effort and must never disrupt finishing a workout.
-    func saveWorkout(activityType: HKWorkoutActivityType,
+    func saveWorkout(timerType: TimerType?,
                      start: Date,
                      end: Date,
                      energyKcal: Double) async {
         guard isEnabled, isAvailable, energyKcal > 0, end > start else { return }
         let config = HKWorkoutConfiguration()
-        config.activityType = activityType
+        config.activityType = Self.activityType(for: timerType)
         let builder = HKWorkoutBuilder(healthStore: store, configuration: config, device: .local())
         do {
             try await builder.beginCollection(at: start)

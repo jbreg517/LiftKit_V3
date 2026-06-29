@@ -30,7 +30,11 @@ workflows:
 
       - name: Build unsigned archive
         script: |
-          set -eo pipefail
+          # NOTE: pipefail only (no `set -e`). With `set -e`, a non-zero
+          # xcodebuild exit aborted the script *before* the error grep below
+          # ever ran, so failures showed status 65 with no error lines. Capture
+          # the exit code explicitly and always print the compiler errors.
+          set -o pipefail
           xcodebuild archive \
             -scheme LiftKit \
             -configuration Release \
@@ -44,10 +48,10 @@ workflows:
             ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES=YES \
             ENABLE_PREVIEWS=NO \
             2>&1 | tee /tmp/xcodebuild.log
-          # Verify the archive actually contains an app
-          if [ ! -d "$CM_BUILD_DIR/LiftKit.xcarchive/Products/Applications" ]; then
-            echo "ERROR: Archive produced no app bundle. Build failed."
-            grep -E "error:|Build FAILED" /tmp/xcodebuild.log | tail -40
+          STATUS=${PIPESTATUS[0]}
+          if [ "$STATUS" -ne 0 ] || [ ! -d "$CM_BUILD_DIR/LiftKit.xcarchive/Products/Applications" ]; then
+            echo "===== BUILD FAILED (xcodebuild status $STATUS) — error lines: ====="
+            grep -E "error:|Build FAILED|ARCHIVE FAILED|Undefined symbol" /tmp/xcodebuild.log | tail -60
             exit 1
           fi
 

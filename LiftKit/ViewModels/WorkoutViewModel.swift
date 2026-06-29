@@ -745,12 +745,14 @@ final class WorkoutViewModel {
         guard weightLb > 0 else { return }
         let kcal = HealthCalculations.workoutCalories(for: session, bodyweightLb: weightLb)
         guard kcal > 0 else { return }
-        let activity = HealthKitManager.activityType(for: session.timerType)
+        // Pass the app's own TimerType (not a HealthKit type) so this file needn't
+        // import HealthKit; the manager maps it to an HKWorkoutActivityType.
+        let timerType = session.timerType
         let start = session.startedAt
         let end = session.completedAt ?? Date()
         Task {
             await HealthKitManager.shared.saveWorkout(
-                activityType: activity, start: start, end: end, energyKcal: kcal)
+                timerType: timerType, start: start, end: end, energyKcal: kcal)
         }
     }
 
