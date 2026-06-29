@@ -137,6 +137,18 @@ struct RootTabView: View {
         .fullScreenCover(isPresented: Binding(get: { !hasOnboarded }, set: { _ in })) {
             OnboardingView { hasOnboarded = true }
         }
+        // Workout setup + active-workout are presented ONCE here at the root.
+        // Previously both WorkoutHomeView and HistoryView each presented them,
+        // so a single binding drove two presenters inside the live TabView and
+        // they fought each other — sometimes neither won and the start dropped.
+        .sheet(isPresented: $vm.showWorkoutSetup) {
+            NavigationStack {
+                WorkoutSetupView(vm: vm, type: vm.selectedTimerType)
+            }
+        }
+        .fullScreenCover(isPresented: $vm.showActiveWorkout) {
+            ActiveWorkoutView(vm: vm)
+        }
         .onAppear { handlePendingQuickAction() }            // cold launch
         .onChange(of: quickActions.pending) { _, _ in
             handlePendingQuickAction()                       // warm launch

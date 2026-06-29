@@ -395,7 +395,7 @@ final class WorkoutViewModel {
         completedRounds = 0
         isShowingComplete = false
         completionMessage = completionMessages.randomElement() ?? ""
-        showActiveWorkout = true
+        presentActiveWorkout()
     }
 
     func loadFromSession(_ session: WorkoutSession) {
@@ -490,7 +490,18 @@ final class WorkoutViewModel {
         try? context.save()
         activeSession = newSession
         activeConfig  = TimerConfig.defaultConfig(for: session.timerType ?? .manual)
-        showActiveWorkout = true
+        presentActiveWorkout()
+    }
+
+    /// Presents the active-workout cover on the next runloop, after any open
+    /// setup sheet has had time to dismiss. Presenting a `fullScreenCover` in the
+    /// same tick a `sheet` is dismissing causes SwiftUI to silently drop the
+    /// presentation — which surfaced as workouts intermittently failing to start
+    /// and dumping the user back on the home screen.
+    func presentActiveWorkout() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            self?.showActiveWorkout = true
+        }
     }
 
     // MARK: - Active workout actions
