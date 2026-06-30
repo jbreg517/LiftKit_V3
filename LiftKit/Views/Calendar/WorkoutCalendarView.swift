@@ -285,6 +285,7 @@ struct UpcomingSchedulesView: View {
 
     @State private var editTarget: ScheduleEditTarget?
     @State private var seriesToCancel: SeriesGroup?
+    @State private var showClearAllConfirm = false
 
     private let cal = Calendar.current
     private let weekdayLabels = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
@@ -345,6 +346,14 @@ struct UpcomingSchedulesView: View {
                                 }
                             }
                         }
+                        // Sits below the recurring series, above the one-offs.
+                        Section {
+                            Button(role: .destructive) {
+                                showClearAllConfirm = true
+                            } label: {
+                                Label("Clear All Scheduled Workouts", systemImage: "trash")
+                            }
+                        }
                         if !oneOffs.isEmpty {
                             Section(seriesGroups.isEmpty ? "Upcoming" : "One-off") {
                                 ForEach(oneOffs) { sched in
@@ -386,6 +395,18 @@ struct UpcomingSchedulesView: View {
             } message: { group in
                 Text("Removes the \(group.schedules.count) upcoming session\(group.schedules.count == 1 ? "" : "s") in this series and their reminders. Past workouts are kept.")
             }
+            .confirmationDialog(
+                "Clear all scheduled workouts?",
+                isPresented: $showClearAllConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Clear \(upcoming.count) Workout\(upcoming.count == 1 ? "" : "s")", role: .destructive) {
+                    clearAllUpcoming()
+                }
+                Button("Keep", role: .cancel) {}
+            } message: {
+                Text("Removes all \(upcoming.count) upcoming scheduled workout\(upcoming.count == 1 ? "" : "s") and their reminders. Past workouts are kept.")
+            }
         }
     }
 
@@ -423,6 +444,15 @@ struct UpcomingSchedulesView: View {
     }
     private func cancelSeries(_ group: SeriesGroup) {
         for s in group.schedules {
+            WorkoutReminders.cancel(s)
+            context.delete(s)
+        }
+        try? context.save()
+    }
+    /// Removes every upcoming scheduled workout (series occurrences + one-offs)
+    /// and their reminders. Past/completed workouts are untouched.
+    private func clearAllUpcoming() {
+        for s in upcoming {
             WorkoutReminders.cancel(s)
             context.delete(s)
         }
