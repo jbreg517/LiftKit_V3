@@ -63,6 +63,14 @@ final class TimerEngine {
     var onComplete: (() -> Void)?
     var onTick: (() -> Void)?
 
+    /// Title for the phase-change notifications shown while backgrounded
+    /// (the workout's name; defaults to the app name).
+    var notificationTitle: String = "LiftKit"
+    /// Supplies "Bench Press · 10 reps · 135 lb"-style detail for the round
+    /// that is starting, so backgrounded alerts carry the exercise, reps and
+    /// weight alongside the minute/round number.
+    var roundDetail: ((Int) -> String?)?
+
     // Sound
     private var soundEnabled: Bool {
         UserDefaults.standard.object(forKey: "soundEnabled") as? Bool ?? true
@@ -339,7 +347,10 @@ final class TimerEngine {
                     for r in currentRound...totalRounds {
                         let offset = delta + Double(r - currentRound) * 60
                         if r < totalRounds {
-                            notifications.append((offset, "\(notificationPrefix)-round-\(r)", "Minute \(r + 1)!"))
+                            // The alert fires as minute r ends, i.e. minute r+1
+                            // begins — describe the exercise for that minute.
+                            let detail = (roundDetail?(r + 1) ?? nil).map { " — \($0)" } ?? ""
+                            notifications.append((offset, "\(notificationPrefix)-round-\(r)", "Minute \(r + 1) of \(totalRounds)\(detail)"))
                         } else {
                             notifications.append((offset, "\(notificationPrefix)-end", "EMOM Complete!"))
                         }
@@ -357,7 +368,14 @@ final class TimerEngine {
                 var round = currentRound
                 var idx = 0
                 while round <= totalRounds && idx < 30 {
-                    notifications.append((offset, "\(notificationPrefix)-\(idx)", nextIsRest ? "Rest!" : "Work!"))
+                    let body: String
+                    if nextIsRest {
+                        body = "Rest!"
+                    } else {
+                        let detail = (roundDetail?(round) ?? nil).map { " — \($0)" } ?? ""
+                        body = "Work!\(detail)"
+                    }
+                    notifications.append((offset, "\(notificationPrefix)-\(idx)", body))
                     offset += nextIsRest ? config.restDuration : config.workDuration
                     if !nextIsRest { round += 1 }
                     nextIsRest.toggle()
@@ -376,7 +394,7 @@ final class TimerEngine {
         for (delay, id, body) in notifications {
             guard delay > 0 else { continue }
             let content = UNMutableNotificationContent()
-            content.title = "LiftKit"
+            content.title = notificationTitle
             content.body = body
             content.sound = .default
             content.interruptionLevel = .timeSensitive

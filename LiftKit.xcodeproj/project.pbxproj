@@ -68,6 +68,11 @@
 		A70000000000000000000033 /* SoundEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000033 /* SoundEngine.swift */; };
 		A70000000000000000000034 /* LiftKitActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000034 /* LiftKitActivityAttributes.swift */; };
 		A70000000000000000000035 /* LiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000035 /* LiveActivityManager.swift */; };
+		A70000000000000000000050 /* LiftKitWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A60000000000000000000050 /* LiftKitWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A70000000000000000000051 /* LiftKitWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000051 /* LiftKitWidgetBundle.swift */; };
+		A70000000000000000000052 /* LiftKitLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000052 /* LiftKitLiveActivity.swift */; };
+		A70000000000000000000053 /* LiftKitActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000034 /* LiftKitActivityAttributes.swift */; };
+		A70000000000000000000054 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000054 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -85,7 +90,28 @@
 			remoteGlobalIDString = A10000000000000000000001;
 			remoteInfo = LiftKit;
 		};
+		A90000000000000000000003 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A00000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A10000000000000000000004;
+			remoteInfo = LiftKitWidgets;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A2000000000000000000000B /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A70000000000000000000050 /* LiftKitWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		A60000000000000000000001 /* LiftKit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LiftKit.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -154,6 +180,11 @@
 		A60000000000000000000033 /* SoundEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundEngine.swift; sourceTree = "<group>"; };
 		A60000000000000000000034 /* LiftKitActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiftKitActivityAttributes.swift; sourceTree = "<group>"; };
 		A60000000000000000000035 /* LiveActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityManager.swift; sourceTree = "<group>"; };
+		A60000000000000000000050 /* LiftKitWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LiftKitWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A60000000000000000000051 /* LiftKitWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiftKitWidgetBundle.swift; sourceTree = "<group>"; };
+		A60000000000000000000052 /* LiftKitLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiftKitLiveActivity.swift; sourceTree = "<group>"; };
+		A60000000000000000000053 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A60000000000000000000054 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -182,6 +213,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A20000000000000000000009 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -189,6 +227,7 @@
 			isa = PBXGroup;
 			children = (
 				A50000000000000000000002 /* LiftKit */,
+				A50000000000000000000015 /* LiftKitWidgets */,
 				A50000000000000000000013 /* LiftKitTests */,
 				A50000000000000000000014 /* LiftKitUITests */,
 				A50000000000000000000011 /* Products */,
@@ -383,8 +422,20 @@
 				A60000000000000000000001 /* LiftKit.app */,
 				A60000000000000000000002 /* LiftKitTests.xctest */,
 				A60000000000000000000003 /* LiftKitUITests.xctest */,
+				A60000000000000000000050 /* LiftKitWidgets.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A50000000000000000000015 /* LiftKitWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				A60000000000000000000051 /* LiftKitWidgetBundle.swift */,
+				A60000000000000000000052 /* LiftKitLiveActivity.swift */,
+				A60000000000000000000054 /* Assets.xcassets */,
+				A60000000000000000000053 /* Info.plist */,
+			);
+			path = LiftKitWidgets;
 			sourceTree = "<group>";
 		};
 		A50000000000000000000012 /* Frameworks */ = {
@@ -427,15 +478,34 @@
 				A20000000000000000000001 /* Sources */,
 				A20000000000000000000002 /* Frameworks */,
 				A20000000000000000000003 /* Resources */,
+				A2000000000000000000000B /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				A80000000000000000000003 /* PBXTargetDependency */,
 			);
 			name = LiftKit;
 			productName = LiftKit;
 			productReference = A60000000000000000000001 /* LiftKit.app */;
 			productType = "com.apple.product-type.application";
+		};
+		A10000000000000000000004 /* LiftKitWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A30000000000000000000005 /* Build configuration list for PBXNativeTarget "LiftKitWidgets" */;
+			buildPhases = (
+				A20000000000000000000008 /* Sources */,
+				A20000000000000000000009 /* Frameworks */,
+				A2000000000000000000000A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LiftKitWidgets;
+			productName = LiftKitWidgets;
+			productReference = A60000000000000000000050 /* LiftKitWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 		A10000000000000000000002 /* LiftKitTests */ = {
 			isa = PBXNativeTarget;
@@ -492,6 +562,9 @@
 						CreatedOnToolsVersion = 16.0;
 						TestTargetID = A10000000000000000000001;
 					};
+					A10000000000000000000004 = {
+						CreatedOnToolsVersion = 16.0;
+					};
 				};
 			};
 			buildConfigurationList = A30000000000000000000001 /* Build configuration list for PBXProject "LiftKit" */;
@@ -508,6 +581,7 @@
 			projectRoot = "";
 			targets = (
 				A10000000000000000000001 /* LiftKit */,
+				A10000000000000000000004 /* LiftKitWidgets */,
 				A10000000000000000000002 /* LiftKitTests */,
 				A10000000000000000000003 /* LiftKitUITests */,
 			);
@@ -521,6 +595,14 @@
 			files = (
 				A70000000000000000000029 /* Assets.xcassets in Resources */,
 				A7000000000000000000004A /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A2000000000000000000000A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A70000000000000000000054 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -603,6 +685,16 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A20000000000000000000008 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A70000000000000000000051 /* LiftKitWidgetBundle.swift in Sources */,
+				A70000000000000000000052 /* LiftKitLiveActivity.swift in Sources */,
+				A70000000000000000000053 /* LiftKitActivityAttributes.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -615,6 +707,11 @@
 			isa = PBXTargetDependency;
 			target = A10000000000000000000001 /* LiftKit */;
 			targetProxy = A90000000000000000000002 /* PBXContainerItemProxy */;
+		};
+		A80000000000000000000003 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A10000000000000000000004 /* LiftKitWidgets */;
+			targetProxy = A90000000000000000000003 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -819,6 +916,52 @@
 			};
 			name = Release;
 		};
+		A40000000000000000000009 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "LiftKitWidgets/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = "1.1.0";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.liftkit.app.widgets";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A4000000000000000000000A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "LiftKitWidgets/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = "1.1.0";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.liftkit.app.widgets";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		A40000000000000000000007 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -888,6 +1031,15 @@
 			buildConfigurations = (
 				A40000000000000000000007 /* Debug */,
 				A40000000000000000000008 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A30000000000000000000005 /* Build configuration list for PBXNativeTarget "LiftKitWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A40000000000000000000009 /* Debug */,
+				A4000000000000000000000A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

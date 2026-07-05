@@ -198,10 +198,21 @@ struct ActiveWorkoutView: View {
         .padding(.vertical, LKSpacing.sm)
     }
 
+    /// The session card the athlete is on right now. EMOM cycles through the
+    /// cards minute by minute; the other types advance currentSessionIndex.
+    private var currentCardIndex: Int {
+        let count = vm.activeSessionCards.count
+        guard count > 0 else { return 0 }
+        if type == .emom { return (engine.currentRound - 1) % count }
+        return min(vm.currentSessionIndex, count - 1)
+    }
+
+    // The title always names the *current* exercise (engine.currentRound is
+    // observable, so this live-updates as EMOM rounds tick over).
     private var navTitle: String {
-        if vm.activeSessionCards.indices.contains(vm.currentSessionIndex) {
-            let name = vm.activeSessionCards[vm.currentSessionIndex].name
-            return name.isEmpty ? type.displayName : name
+        if vm.activeSessionCards.indices.contains(currentCardIndex) {
+            let name = vm.activeSessionCards[currentCardIndex].name
+            if !name.isEmpty { return name }
         }
         return type.displayName
     }
@@ -256,14 +267,40 @@ struct ActiveWorkoutView: View {
 
     // MARK: - Hero timer
     private func heroTimer(text: String, color: Color = LKColor.textPrimary) -> some View {
-        // Landscape uses the extra width for a much larger readable timer.
+        // Landscape shares the width with the info column, so the timer is a
+        // touch smaller there and everything fits without scrolling.
         Text(text)
-            .font(LKFont.timer(isLandscapePhone ? 150 : 112))
+            .font(LKFont.timer(isLandscapePhone ? 100 : 112))
             .foregroundColor(color)
             .contentTransition(.numericText())
             .minimumScaleFactor(0.5)
             .lineLimit(1)
             .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Adaptive timer layout
+    /// Portrait stacks everything in one centered column; landscape puts the
+    /// timer block beside the info block so the whole screen is visible
+    /// without scrolling.
+    @ViewBuilder
+    private func timerLayout<T: View, I: View>(
+        @ViewBuilder timer: () -> T,
+        @ViewBuilder info: () -> I
+    ) -> some View {
+        if isLandscapePhone {
+            HStack(alignment: .center, spacing: LKSpacing.lg) {
+                VStack(spacing: LKSpacing.sm) { timer() }
+                    .frame(maxWidth: .infinity)
+                VStack(spacing: LKSpacing.md) { info() }
+                    .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal, LKSpacing.md)
+        } else {
+            VStack(spacing: LKSpacing.lg) {
+                timer()
+                info()
+            }
+        }
     }
 
     // MARK: - Phase label
@@ -314,6 +351,41 @@ struct ActiveWorkoutView: View {
                     vm.adjustSessionWeight(sessionIndex: sessionIndex, delta: 5)
                     HapticManager.shared.buttonTap()
                 } label: { Text("+5").font(LKFont.caption).foregroundColor(LKColor.textSecondary) }
+            }
+            .padding(.horizontal, LKSpacing.sm)
+            .padding(.vertical, LKSpacing.xs)
+            .background(LKColor.surfaceElevated)
+            .clipShape(Capsule())
+            // Reps for the current exercise, adjustable mid-workout.
+            HStack(spacing: LKSpacing.sm) {
+                Button {
+                    if vm.activeSessionCards.indices.contains(sessionIndex) {
+                        vm.activeSessionCards[sessionIndex].reps =
+                            max(0, vm.activeSessionCards[sessionIndex].reps - 1)
+                    }
+                    HapticManager.shared.buttonTap()
+                } label: { Text("−1").font(LKFont.caption).foregroundColor(LKColor.textSecondary) }
+
+                Button {
+                    numberEntry = NumberEntryItem(
+                        title: "Reps", message: "Enter reps",
+                        currentValue: Double(card.reps), minValue: 0, maxValue: 999
+                    ) { newValue in
+                        if vm.activeSessionCards.indices.contains(sessionIndex) {
+                            vm.activeSessionCards[sessionIndex].reps = Int(newValue)
+                        }
+                    }
+                } label: {
+                    Text("\(card.reps) reps")
+                        .font(LKFont.caption).foregroundColor(LKColor.accent).underline()
+                }
+
+                Button {
+                    if vm.activeSessionCards.indices.contains(sessionIndex) {
+                        vm.activeSessionCards[sessionIndex].reps += 1
+                    }
+                    HapticManager.shared.buttonTap()
+                } label: { Text("+1").font(LKFont.caption).foregroundColor(LKColor.textSecondary) }
             }
             .padding(.horizontal, LKSpacing.sm)
             .padding(.vertical, LKSpacing.xs)
@@ -523,8 +595,39 @@ struct ActiveWorkoutView: View {
                 LiveActivityManager.shared.stop()
             }
         }
-        // Update the live activity whenever the timer phase changes
+
         let workoutType = type
+        // Card the athlete is on for a given round (EMOM cycles through the
+        // cards minute by minute; the other types follow currentSessionIndex).
+        let cardFor: (Int) -> SessionCard? = { [weak vm] round in
+            guard let vm, !vm.activeSessionCards.isEmpty else { return nil }
+            let cards = vm.activeSessionCards
+            let idx = workoutType == .emom
+                ? (round - 1) % cards.count
+                : min(vm.currentSessionIndex, cards.count - 1)
+            return cards[idx]
+        }
+        let sessionName = vm.activeSession?.name ?? workoutType.rawValue
+        let nameFor: (SessionCard?) -> String = { card in
+            if let n = card?.name, !n.isEmpty { return n }
+            return sessionName
+        }
+        let weightTextFor: (SessionCard?) -> String? = { card in
+            guard let card, card.weight > 0 else { return nil }
+            return "\(Int(card.weight)) \(card.weightUnit.rawValue)"
+        }
+
+        // Backgrounded notifications: the workout's name as the title, the
+        // round's exercise/reps/weight in the body.
+        engine.notificationTitle = sessionName
+        engine.roundDetail = { round in
+            guard let card = cardFor(round) else { return nil }
+            var parts = [nameFor(card), "\(card.reps) reps"]
+            if let w = weightTextFor(card) { parts.append(w) }
+            return parts.joined(separator: " · ")
+        }
+
+        // Update the live activity whenever the timer phase changes
         engine.onPhaseChange = { [engine] _ in
             DispatchQueue.main.async {
                 let label: String
@@ -533,22 +636,29 @@ struct ActiveWorkoutView: View {
                 case .intervals: label = engine.phase == .work ? "Work" : "Rest"
                 default:         label = workoutType.rawValue
                 }
+                let card = cardFor(engine.currentRound)
                 LiveActivityManager.shared.update(
+                    workoutName: nameFor(card),
                     currentRound: engine.currentRound,
                     totalRounds: engine.totalRounds,
                     phaseLabel: label,
-                    phaseEndDate: engine.phaseEndDate
+                    phaseEndDate: engine.phaseEndDate,
+                    reps: card?.reps,
+                    weightText: weightTextFor(card)
                 )
             }
         }
         // Start the Live Activity (lock screen + Dynamic Island)
+        let startCard = cardFor(engine.currentRound)
         LiveActivityManager.shared.start(
-            workoutName: vm.activeSession?.name ?? type.rawValue,
-            workoutType: type.rawValue,
+            workoutName: nameFor(startCard),
+            workoutType: workoutType.rawValue,
             currentRound: engine.currentRound,
             totalRounds: engine.totalRounds,
             phaseLabel: liveActivityPhaseLabel(engine: engine),
-            phaseEndDate: engine.phaseEndDate
+            phaseEndDate: engine.phaseEndDate,
+            reps: startCard?.reps,
+            weightText: weightTextFor(startCard)
         )
     }
 
@@ -571,159 +681,173 @@ struct ActiveWorkoutView: View {
 
     // MARK: - AMRAP
     private var amrapContent: some View {
-        VStack(spacing: stackSpacing) {
+        VStack(spacing: 0) {
             Spacer()
-            multiSessionIndicator()
-            phaseLabel(engine)
-            heroTimer(text: engine.formattedTime)
-                .padding(.vertical, LKSpacing.sm)
-            activeWeightChip(sessionIndex: vm.currentSessionIndex)
-            // Rounds counter
-            VStack(spacing: LKSpacing.xs) {
-                Text("ROUNDS COMPLETED")
-                    .font(LKFont.caption)
-                    .foregroundColor(LKColor.textMuted)
-                    .tracking(1)
-                HStack(spacing: LKSpacing.xl) {
-                    Button {
-                        vm.completedRounds = max(0, vm.completedRounds - 1)
-                        HapticManager.shared.buttonTap()
-                    } label: {
-                        Image(systemName: "minus.circle.fill")
-                            .font(.title)
-                            .foregroundColor(LKColor.textSecondary)
-                    }
-                    Button {
-                        numberEntry = NumberEntryItem(
-                            title: "Rounds Completed",
-                            message: "Enter rounds completed",
-                            currentValue: Double(vm.completedRounds),
-                            minValue: 0, maxValue: 999
-                        ) { vm.completedRounds = Int($0) }
-                    } label: {
-                        Text("\(vm.completedRounds)")
-                            .font(LKFont.timer(56))
-                            .foregroundColor(LKColor.accent)
-                            .contentTransition(.numericText())
-                    }
-                    Button {
-                        vm.completedRounds += 1
-                        // Record the split (elapsed = total − remaining) for this round.
-                        vm.recordSplit(vm.activeConfig.totalDuration - engine.timeRemaining, context: context)
-                        HapticManager.shared.buttonTap()
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title)
-                            .foregroundColor(LKColor.accent)
-                    }
-                }
+            timerLayout {
+                multiSessionIndicator()
+                phaseLabel(engine)
+                heroTimer(text: engine.formattedTime)
+            } info: {
+                activeWeightChip(sessionIndex: vm.currentSessionIndex)
+                roundsCounter
+                timerControls(engine: engine)
+                notesDisplay()
             }
-            timerControls(engine: engine)
-            notesDisplay()
             Spacer()
         }
     }
 
-    // MARK: - EMOM
-    private var emomContent: some View {
-        VStack(spacing: stackSpacing) {
-            Spacer()
-            let sessionIdx = (engine.currentRound - 1) % max(1, vm.activeSessionCards.count)
-            let sessionName = vm.activeSessionCards.indices.contains(sessionIdx)
-                ? vm.activeSessionCards[sessionIdx].name
-                : ""
-            Text(sessionName.isEmpty ? "Workout \(sessionIdx + 1)" : sessionName)
-                .font(LKFont.heading)
-                .foregroundColor(LKColor.textPrimary)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-            phaseLabel(engine)
-            heroTimer(text: engine.formattedTime)
-            Text("Minute \(engine.currentRound) of \(engine.totalRounds)")
-                .font(LKFont.body)
-                .foregroundColor(LKColor.textSecondary)
-            activeWeightChip(sessionIndex: sessionIdx)
-            timerControls(engine: engine)
-            // Up Next
-            if vm.activeSessionCards.count > 1 {
-                let nextIdx = engine.currentRound % max(1, vm.activeSessionCards.count)
-                if vm.activeSessionCards.indices.contains(nextIdx) {
-                    VStack(spacing: LKSpacing.xs) {
-                        Text("UP NEXT")
-                            .font(LKFont.caption)
-                            .foregroundColor(LKColor.textMuted)
-                            .tracking(1)
-                        let nextName = vm.activeSessionCards[nextIdx].name
-                        Text(nextName.isEmpty ? "Workout \(nextIdx + 1)" : nextName)
-                            .font(LKFont.body)
-                            .foregroundColor(LKColor.textSecondary)
-                    }
+    private var roundsCounter: some View {
+        VStack(spacing: LKSpacing.xs) {
+            Text("ROUNDS COMPLETED")
+                .font(LKFont.caption)
+                .foregroundColor(LKColor.textMuted)
+                .tracking(1)
+            HStack(spacing: LKSpacing.xl) {
+                Button {
+                    vm.completedRounds = max(0, vm.completedRounds - 1)
+                    HapticManager.shared.buttonTap()
+                } label: {
+                    Image(systemName: "minus.circle.fill")
+                        .font(.title)
+                        .foregroundColor(LKColor.textSecondary)
+                }
+                Button {
+                    numberEntry = NumberEntryItem(
+                        title: "Rounds Completed",
+                        message: "Enter rounds completed",
+                        currentValue: Double(vm.completedRounds),
+                        minValue: 0, maxValue: 999
+                    ) { vm.completedRounds = Int($0) }
+                } label: {
+                    Text("\(vm.completedRounds)")
+                        .font(LKFont.timer(isLandscapePhone ? 44 : 56))
+                        .foregroundColor(LKColor.accent)
+                        .contentTransition(.numericText())
+                }
+                Button {
+                    vm.completedRounds += 1
+                    // Record the split (elapsed = total − remaining) for this round.
+                    vm.recordSplit(vm.activeConfig.totalDuration - engine.timeRemaining, context: context)
+                    HapticManager.shared.buttonTap()
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title)
+                        .foregroundColor(LKColor.accent)
                 }
             }
-            notesDisplay()
+        }
+    }
+
+    // MARK: - EMOM
+    // The current exercise's name lives in the nav bar (navTitle), so it isn't
+    // repeated in the body.
+    private var emomContent: some View {
+        VStack(spacing: 0) {
             Spacer()
+            timerLayout {
+                phaseLabel(engine)
+                heroTimer(text: engine.formattedTime)
+                Text("Minute \(engine.currentRound) of \(engine.totalRounds)")
+                    .font(LKFont.body)
+                    .foregroundColor(LKColor.textSecondary)
+            } info: {
+                activeWeightChip(sessionIndex: currentCardIndex)
+                upNextView
+                timerControls(engine: engine)
+                notesDisplay()
+            }
+            Spacer()
+        }
+    }
+
+    @ViewBuilder
+    private var upNextView: some View {
+        if vm.activeSessionCards.count > 1 {
+            let nextIdx = engine.currentRound % max(1, vm.activeSessionCards.count)
+            if vm.activeSessionCards.indices.contains(nextIdx) {
+                VStack(spacing: LKSpacing.xs) {
+                    Text("UP NEXT")
+                        .font(LKFont.caption)
+                        .foregroundColor(LKColor.textMuted)
+                        .tracking(1)
+                    let nextName = vm.activeSessionCards[nextIdx].name
+                    Text(nextName.isEmpty ? "Workout \(nextIdx + 1)" : nextName)
+                        .font(LKFont.body)
+                        .foregroundColor(LKColor.textSecondary)
+                }
+            }
         }
     }
 
     // MARK: - For Time
     private var forTimeContent: some View {
         let isOverCap = engine.elapsedTime > vm.activeConfig.totalDuration
-        return VStack(spacing: stackSpacing) {
+        return VStack(spacing: 0) {
             Spacer()
-            multiSessionIndicator()
-            if isOverCap {
-                Text("TIME CAP")
-                    .font(LKFont.phase)
-                    .foregroundColor(LKColor.danger)
-                    .tracking(4)
-            } else {
-                phaseLabel(engine)
-            }
-            heroTimer(text: engine.formattedTime, color: isOverCap ? LKColor.danger : LKColor.textPrimary)
-            Text("Cap: \(TimerEngine.format(vm.activeConfig.totalDuration))")
-                .font(LKFont.caption)
-                .foregroundColor(LKColor.textMuted)
-            activeWeightChip(sessionIndex: vm.currentSessionIndex)
-            // Mark Complete
-            Button {
-                vm.recordSplit(engine.elapsedTime, context: context)
-                let nextIdx = vm.currentSessionIndex + 1
-                if nextIdx < vm.activeSessionCards.count {
-                    vm.currentSessionIndex = nextIdx
+            timerLayout {
+                multiSessionIndicator()
+                if isOverCap {
+                    Text("TIME CAP")
+                        .font(LKFont.phase)
+                        .foregroundColor(LKColor.danger)
+                        .tracking(4)
                 } else {
-                    vm.completeWorkout(context: context)
-                    engine.stop()
+                    phaseLabel(engine)
                 }
-                HapticManager.shared.buttonTap()
-            } label: {
-                Label("Mark Complete", systemImage: "checkmark.circle.fill")
-                    .font(LKFont.bodyBold)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(LKSpacing.md)
-                    .background(LKColor.work)
-                    .cornerRadius(LKRadius.medium)
+                heroTimer(text: engine.formattedTime, color: isOverCap ? LKColor.danger : LKColor.textPrimary)
+                Text("Cap: \(TimerEngine.format(vm.activeConfig.totalDuration))")
+                    .font(LKFont.caption)
+                    .foregroundColor(LKColor.textMuted)
+            } info: {
+                activeWeightChip(sessionIndex: vm.currentSessionIndex)
+                markCompleteButton
+                timerControls(engine: engine)
+                notesDisplay()
             }
-            .padding(.horizontal, LKSpacing.md)
-            timerControls(engine: engine)
-            notesDisplay()
             Spacer()
         }
     }
 
+    private var markCompleteButton: some View {
+        Button {
+            vm.recordSplit(engine.elapsedTime, context: context)
+            let nextIdx = vm.currentSessionIndex + 1
+            if nextIdx < vm.activeSessionCards.count {
+                vm.currentSessionIndex = nextIdx
+            } else {
+                vm.completeWorkout(context: context)
+                engine.stop()
+            }
+            HapticManager.shared.buttonTap()
+        } label: {
+            Label("Mark Complete", systemImage: "checkmark.circle.fill")
+                .font(LKFont.bodyBold)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(isLandscapePhone ? LKSpacing.sm : LKSpacing.md)
+                .background(LKColor.work)
+                .cornerRadius(LKRadius.medium)
+        }
+        .padding(.horizontal, LKSpacing.md)
+    }
+
     // MARK: - Intervals
     private var intervalsContent: some View {
-        VStack(spacing: stackSpacing) {
+        VStack(spacing: 0) {
             Spacer()
-            multiSessionIndicator()
-            phaseLabel(engine)
-            heroTimer(text: engine.formattedTime)
-            Text("Round \(engine.currentRound) of \(engine.totalRounds)")
-                .font(LKFont.body)
-                .foregroundColor(LKColor.textSecondary)
-            activeWeightChip(sessionIndex: vm.currentSessionIndex)
-            timerControls(engine: engine)
-            notesDisplay()
+            timerLayout {
+                multiSessionIndicator()
+                phaseLabel(engine)
+                heroTimer(text: engine.formattedTime)
+                Text("Round \(engine.currentRound) of \(engine.totalRounds)")
+                    .font(LKFont.body)
+                    .foregroundColor(LKColor.textSecondary)
+            } info: {
+                activeWeightChip(sessionIndex: vm.currentSessionIndex)
+                timerControls(engine: engine)
+                notesDisplay()
+            }
             Spacer()
         }
     }
@@ -1108,17 +1232,12 @@ struct ActiveWorkoutView: View {
     }
 
     // MARK: - Manual
+    // The current exercise's name lives in the nav bar (navTitle).
     private var manualContent: some View {
         VStack(spacing: stackSpacing) {
             Spacer()
-            let sessionName = vm.activeSessionCards.first?.name ?? ""
-            if !sessionName.isEmpty {
-                Text(sessionName)
-                    .font(LKFont.heading)
-                    .foregroundColor(LKColor.textPrimary)
-            }
             heroTimer(text: engine.formattedTime)
-            activeWeightChip(sessionIndex: 0)
+            activeWeightChip(sessionIndex: currentCardIndex)
             // Large play/pause (shrinks in landscape)
             Button {
                 if engine.isRunning { engine.pause(); vm.workoutClockPause() }

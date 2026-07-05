@@ -14,7 +14,9 @@ final class LiveActivityManager {
         currentRound: Int,
         totalRounds: Int,
         phaseLabel: String,
-        phaseEndDate: Date?
+        phaseEndDate: Date?,
+        reps: Int? = nil,
+        weightText: String? = nil
     ) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         let attrs = LiftKitActivityAttributes(workoutType: workoutType)
@@ -23,20 +25,34 @@ final class LiveActivityManager {
             currentRound: currentRound,
             totalRounds: totalRounds,
             phaseLabel: phaseLabel,
-            phaseEndDate: phaseEndDate
+            phaseEndDate: phaseEndDate,
+            reps: reps,
+            weightText: weightText
         )
         let content = ActivityContent(state: state, staleDate: nil)
         activity = try? Activity.request(attributes: attrs, content: content, pushType: nil)
     }
 
-    func update(currentRound: Int, totalRounds: Int, phaseLabel: String, phaseEndDate: Date?) {
+    /// `workoutName` is updatable because EMOM cycles to a different exercise
+    /// each minute — the Live Activity follows along.
+    func update(
+        workoutName: String? = nil,
+        currentRound: Int,
+        totalRounds: Int,
+        phaseLabel: String,
+        phaseEndDate: Date?,
+        reps: Int? = nil,
+        weightText: String? = nil
+    ) {
         guard let activity else { return }
         let state = LiftKitActivityAttributes.ContentState(
-            workoutName: activity.content.state.workoutName,
+            workoutName: workoutName ?? activity.content.state.workoutName,
             currentRound: currentRound,
             totalRounds: totalRounds,
             phaseLabel: phaseLabel,
-            phaseEndDate: phaseEndDate
+            phaseEndDate: phaseEndDate,
+            reps: reps,
+            weightText: weightText
         )
         let content = ActivityContent(state: state, staleDate: nil)
         Task { await activity.update(content) }

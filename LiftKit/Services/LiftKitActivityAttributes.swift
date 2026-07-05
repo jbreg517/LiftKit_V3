@@ -13,6 +13,10 @@ struct LiftKitActivityAttributes: ActivityAttributes {
         var phaseLabel: String
         /// Non-nil for count-down modes; used by Text(timerInterval:) for live rendering
         var phaseEndDate: Date?
+        /// Planned reps for the current exercise (nil when not applicable)
+        var reps: Int?
+        /// Formatted weight, e.g. "135 lb" (nil when no weight is set)
+        var weightText: String?
     }
     /// Static at start — the timer type string
     var workoutType: String

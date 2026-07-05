@@ -2,8 +2,28 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
-// NOTE: Also add LiftKitActivityAttributes.swift (from LiftKit/Services/) to this
-// target's membership in Xcode so the struct is available here.
+// This target also compiles LiftKit/Services/LiftKitActivityAttributes.swift
+// (shared with the app) so the ContentState layout stays in sync.
+
+/// "10 reps · 135 lb" — nil when the state carries neither.
+private func repsWeightLine(_ state: LiftKitActivityAttributes.ContentState) -> String? {
+    var parts: [String] = []
+    if let reps = state.reps { parts.append("\(reps) reps") }
+    if let weight = state.weightText { parts.append(weight) }
+    return parts.isEmpty ? nil : parts.joined(separator: " · ")
+}
+
+/// The LiftKit app icon, sized for the Dynamic Island's compact slots.
+private struct IslandLogo: View {
+    var size: CGFloat = 22
+    var body: some View {
+        Image("AppLogo")
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: size * 0.22))
+    }
+}
 
 struct LiftKitLiveActivity: Widget {
     var body: some WidgetConfiguration {
@@ -33,39 +53,40 @@ struct LiftKitLiveActivity: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Text(context.state.workoutName)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(context.state.workoutName)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                        if let detail = repsWeightLine(context.state) {
+                            Text("·")
+                                .foregroundColor(.secondary)
+                            Text(detail)
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                                .lineLimit(1)
+                        }
+                    }
                 }
             } compactLeading: {
-                // Compact: round x/total on the left
-                Text("\(context.state.currentRound)/\(context.state.totalRounds)")
-                    .font(.system(.caption, design: .monospaced, weight: .bold))
-                    .foregroundColor(.orange)
+                // Compact: app logo on the left
+                IslandLogo()
             } compactTrailing: {
-                // Compact: live countdown on the right
+                // Compact: the live count on the right
                 if let end = context.state.phaseEndDate, end > .now {
                     Text(timerInterval: Date.now...end, countsDown: true)
                         .font(.system(.caption2, design: .monospaced, weight: .semibold))
                         .foregroundColor(.white)
                         .monospacedDigit()
+                        .frame(maxWidth: 44)
                 } else {
-                    Text(context.state.phaseLabel)
-                        .font(.system(.caption2, weight: .semibold))
+                    Text("\(context.state.currentRound)/\(context.state.totalRounds)")
+                        .font(.system(.caption2, design: .monospaced, weight: .semibold))
                         .foregroundColor(.orange)
                 }
             } minimal: {
                 // Minimal (pill squeezed by another live activity)
-                if let end = context.state.phaseEndDate, end > .now {
-                    Text(timerInterval: Date.now...end, countsDown: true)
-                        .font(.system(.caption2, design: .monospaced))
-                        .monospacedDigit()
-                } else {
-                    Text("\(context.state.currentRound)")
-                        .font(.caption.bold())
-                        .foregroundColor(.orange)
-                }
+                IslandLogo(size: 20)
             }
         }
     }
@@ -94,6 +115,12 @@ struct LKLockScreenView: View {
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
+                }
+                if let detail = repsWeightLine(context.state) {
+                    Text(detail)
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.85))
+                        .lineLimit(1)
                 }
             }
             Spacer()

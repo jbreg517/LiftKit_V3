@@ -27,6 +27,12 @@ workflows:
             /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$PLIST"
             [ -n "$VERSION" ] && /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
           fi
+          # The widget extension's version must match the app's.
+          WIDGET_PLIST="LiftKitWidgets/Info.plist"
+          if [ -f "$WIDGET_PLIST" ]; then
+            /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$WIDGET_PLIST"
+            [ -n "$VERSION" ] && /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$WIDGET_PLIST"
+          fi
 
       - name: Build unsigned archive
         script: |
@@ -146,6 +152,12 @@ workflows:
           PLIST="LiftKit/Info.plist"
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$PLIST"
           [ -n "$VERSION" ] && /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
+          # The widget extension's version must match the app's.
+          WIDGET_PLIST="LiftKitWidgets/Info.plist"
+          if [ -f "$WIDGET_PLIST" ]; then
+            /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$WIDGET_PLIST"
+            [ -n "$VERSION" ] && /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$WIDGET_PLIST"
+          fi
 
       - name: Set up code signing
         script: |
