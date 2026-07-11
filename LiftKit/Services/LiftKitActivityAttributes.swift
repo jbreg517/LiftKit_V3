@@ -13,6 +13,9 @@ struct LiftKitActivityAttributes: ActivityAttributes {
         var phaseLabel: String
         /// Non-nil for count-down modes; used by Text(timerInterval:) for live rendering
         var phaseEndDate: Date?
+        /// Count-up anchor for modes without an end date (reps exercises,
+        /// For Time, Manual): views show a live elapsed clock from this instant
+        var phaseStartDate: Date?
         /// Planned reps for the current exercise (nil when not applicable)
         var reps: Int?
         /// Formatted weight, e.g. "135 lb" (nil when no weight is set)

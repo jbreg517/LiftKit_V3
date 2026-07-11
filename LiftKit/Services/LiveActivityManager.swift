@@ -15,6 +15,7 @@ final class LiveActivityManager {
         totalRounds: Int,
         phaseLabel: String,
         phaseEndDate: Date?,
+        phaseStartDate: Date? = nil,
         reps: Int? = nil,
         weightText: String? = nil
     ) {
@@ -26,6 +27,7 @@ final class LiveActivityManager {
             totalRounds: totalRounds,
             phaseLabel: phaseLabel,
             phaseEndDate: phaseEndDate,
+            phaseStartDate: phaseStartDate,
             reps: reps,
             weightText: weightText
         )
@@ -41,6 +43,7 @@ final class LiveActivityManager {
         totalRounds: Int,
         phaseLabel: String,
         phaseEndDate: Date?,
+        phaseStartDate: Date? = nil,
         reps: Int? = nil,
         weightText: String? = nil
     ) {
@@ -51,6 +54,7 @@ final class LiveActivityManager {
             totalRounds: totalRounds,
             phaseLabel: phaseLabel,
             phaseEndDate: phaseEndDate,
+            phaseStartDate: phaseStartDate,
             reps: reps,
             weightText: weightText
         )

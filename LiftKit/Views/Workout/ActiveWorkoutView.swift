@@ -38,6 +38,11 @@ struct ActiveWorkoutView: View {
     @State private var repsElapsed: TimeInterval = 0
     @State private var repsTimer: Timer?
 
+    // Live Activity mirror for reps mode: which exercise it's showing and
+    // since when (the count-up anchor on that exercise).
+    @State private var repsLAExercise: String?
+    @State private var repsLAAnchor = Date()
+
     private var type: TimerType { vm.activeConfig.type }
 
     // Landscape on iPhone reports a compact height. iPad stays .regular, so the
@@ -99,7 +104,13 @@ struct ActiveWorkoutView: View {
             } else {
                 startMainTimer()
             }
-            if type == .reps { startRepsTimer() }
+            if type == .reps {
+                startRepsTimer()
+                // Mirror rest start/end (and skips) onto the Live Activity.
+                restEngine.onPhaseChange = { _ in
+                    DispatchQueue.main.async { updateRepsLiveActivity() }
+                }
+            }
             quickActions.control = nil   // discard any stale Siri command
         }
         .onChange(of: quickActions.control) { _, cmd in
@@ -627,6 +638,27 @@ struct ActiveWorkoutView: View {
             return parts.joined(separator: " · ")
         }
 
+        // The Live Activity's countdown targets the *whole workout's* end, not
+        // the current phase's. Per-phase updates can't fire while the app is
+        // suspended in the background, so a per-minute countdown would freeze
+        // at 0:00 — the workout-end date keeps ticking regardless (and for
+        // EMOM its seconds column mirrors the per-minute countdown anyway).
+        // Recomputed on every foreground phase change, so pauses self-correct.
+        let cfg = vm.activeConfig
+        let workoutEndFor: (TimerEngine) -> Date? = { engine in
+            guard let phaseEnd = engine.phaseEndDate else { return nil }
+            switch workoutType {
+            case .emom:
+                return phaseEnd.addingTimeInterval(Double(engine.totalRounds - engine.currentRound) * 60)
+            case .intervals:
+                let fullRoundsLeft = Double(engine.totalRounds - engine.currentRound) * (cfg.workDuration + cfg.restDuration)
+                return phaseEnd.addingTimeInterval(engine.phase == .work ? cfg.restDuration + fullRoundsLeft : fullRoundsLeft)
+            default:
+                return phaseEnd   // AMRAP: the phase already is the whole workout
+            }
+        }
+        let startedAt = Date()   // count-up anchor for For Time / Manual
+
         // Update the live activity whenever the timer phase changes
         engine.onPhaseChange = { [engine] _ in
             DispatchQueue.main.async {
@@ -637,29 +669,46 @@ struct ActiveWorkoutView: View {
                 default:         label = workoutType.rawValue
                 }
                 let card = cardFor(engine.currentRound)
+                let end = workoutEndFor(engine)
                 LiveActivityManager.shared.update(
                     workoutName: nameFor(card),
                     currentRound: engine.currentRound,
                     totalRounds: engine.totalRounds,
                     phaseLabel: label,
-                    phaseEndDate: engine.phaseEndDate,
+                    phaseEndDate: end,
+                    phaseStartDate: end == nil ? startedAt : nil,
                     reps: card?.reps,
                     weightText: weightTextFor(card)
                 )
             }
         }
         // Start the Live Activity (lock screen + Dynamic Island)
-        let startCard = cardFor(engine.currentRound)
-        LiveActivityManager.shared.start(
-            workoutName: nameFor(startCard),
-            workoutType: workoutType.rawValue,
-            currentRound: engine.currentRound,
-            totalRounds: engine.totalRounds,
-            phaseLabel: liveActivityPhaseLabel(engine: engine),
-            phaseEndDate: engine.phaseEndDate,
-            reps: startCard?.reps,
-            weightText: weightTextFor(startCard)
-        )
+        if workoutType == .reps {
+            LiveActivityManager.shared.start(
+                workoutName: sessionName,
+                workoutType: workoutType.rawValue,
+                currentRound: 1,
+                totalRounds: 1,
+                phaseLabel: "Workout",
+                phaseEndDate: nil,
+                phaseStartDate: startedAt
+            )
+            updateRepsLiveActivity()   // fills in the current exercise + sets
+        } else {
+            let startCard = cardFor(engine.currentRound)
+            let end = workoutEndFor(engine)
+            LiveActivityManager.shared.start(
+                workoutName: nameFor(startCard),
+                workoutType: workoutType.rawValue,
+                currentRound: engine.currentRound,
+                totalRounds: engine.totalRounds,
+                phaseLabel: liveActivityPhaseLabel(engine: engine),
+                phaseEndDate: end,
+                phaseStartDate: end == nil ? startedAt : nil,
+                reps: startCard?.reps,
+                weightText: weightTextFor(startCard)
+            )
+        }
     }
 
     // MARK: ============================================================
@@ -870,6 +919,7 @@ struct ActiveWorkoutView: View {
 
                     Button {
                         vm.completeWorkout(context: context)
+                        LiveActivityManager.shared.stop()
                         HapticManager.shared.buttonTap()
                     } label: {
                         Label(vm.activeRepsAllComplete ? "Finish Workout" : "Finish Early",
@@ -934,6 +984,7 @@ struct ActiveWorkoutView: View {
     private func restAdjustButton(label: String, delta: TimeInterval) -> some View {
         Button {
             restEngine.adjustRest(by: delta)
+            updateRepsLiveActivity()   // keep the rest countdown in sync
             HapticManager.shared.buttonTap()
         } label: {
             Text(label)
@@ -1107,7 +1158,7 @@ struct ActiveWorkoutView: View {
             } else {
                 // Mark complete, start rest timer (unless that was the last set)
                 vm.logSet(exerciseIndex: exIdx, setIndex: setIdx, context: context)
-                if !vm.isShowingComplete { startRestIfNeeded() }
+                afterSetLogged()
                 HapticManager.shared.setLogged()
             }
         } label: {
@@ -1154,7 +1205,7 @@ struct ActiveWorkoutView: View {
         } else {
             vm.activeExercises[exIdx].sets[setIdx].actualReps = reps
             vm.logSet(exerciseIndex: exIdx, setIndex: setIdx, context: context)
-            if !vm.isShowingComplete { startRestIfNeeded() }
+            afterSetLogged()
         }
         HapticManager.shared.setLogged()
     }
@@ -1186,7 +1237,61 @@ struct ActiveWorkoutView: View {
 
     private func startRestIfNeeded() {
         let rest = Double(vm.activeConfig.restBetweenSets)
-        if rest > 0 { restEngine.startRestTimer(rest) }
+        if rest > 0 {
+            restEngine.startRestTimer(rest)   // fires onPhaseChange → Live Activity
+        } else {
+            updateRepsLiveActivity()
+        }
+    }
+
+    /// Post-set bookkeeping: start the rest timer, or end the Live Activity
+    /// when that set finished the workout.
+    private func afterSetLogged() {
+        if vm.isShowingComplete {
+            LiveActivityManager.shared.stop()
+        } else {
+            startRestIfNeeded()
+        }
+    }
+
+    /// The exercise being worked right now: the first with unfinished sets
+    /// (falling back to the last one when everything's done).
+    private var currentRepsExercise: ActiveExercise? {
+        vm.activeExercises.first { $0.sets.contains { !$0.isCompleted } } ?? vm.activeExercises.last
+    }
+
+    /// Mirrors reps progress onto the Live Activity: the current exercise with
+    /// a running clock on it, or "Rest" with the rest countdown between sets.
+    private func updateRepsLiveActivity() {
+        guard type == .reps else { return }
+        if restEngine.phase == .rest, let end = restEngine.phaseEndDate, end > Date() {
+            LiveActivityManager.shared.update(
+                workoutName: currentRepsExercise?.name ?? vm.activeSession?.name ?? "Workout",
+                currentRound: 1,
+                totalRounds: 1,
+                phaseLabel: "Rest",
+                phaseEndDate: end
+            )
+            return
+        }
+        guard let ex = currentRepsExercise else { return }
+        if repsLAExercise != ex.name {
+            repsLAExercise = ex.name
+            repsLAAnchor = Date()
+        }
+        let totalSets = max(1, ex.sets.count)
+        let currentSet = min(ex.sets.filter(\.isCompleted).count + 1, totalSets)
+        let nextSet = ex.sets.first { !$0.isCompleted }
+        LiveActivityManager.shared.update(
+            workoutName: ex.name,
+            currentRound: currentSet,
+            totalRounds: totalSets,
+            phaseLabel: "Set \(currentSet) of \(totalSets)",
+            phaseEndDate: nil,
+            phaseStartDate: repsLAAnchor,
+            reps: (nextSet?.isTimed == false) ? nextSet?.plannedReps : nil,
+            weightText: ex.weight > 0 ? "\(Int(ex.weight)) \(ex.weightUnit.rawValue)" : nil
+        )
     }
 
     // MARK: - Timed set (hold) handling
@@ -1228,7 +1333,7 @@ struct ActiveWorkoutView: View {
         vm.activeExercises[exIdx].sets[setIdx].actualDuration = actual
         vm.logSet(exerciseIndex: exIdx, setIndex: setIdx, context: context)
         HapticManager.shared.setLogged()
-        if !vm.isShowingComplete { startRestIfNeeded() }
+        afterSetLogged()
     }
 
     // MARK: - Manual

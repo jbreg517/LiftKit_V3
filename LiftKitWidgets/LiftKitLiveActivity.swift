@@ -13,15 +13,40 @@ private func repsWeightLine(_ state: LiftKitActivityAttributes.ContentState) -> 
     return parts.isEmpty ? nil : parts.joined(separator: " · ")
 }
 
-/// The LiftKit app icon, sized for the Dynamic Island's compact slots.
-private struct IslandLogo: View {
-    var size: CGFloat = 22
+/// The live clock: counts down to phaseEndDate when one is set, otherwise
+/// counts up from phaseStartDate. Both are wall-clock dates, so the clock
+/// keeps running even while the app is suspended in the background.
+private struct LiveClock: View {
+    let state: LiftKitActivityAttributes.ContentState
+
     var body: some View {
-        Image("AppLogo")
-            .resizable()
-            .scaledToFit()
-            .frame(width: size, height: size)
-            .clipShape(RoundedRectangle(cornerRadius: size * 0.22))
+        if let end = state.phaseEndDate, end > .now {
+            Text(timerInterval: Date.now...end, countsDown: true)
+                .monospacedDigit()
+        } else if let start = state.phaseStartDate {
+            Text(timerInterval: start...start.addingTimeInterval(24 * 3600), countsDown: false)
+                .monospacedDigit()
+        }
+    }
+
+    static func hasClock(_ state: LiftKitActivityAttributes.ContentState) -> Bool {
+        if let end = state.phaseEndDate, end > .now { return true }
+        return state.phaseStartDate != nil
+    }
+}
+
+/// The gold from the app icon's barbell.
+private let lkGold = Color(red: 0.93, green: 0.78, blue: 0.35)
+
+/// LiftKit's logo mark for the Dynamic Island. The full app icon is a dark
+/// tile that disappears against the black island, so this renders the icon's
+/// barbell in its gold instead — crisp at any size.
+private struct IslandLogo: View {
+    var size: CGFloat = 14
+    var body: some View {
+        Image(systemName: "dumbbell.fill")
+            .font(.system(size: size, weight: .semibold))
+            .foregroundColor(lkGold)
     }
 }
 
@@ -44,13 +69,10 @@ struct LiftKitLiveActivity: Widget {
                     .padding(.leading, 4)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    if let end = context.state.phaseEndDate, end > .now {
-                        Text(timerInterval: Date.now...end, countsDown: true)
-                            .font(.system(.title, design: .monospaced, weight: .bold))
-                            .foregroundColor(.white)
-                            .monospacedDigit()
-                            .padding(.trailing, 4)
-                    }
+                    LiveClock(state: context.state)
+                        .font(.system(.title, design: .monospaced, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.trailing, 4)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack(spacing: 6) {
@@ -69,16 +91,23 @@ struct LiftKitLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                // Compact: app logo on the left
-                IslandLogo()
+                // Compact: logo mark + the current exercise (truncated to
+                // whatever space the island allows)
+                HStack(spacing: 4) {
+                    IslandLogo()
+                    Text(context.state.workoutName)
+                        .font(.system(.caption2, weight: .semibold))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .frame(maxWidth: 64, alignment: .leading)
+                }
             } compactTrailing: {
-                // Compact: the live count on the right
-                if let end = context.state.phaseEndDate, end > .now {
-                    Text(timerInterval: Date.now...end, countsDown: true)
+                // Compact: the live clock on the right
+                if LiveClock.hasClock(context.state) {
+                    LiveClock(state: context.state)
                         .font(.system(.caption2, design: .monospaced, weight: .semibold))
                         .foregroundColor(.white)
-                        .monospacedDigit()
-                        .frame(maxWidth: 44)
+                        .frame(maxWidth: 50)
                 } else {
                     Text("\(context.state.currentRound)/\(context.state.totalRounds)")
                         .font(.system(.caption2, design: .monospaced, weight: .semibold))
@@ -86,7 +115,7 @@ struct LiftKitLiveActivity: Widget {
                 }
             } minimal: {
                 // Minimal (pill squeezed by another live activity)
-                IslandLogo(size: 20)
+                IslandLogo(size: 15)
             }
         }
     }
@@ -124,12 +153,9 @@ struct LKLockScreenView: View {
                 }
             }
             Spacer()
-            if let end = context.state.phaseEndDate, end > .now {
-                Text(timerInterval: Date.now...end, countsDown: true)
-                    .font(.system(.title2, design: .monospaced, weight: .bold))
-                    .foregroundColor(.orange)
-                    .monospacedDigit()
-            }
+            LiveClock(state: context.state)
+                .font(.system(.title2, design: .monospaced, weight: .bold))
+                .foregroundColor(.orange)
         }
         .padding(16)
         .activityBackgroundTint(Color(red: 0.08, green: 0.08, blue: 0.10))
