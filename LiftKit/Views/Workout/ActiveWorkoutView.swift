@@ -360,11 +360,18 @@ struct ActiveWorkoutView: View {
                     .background(LKColor.surfaceElevated)
                     .clipShape(Capsule())
             }
-            HStack(spacing: LKSpacing.sm) {
+            // Unified weight stepper [−  135 lb  +], matching the reps cards.
+            HStack(spacing: 0) {
                 Button {
                     vm.adjustSessionWeight(sessionIndex: sessionIndex, delta: -5)
                     HapticManager.shared.buttonTap()
-                } label: { Text("−5").font(LKFont.caption).foregroundColor(LKColor.textSecondary) }
+                } label: {
+                    Image(systemName: "minus")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(LKColor.textSecondary)
+                        .frame(width: 32, height: 40)
+                }
+                .accessibilityLabel("Decrease weight by 5")
 
                 Button {
                     numberEntry = NumberEntryItem(
@@ -372,28 +379,48 @@ struct ActiveWorkoutView: View {
                         currentValue: card.weight, minValue: 0, maxValue: 999
                     ) { vm.activeSessionCards[sessionIndex].weight = $0 }
                 } label: {
-                    Text("\(Int(card.weight)) \(card.weightUnit.rawValue)")
-                        .font(LKFont.caption).foregroundColor(LKColor.accent).underline()
+                    VStack(spacing: 0) {
+                        Text("\(Int(card.weight))")
+                            .font(.system(size: 17, weight: .bold, design: .monospaced))
+                            .foregroundColor(LKColor.accent)
+                            .contentTransition(.numericText())
+                        Text(card.weightUnit.rawValue)
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundColor(LKColor.textMuted)
+                    }
+                    .frame(minWidth: 44)
                 }
+                .accessibilityLabel("\(Int(card.weight)) \(card.weightUnit.rawValue), edit weight")
 
                 Button {
                     vm.adjustSessionWeight(sessionIndex: sessionIndex, delta: 5)
                     HapticManager.shared.buttonTap()
-                } label: { Text("+5").font(LKFont.caption).foregroundColor(LKColor.textSecondary) }
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(LKColor.accent)
+                        .frame(width: 32, height: 40)
+                }
+                .accessibilityLabel("Increase weight by 5")
             }
-            .padding(.horizontal, LKSpacing.sm)
-            .padding(.vertical, LKSpacing.xs)
             .background(LKColor.surfaceElevated)
-            .clipShape(Capsule())
-            // Reps for the current exercise, adjustable mid-workout.
-            HStack(spacing: LKSpacing.sm) {
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            // Unified reps stepper [−  10 reps  +], adjustable mid-workout.
+            HStack(spacing: 0) {
                 Button {
                     if vm.activeSessionCards.indices.contains(sessionIndex) {
                         vm.activeSessionCards[sessionIndex].reps =
                             max(0, vm.activeSessionCards[sessionIndex].reps - 1)
                     }
                     HapticManager.shared.buttonTap()
-                } label: { Text("−1").font(LKFont.caption).foregroundColor(LKColor.textSecondary) }
+                } label: {
+                    Image(systemName: "minus")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(LKColor.textSecondary)
+                        .frame(width: 32, height: 40)
+                }
+                .accessibilityLabel("Decrease reps")
 
                 Button {
                     numberEntry = NumberEntryItem(
@@ -405,21 +432,34 @@ struct ActiveWorkoutView: View {
                         }
                     }
                 } label: {
-                    Text("\(card.reps) reps")
-                        .font(LKFont.caption).foregroundColor(LKColor.accent).underline()
+                    VStack(spacing: 0) {
+                        Text("\(card.reps)")
+                            .font(.system(size: 17, weight: .bold, design: .monospaced))
+                            .foregroundColor(LKColor.accent)
+                            .contentTransition(.numericText())
+                        Text("reps")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundColor(LKColor.textMuted)
+                    }
+                    .frame(minWidth: 40)
                 }
+                .accessibilityLabel("\(card.reps) reps, edit reps")
 
                 Button {
                     if vm.activeSessionCards.indices.contains(sessionIndex) {
                         vm.activeSessionCards[sessionIndex].reps += 1
                     }
                     HapticManager.shared.buttonTap()
-                } label: { Text("+1").font(LKFont.caption).foregroundColor(LKColor.textSecondary) }
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(LKColor.accent)
+                        .frame(width: 32, height: 40)
+                }
+                .accessibilityLabel("Increase reps")
             }
-            .padding(.horizontal, LKSpacing.sm)
-            .padding(.vertical, LKSpacing.xs)
             .background(LKColor.surfaceElevated)
-            .clipShape(Capsule())
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
     }
 
@@ -789,21 +829,26 @@ struct ActiveWorkoutView: View {
         }
     }
 
+    // Rounds counter as one unified rounded control, matching the stepper
+    // styling used across the workout cards.
     private var roundsCounter: some View {
         VStack(spacing: LKSpacing.xs) {
             Text("ROUNDS COMPLETED")
                 .font(LKFont.caption)
                 .foregroundColor(LKColor.textMuted)
                 .tracking(1)
-            HStack(spacing: LKSpacing.xl) {
+            HStack(spacing: 0) {
                 Button {
                     vm.completedRounds = max(0, vm.completedRounds - 1)
                     HapticManager.shared.buttonTap()
                 } label: {
-                    Image(systemName: "minus.circle.fill")
-                        .font(.title)
+                    Image(systemName: "minus")
+                        .font(.system(size: 18, weight: .bold))
                         .foregroundColor(LKColor.textSecondary)
+                        .frame(width: 52, height: isLandscapePhone ? 56 : 68)
                 }
+                .accessibilityLabel("Subtract round")
+
                 Button {
                     numberEntry = NumberEntryItem(
                         title: "Rounds Completed",
@@ -813,21 +858,28 @@ struct ActiveWorkoutView: View {
                     ) { vm.completedRounds = Int($0) }
                 } label: {
                     Text("\(vm.completedRounds)")
-                        .font(LKFont.timer(isLandscapePhone ? 44 : 56))
+                        .font(LKFont.timer(isLandscapePhone ? 40 : 48))
                         .foregroundColor(LKColor.accent)
                         .contentTransition(.numericText())
+                        .frame(minWidth: 72)
                 }
+                .accessibilityLabel("\(vm.completedRounds) rounds completed, edit")
+
                 Button {
                     vm.completedRounds += 1
                     // Record the split (elapsed = total − remaining) for this round.
                     vm.recordSplit(vm.activeConfig.totalDuration - engine.timeRemaining, context: context)
                     HapticManager.shared.buttonTap()
                 } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title)
+                    Image(systemName: "plus")
+                        .font(.system(size: 18, weight: .bold))
                         .foregroundColor(LKColor.accent)
+                        .frame(width: 52, height: isLandscapePhone ? 56 : 68)
                 }
+                .accessibilityLabel("Add round")
             }
+            .background(LKColor.surfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
     }
 
@@ -1080,6 +1132,8 @@ struct ActiveWorkoutView: View {
                 weightControls(exIdx: exIdx, ex: ex)
             }
 
+            setsProgress(ex)
+
             // Plates / warm-up live on their own full-width row so they stay
             // on a single line instead of wrapping next to the weight stepper.
             accessoryButtons(ex: ex)
@@ -1091,7 +1145,7 @@ struct ActiveWorkoutView: View {
                     .lineLimit(1)
             }
 
-            // Set circles
+            // Set tiles
             HStack(spacing: LKSpacing.sm) {
                 ForEach(Array(ex.sets.enumerated()), id: \.element.id) { (setIdx, set) in
                     setCircle(exIdx: exIdx, setIdx: setIdx, set: set)
@@ -1099,6 +1153,22 @@ struct ActiveWorkoutView: View {
             }
         }
         .lkCard()
+    }
+
+    /// Thin gold rail under the exercise header showing sets done vs planned.
+    private func setsProgress(_ ex: ActiveExercise) -> some View {
+        let done = ex.sets.filter(\.isCompleted).count
+        let total = max(1, ex.sets.count)
+        return GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(LKColor.surfaceElevated)
+                Capsule().fill(LKColor.accent)
+                    .frame(width: geo.size.width * CGFloat(done) / CGFloat(total))
+            }
+        }
+        .frame(height: 3)
+        .animation(.easeOut(duration: 0.25), value: done)
+        .accessibilityHidden(true)
     }
 
     /// "Show Plates" / "Warm-up" buttons. Rendered as a single-line row; emits
@@ -1120,7 +1190,8 @@ struct ActiveWorkoutView: View {
         }
     }
 
-    /// Equipment icon (icon-only) + a prominent weight stepper with full ± buttons.
+    /// Equipment icon (icon-only) + the weight stepper as one unified rounded
+    /// control ([−  135 lb  +]) rather than free-floating ± buttons.
     @ViewBuilder
     private func weightControls(exIdx: Int, ex: ActiveExercise) -> some View {
         HStack(spacing: LKSpacing.sm) {
@@ -1132,44 +1203,50 @@ struct ActiveWorkoutView: View {
                     .clipShape(Circle())
                     .accessibilityLabel(ex.equipment.rawValue)
             }
-            Button {
-                vm.adjustWeight(exerciseIndex: exIdx, delta: -weightIncrement)
-                HapticManager.shared.buttonTap()
-            } label: {
-                Image(systemName: "minus.circle.fill")
-                    .font(.system(size: 34))
-                    .foregroundColor(LKColor.textSecondary)
-            }
-            .accessibilityLabel("Decrease weight by \(incLabel)")
-
-            Button {
-                numberEntry = NumberEntryItem(
-                    title: "Weight", message: "Enter weight",
-                    currentValue: ex.weight, minValue: 0, maxValue: 999
-                ) { vm.activeExercises[exIdx].weight = $0 }
-            } label: {
-                VStack(spacing: 0) {
-                    Text("\(Int(ex.weight))")
-                        .font(.system(size: 26, weight: .bold, design: .monospaced))
-                        .foregroundColor(LKColor.accent)
-                        .contentTransition(.numericText())
-                    Text(ex.weightUnit.rawValue)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(LKColor.textMuted)
+            HStack(spacing: 0) {
+                Button {
+                    vm.adjustWeight(exerciseIndex: exIdx, delta: -weightIncrement)
+                    HapticManager.shared.buttonTap()
+                } label: {
+                    Image(systemName: "minus")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(LKColor.textSecondary)
+                        .frame(width: 38, height: 46)
                 }
-                .frame(minWidth: 58)
-            }
-            .accessibilityLabel("\(Int(ex.weight)) \(ex.weightUnit.rawValue), edit weight")
+                .accessibilityLabel("Decrease weight by \(incLabel)")
 
-            Button {
-                vm.adjustWeight(exerciseIndex: exIdx, delta: weightIncrement)
-                HapticManager.shared.buttonTap()
-            } label: {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 34))
-                    .foregroundColor(LKColor.accent)
+                Button {
+                    numberEntry = NumberEntryItem(
+                        title: "Weight", message: "Enter weight",
+                        currentValue: ex.weight, minValue: 0, maxValue: 999
+                    ) { vm.activeExercises[exIdx].weight = $0 }
+                } label: {
+                    VStack(spacing: 0) {
+                        Text("\(Int(ex.weight))")
+                            .font(.system(size: 22, weight: .bold, design: .monospaced))
+                            .foregroundColor(LKColor.accent)
+                            .contentTransition(.numericText())
+                        Text(ex.weightUnit.rawValue)
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundColor(LKColor.textMuted)
+                    }
+                    .frame(minWidth: 54)
+                }
+                .accessibilityLabel("\(Int(ex.weight)) \(ex.weightUnit.rawValue), edit weight")
+
+                Button {
+                    vm.adjustWeight(exerciseIndex: exIdx, delta: weightIncrement)
+                    HapticManager.shared.buttonTap()
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(LKColor.accent)
+                        .frame(width: 38, height: 46)
+                }
+                .accessibilityLabel("Increase weight by \(incLabel)")
             }
-            .accessibilityLabel("Increase weight by \(incLabel)")
+            .background(LKColor.surfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
     }
 
@@ -1227,15 +1304,27 @@ struct ActiveWorkoutView: View {
                 HapticManager.shared.setLogged()
             }
         } label: {
-            ZStack {
-                Circle()
-                    .fill(setCircleFill(set: set, isRunning: isRunning))
-                    .frame(width: 48, height: 48)
+            // Rounded tile with a "SET n" caption — LiftKit's own look for
+            // set logging (deliberately not a plain circle row).
+            VStack(spacing: 3) {
+                Text("SET \(set.setNumber)")
+                    .font(.system(size: 8, weight: .bold))
+                    .tracking(0.5)
+                    .foregroundColor(setCaptionColor(set: set, isRunning: isRunning))
                 Text(setCircleLabel(set: set, isRunning: isRunning))
-                    .font(.system(size: set.isTimed ? 13 : 14, weight: .bold))
+                    .font(.system(size: set.isTimed ? 14 : 16, weight: .bold))
                     .foregroundColor(setCircleTextColor(set: set, isRunning: isRunning))
                     .contentTransition(.numericText())
             }
+            .frame(width: 52, height: 56)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(setCircleFill(set: set, isRunning: isRunning))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(set.isCompleted && !isRunning ? LKColor.accent : Color.clear, lineWidth: 1.5)
+            )
         }
         .accessibilityLabel(setCircleAccessibility(set: set, isRunning: isRunning))
         .contextMenu {
@@ -1275,14 +1364,21 @@ struct ActiveWorkoutView: View {
         HapticManager.shared.setLogged()
     }
 
+    // Tile states: idle = flat elevated tile; done = gold-outlined with gold
+    // text; running hold = solid gold with dark text.
     private func setCircleFill(set: ActiveSet, isRunning: Bool) -> Color {
         if isRunning { return LKColor.accent }
-        return set.isCompleted ? LKColor.success : LKColor.surfaceElevated
+        return set.isCompleted ? LKColor.accent.opacity(0.16) : LKColor.surfaceElevated
     }
 
     private func setCircleTextColor(set: ActiveSet, isRunning: Bool) -> Color {
         if isRunning { return LKColor.onAccent }        // dark text on gold
-        return set.isCompleted ? .white : LKColor.textPrimary
+        return set.isCompleted ? LKColor.accent : LKColor.textPrimary
+    }
+
+    private func setCaptionColor(set: ActiveSet, isRunning: Bool) -> Color {
+        if isRunning { return LKColor.onAccent.opacity(0.75) }
+        return set.isCompleted ? LKColor.accent.opacity(0.85) : LKColor.textMuted
     }
 
     private func setCircleLabel(set: ActiveSet, isRunning: Bool) -> String {
