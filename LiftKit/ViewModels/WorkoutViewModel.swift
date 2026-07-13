@@ -12,6 +12,10 @@ struct SessionCard: Identifiable {
     var weight: Double = 0
     var weightUnit: WeightUnit = UnitSystem.current.weightUnit
     var reps: Int = 10
+    /// EMOM: linked with the next card so both happen in the *same* minute
+    /// (e.g. a kettlebell complex done in full every minute). Unlinked cards
+    /// rotate minute by minute.
+    var linkedToNext: Bool = false
 }
 
 // MARK: - Exercise Card (Reps setup)
@@ -232,13 +236,25 @@ final class WorkoutViewModel {
             card.linkedToNext = ex.linkedToNext
             return card
         }
-        sessions = sorted.map { ex in
+        // Route the session cards to the array the setup screen actually binds
+        // for this type (previously everything went to `sessions`, so EMOM /
+        // Intervals / Manual templates opened with an empty workout list).
+        let sessCards: [SessionCard] = sorted.map { ex in
             var card = SessionCard()
             card.name = ex.exerciseName
             card.equipment = ex.equipment ?? .none
             card.weight = ex.targetWeight
             card.weightUnit = ex.weightUnit
+            card.reps = ex.targetReps
+            card.linkedToNext = ex.linkedToNext
             return card
+        }
+        switch type {
+        case .amrap, .forTime: sessions = sessCards.isEmpty ? [SessionCard()] : sessCards
+        case .emom:            emomSessions = sessCards.isEmpty ? [SessionCard()] : sessCards
+        case .intervals:       intervalSessions = sessCards.isEmpty ? [SessionCard()] : sessCards
+        case .manual:          manualSessions = sessCards.isEmpty ? [SessionCard()] : sessCards
+        case .reps:            break
         }
     }
 
@@ -345,6 +361,7 @@ final class WorkoutViewModel {
 
         // Create entries
         let cards = activeSessions(for: selectedTimerType)
+        let cardGroups = minuteGroups(for: cards)
         for (i, card) in cards.enumerated() {
             let exName = card.name.isEmpty ? "Workout \(i + 1)" : card.name
             let exercise = findOrCreateExercise(id: card.exerciseID, name: exName, equipment: card.equipment, context: context)
@@ -352,6 +369,8 @@ final class WorkoutViewModel {
             entry.equipmentRaw = card.equipment == .none ? nil : card.equipment.rawValue
             entry.weight = card.weight > 0 ? card.weight : nil
             entry.weightUnit = card.weightUnit.rawValue
+            // Persist EMOM minute-grouping so history/repeat restores the links.
+            if selectedTimerType == .emom { entry.supersetGroup = cardGroups[i] }
             entry.session = session
             entry.exercise = exercise
             context.insert(entry)
@@ -451,6 +470,13 @@ final class WorkoutViewModel {
                 card.weight = sets.first?.weight ?? 0
                 card.weightUnit = sets.first?.weightUnitEnum ?? .lb
                 return card
+            }
+            // Restore minute-links: consecutive entries sharing a group are linked.
+            for i in emomSessions.indices where i + 1 < entries.count {
+                let g = entries[i].supersetGroup
+                if g != nil && g == entries[i + 1].supersetGroup {
+                    emomSessions[i].linkedToNext = true
+                }
             }
             if emomSessions.isEmpty { emomSessions = [SessionCard()] }
         case .intervals:
@@ -826,7 +852,8 @@ final class WorkoutViewModel {
                     sortOrder: i,
                     equipment: card.equipment == .none ? nil : card.equipment,
                     targetWeight: card.weight,
-                    weightUnit: card.weightUnit
+                    weightUnit: card.weightUnit,
+                    linkedToNext: card.linkedToNext
                 )
                 te.template = template
                 context.insert(te)
@@ -877,7 +904,8 @@ final class WorkoutViewModel {
                     sortOrder: i,
                     equipment: card.equipment == .none ? nil : card.equipment,
                     targetWeight: card.weight,
-                    weightUnit: card.weightUnit
+                    weightUnit: card.weightUnit,
+                    linkedToNext: card.linkedToNext
                 )
                 te.template = template
                 context.insert(te)
@@ -903,6 +931,43 @@ final class WorkoutViewModel {
         case .manual:          return manualSessions
         case .reps:            return []
         }
+    }
+
+    /// EMOM minute-slots over a card list: each slot is the indices of the
+    /// card(s) done in one minute. Consecutive cards linked via `linkedToNext`
+    /// share a slot (a complex done in full every minute); slots rotate
+    /// minute by minute.
+    static func minuteSlots(for cards: [SessionCard]) -> [[Int]] {
+        var slots: [[Int]] = []
+        var current: [Int] = []
+        for i in cards.indices {
+            current.append(i)
+            if i == cards.count - 1 || !cards[i].linkedToNext {
+                slots.append(current)
+                current = []
+            }
+        }
+        return slots
+    }
+
+    /// Minute-slots of the running workout's cards.
+    var emomSlots: [[Int]] { Self.minuteSlots(for: activeSessionCards) }
+
+    /// Minute-group index per EMOM card (nil = standalone), mirroring
+    /// `supersetGroups()` for session cards. Persisted onto WorkoutEntry so
+    /// history/repeat can restore the links.
+    private func minuteGroups(for cards: [SessionCard]) -> [Int?] {
+        let n = cards.count
+        guard n > 0 else { return [] }
+        var raw = Array(repeating: 0, count: n)
+        var g = 0
+        for i in 0..<n {
+            raw[i] = g
+            if i < n - 1 && !cards[i].linkedToNext { g += 1 }
+        }
+        var counts: [Int: Int] = [:]
+        for gid in raw { counts[gid, default: 0] += 1 }
+        return raw.map { (counts[$0] ?? 0) > 1 ? $0 : nil }
     }
 
     /// Superset group index per exercise (nil = standalone). Consecutive cards

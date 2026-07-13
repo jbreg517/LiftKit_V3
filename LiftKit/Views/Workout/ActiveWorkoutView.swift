@@ -209,22 +209,32 @@ struct ActiveWorkoutView: View {
         .padding(.vertical, LKSpacing.sm)
     }
 
-    /// The session card the athlete is on right now. EMOM cycles through the
-    /// cards minute by minute; the other types advance currentSessionIndex.
-    private var currentCardIndex: Int {
+    /// Indices of the card(s) the athlete is on right now. EMOM rotates its
+    /// minute-slots — cards linked in setup share a slot and are all done that
+    /// minute (e.g. a kettlebell complex); the other types follow
+    /// currentSessionIndex.
+    private var currentSlot: [Int] {
         let count = vm.activeSessionCards.count
-        guard count > 0 else { return 0 }
-        if type == .emom { return (engine.currentRound - 1) % count }
-        return min(vm.currentSessionIndex, count - 1)
+        guard count > 0 else { return [] }
+        if type == .emom {
+            let slots = vm.emomSlots
+            guard !slots.isEmpty else { return [] }
+            return slots[(engine.currentRound - 1) % slots.count]
+        }
+        return [min(vm.currentSessionIndex, count - 1)]
     }
 
-    // The title always names the *current* exercise (engine.currentRound is
+    private var currentCardIndex: Int { currentSlot.first ?? 0 }
+
+    // The title always names the *current* exercise(s) (engine.currentRound is
     // observable, so this live-updates as EMOM rounds tick over).
     private var navTitle: String {
-        if vm.activeSessionCards.indices.contains(currentCardIndex) {
-            let name = vm.activeSessionCards[currentCardIndex].name
-            if !name.isEmpty { return name }
+        let cards = vm.activeSessionCards
+        let names = currentSlot.compactMap { idx -> String? in
+            guard cards.indices.contains(idx), !cards[idx].name.isEmpty else { return nil }
+            return cards[idx].name
         }
+        if !names.isEmpty { return names.joined(separator: " + ") }
         return type.displayName
     }
 
@@ -324,12 +334,20 @@ struct ActiveWorkoutView: View {
     }
 
     // MARK: - Weight chip (active)
-    private func activeWeightChip(sessionIndex: Int) -> some View {
+    private func activeWeightChip(sessionIndex: Int, showName: Bool = false) -> some View {
         let card = vm.activeSessionCards.indices.contains(sessionIndex)
             ? vm.activeSessionCards[sessionIndex]
             : SessionCard()
         return HStack(spacing: LKSpacing.sm) {
-            if card.equipment != .none {
+            if showName {
+                // In a multi-exercise minute the name identifies each row
+                // (shown instead of the wider equipment capsule).
+                Text(card.name.isEmpty ? "Workout \(sessionIndex + 1)" : card.name)
+                    .font(LKFont.caption)
+                    .foregroundColor(LKColor.textPrimary)
+                    .lineLimit(1)
+                    .frame(maxWidth: 96, alignment: .leading)
+            } else if card.equipment != .none {
                 Label {
                     Text(card.equipment.rawValue)
                 } icon: {
@@ -608,34 +626,59 @@ struct ActiveWorkoutView: View {
         }
 
         let workoutType = type
-        // Card the athlete is on for a given round (EMOM cycles through the
-        // cards minute by minute; the other types follow currentSessionIndex).
-        let cardFor: (Int) -> SessionCard? = { [weak vm] round in
-            guard let vm, !vm.activeSessionCards.isEmpty else { return nil }
+        // Card(s) the athlete is on for a given round. EMOM rotates its
+        // minute-slots — cards linked in setup share a slot and are all done
+        // that minute (e.g. a kettlebell complex); the other types follow
+        // currentSessionIndex.
+        let slotFor: (Int) -> [SessionCard] = { [weak vm] round in
+            guard let vm, !vm.activeSessionCards.isEmpty else { return [] }
             let cards = vm.activeSessionCards
-            let idx = workoutType == .emom
-                ? (round - 1) % cards.count
-                : min(vm.currentSessionIndex, cards.count - 1)
-            return cards[idx]
+            if workoutType == .emom {
+                let slots = WorkoutViewModel.minuteSlots(for: cards)
+                guard !slots.isEmpty else { return [] }
+                return slots[(round - 1) % slots.count].compactMap {
+                    cards.indices.contains($0) ? cards[$0] : nil
+                }
+            }
+            return [cards[min(vm.currentSessionIndex, cards.count - 1)]]
         }
         let sessionName = vm.activeSession?.name ?? workoutType.rawValue
-        let nameFor: (SessionCard?) -> String = { card in
-            if let n = card?.name, !n.isEmpty { return n }
-            return sessionName
+        let nameFor: ([SessionCard]) -> String = { slot in
+            let names = slot.compactMap { $0.name.isEmpty ? nil : $0.name }
+            return names.isEmpty ? sessionName : names.joined(separator: " + ")
         }
-        let weightTextFor: (SessionCard?) -> String? = { card in
-            guard let card, card.weight > 0 else { return nil }
-            return "\(Int(card.weight)) \(card.weightUnit.rawValue)"
+        // One weight when the whole slot shares it (typical for a kettlebell
+        // complex); mixed weights are spelled out per exercise in the
+        // notification detail instead.
+        let weightTextFor: ([SessionCard]) -> String? = { slot in
+            guard let first = slot.first, first.weight > 0,
+                  slot.allSatisfy({ $0.weight == first.weight && $0.weightUnit == first.weightUnit })
+            else { return nil }
+            return "\(Int(first.weight)) \(first.weightUnit.rawValue)"
+        }
+        let repsFor: ([SessionCard]) -> Int? = { slot in
+            slot.count == 1 ? slot.first?.reps : nil
         }
 
         // Backgrounded notifications: the workout's name as the title, the
-        // round's exercise/reps/weight in the body.
+        // round's exercise(s)/reps/weight in the body.
         engine.notificationTitle = sessionName
         engine.roundDetail = { round in
-            guard let card = cardFor(round) else { return nil }
-            var parts = [nameFor(card), "\(card.reps) reps"]
-            if let w = weightTextFor(card) { parts.append(w) }
-            return parts.joined(separator: " · ")
+            let slot = slotFor(round)
+            guard !slot.isEmpty else { return nil }
+            if slot.count == 1 {
+                let card = slot[0]
+                var parts = [nameFor(slot), "\(card.reps) reps"]
+                if let w = weightTextFor(slot) { parts.append(w) }
+                return parts.joined(separator: " · ")
+            }
+            // A linked complex — every exercise happens this minute,
+            // e.g. "Clean ×2 · Press ×1 · Squat ×3 @ 53 lb".
+            var detail = slot.enumerated()
+                .map { i, card in "\(card.name.isEmpty ? "Workout \(i + 1)" : card.name) ×\(card.reps)" }
+                .joined(separator: " · ")
+            if let w = weightTextFor(slot) { detail += " @ \(w)" }
+            return detail
         }
 
         // The Live Activity's countdown targets the *whole workout's* end, not
@@ -668,17 +711,17 @@ struct ActiveWorkoutView: View {
                 case .intervals: label = engine.phase == .work ? "Work" : "Rest"
                 default:         label = workoutType.rawValue
                 }
-                let card = cardFor(engine.currentRound)
+                let slot = slotFor(engine.currentRound)
                 let end = workoutEndFor(engine)
                 LiveActivityManager.shared.update(
-                    workoutName: nameFor(card),
+                    workoutName: nameFor(slot),
                     currentRound: engine.currentRound,
                     totalRounds: engine.totalRounds,
                     phaseLabel: label,
                     phaseEndDate: end,
                     phaseStartDate: end == nil ? startedAt : nil,
-                    reps: card?.reps,
-                    weightText: weightTextFor(card)
+                    reps: repsFor(slot),
+                    weightText: weightTextFor(slot)
                 )
             }
         }
@@ -695,18 +738,18 @@ struct ActiveWorkoutView: View {
             )
             updateRepsLiveActivity()   // fills in the current exercise + sets
         } else {
-            let startCard = cardFor(engine.currentRound)
+            let startSlot = slotFor(engine.currentRound)
             let end = workoutEndFor(engine)
             LiveActivityManager.shared.start(
-                workoutName: nameFor(startCard),
+                workoutName: nameFor(startSlot),
                 workoutType: workoutType.rawValue,
                 currentRound: engine.currentRound,
                 totalRounds: engine.totalRounds,
                 phaseLabel: liveActivityPhaseLabel(engine: engine),
                 phaseEndDate: end,
                 phaseStartDate: end == nil ? startedAt : nil,
-                reps: startCard?.reps,
-                weightText: weightTextFor(startCard)
+                reps: repsFor(startSlot),
+                weightText: weightTextFor(startSlot)
             )
         }
     }
@@ -801,7 +844,7 @@ struct ActiveWorkoutView: View {
                     .font(LKFont.body)
                     .foregroundColor(LKColor.textSecondary)
             } info: {
-                activeWeightChip(sessionIndex: currentCardIndex)
+                slotWeightChips
                 upNextView
                 timerControls(engine: engine)
                 notesDisplay()
@@ -810,21 +853,43 @@ struct ActiveWorkoutView: View {
         }
     }
 
+    /// Weight/reps chips for every exercise in the current minute — one row
+    /// when minutes rotate single exercises, a named row per exercise when the
+    /// minute is a linked complex.
+    @ViewBuilder
+    private var slotWeightChips: some View {
+        let slot = currentSlot
+        if slot.count <= 1 {
+            activeWeightChip(sessionIndex: slot.first ?? 0)
+        } else {
+            VStack(spacing: LKSpacing.xs) {
+                ForEach(slot, id: \.self) { idx in
+                    activeWeightChip(sessionIndex: idx, showName: true)
+                }
+            }
+        }
+    }
+
+    // "Up Next" previews the following minute-slot; hidden when every exercise
+    // is linked into one slot (the same complex repeats every minute).
     @ViewBuilder
     private var upNextView: some View {
-        if vm.activeSessionCards.count > 1 {
-            let nextIdx = engine.currentRound % max(1, vm.activeSessionCards.count)
-            if vm.activeSessionCards.indices.contains(nextIdx) {
-                VStack(spacing: LKSpacing.xs) {
-                    Text("UP NEXT")
-                        .font(LKFont.caption)
-                        .foregroundColor(LKColor.textMuted)
-                        .tracking(1)
-                    let nextName = vm.activeSessionCards[nextIdx].name
-                    Text(nextName.isEmpty ? "Workout \(nextIdx + 1)" : nextName)
-                        .font(LKFont.body)
-                        .foregroundColor(LKColor.textSecondary)
-                }
+        let slots = vm.emomSlots
+        if slots.count > 1 {
+            let cards = vm.activeSessionCards
+            let nextSlot = slots[engine.currentRound % slots.count]
+            let label = nextSlot
+                .map { cards.indices.contains($0) && !cards[$0].name.isEmpty ? cards[$0].name : "Workout \($0 + 1)" }
+                .joined(separator: " + ")
+            VStack(spacing: LKSpacing.xs) {
+                Text("UP NEXT")
+                    .font(LKFont.caption)
+                    .foregroundColor(LKColor.textMuted)
+                    .tracking(1)
+                Text(label)
+                    .font(LKFont.body)
+                    .foregroundColor(LKColor.textSecondary)
+                    .lineLimit(1)
             }
         }
     }

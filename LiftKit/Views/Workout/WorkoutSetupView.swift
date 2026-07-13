@@ -274,7 +274,7 @@ struct WorkoutSetupView: View {
                     minEntry: 1, maxEntry: 120
                 )
             }
-            sessionsList(cards: $vm.emomSessions, label: "WORKOUTS (cycle each minute)")
+            sessionsList(cards: $vm.emomSessions, label: "WORKOUTS (cycle each minute — link to combine)", linkable: true)
         }
     }
 
@@ -423,13 +423,13 @@ struct WorkoutSetupView: View {
 
     // MARK: - Sessions list
 
-    private func sessionsList(cards: Binding<[SessionCard]>, label: String) -> some View {
+    private func sessionsList(cards: Binding<[SessionCard]>, label: String, linkable: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: LKSpacing.xs) {
             LKSectionLabel(text: label)
             // Iterate by identity (not index) and bind by id. Index-based ForEach
             // crashes when a card is deleted because remaining rows reference a
             // now-out-of-range index.
-            ForEach(cards.wrappedValue) { card in
+            ForEach(Array(cards.wrappedValue.enumerated()), id: \.element.id) { index, card in
                 SwipeToDeleteRow(
                     enabled: cards.wrappedValue.count > 1,
                     onDelete: { cards.wrappedValue.removeAll { $0.id == card.id } }
@@ -440,11 +440,38 @@ struct WorkoutSetupView: View {
                         context: context
                     )
                 }
+                if linkable && index < cards.wrappedValue.count - 1 {
+                    minuteLink(cards: cards, card: card)
+                }
             }
             plainAddButton("Add Workout") {
                 cards.wrappedValue.append(SessionCard())
             }
         }
+    }
+
+    /// "Same minute" toggle shown between consecutive EMOM cards. Linked cards
+    /// are all done every minute (a complex, e.g. clean + press + squat)
+    /// instead of rotating one per minute.
+    private func minuteLink(cards: Binding<[SessionCard]>, card: SessionCard) -> some View {
+        let linked = card.linkedToNext
+        return Button {
+            if let i = cards.wrappedValue.firstIndex(where: { $0.id == card.id }) {
+                cards.wrappedValue[i].linkedToNext.toggle()
+                HapticManager.shared.buttonTap()
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: linked ? "link.circle.fill" : "link.circle")
+                    .font(.system(size: 13))
+                Text(linked ? "Same minute" : "Link into same minute")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundColor(linked ? LKColor.accent : LKColor.textMuted)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 2)
+        }
+        .buttonStyle(.plain)
     }
 
     /// Delete-safe binding to a single session card, resolved by id each access.
