@@ -6,6 +6,10 @@ struct TimerConfig {
     var type: TimerType
     // AMRAP / For Time / Manual
     var totalDuration: TimeInterval = 600
+    /// Multi-round AMRAP: per-round durations in seconds (e.g. two 10-minute
+    /// circuits). Empty or a single entry = classic one-block AMRAP using
+    /// `totalDuration`.
+    var roundDurations: [TimeInterval] = []
     // EMOM
     var rounds: Int = 10
     // Intervals
@@ -31,7 +35,7 @@ struct TimerConfig {
     var totalTime: TimeInterval {
         switch type {
         case .intervals: return (workDuration + restDuration) * Double(intervalRounds)
-        case .amrap:     return totalDuration
+        case .amrap:     return roundDurations.count > 1 ? roundDurations.reduce(0, +) : totalDuration
         case .emom:      return Double(rounds) * 60
         case .forTime:   return totalDuration
         default:         return 0
@@ -91,9 +95,15 @@ final class TimerEngine {
 
         switch config.type {
         case .amrap:
-            totalRounds = 1
-            currentRound = 1
-            startWorkPhase(duration: config.totalDuration)
+            if config.roundDurations.count > 1 {
+                totalRounds = config.roundDurations.count
+                currentRound = 1
+                startWorkPhase(duration: config.roundDurations[0])
+            } else {
+                totalRounds = 1
+                currentRound = 1
+                startWorkPhase(duration: config.totalDuration)
+            }
         case .emom:
             totalRounds = config.rounds
             currentRound = 1
@@ -270,7 +280,12 @@ final class TimerEngine {
 
         switch config.type {
         case .amrap:
-            completePhase()
+            if currentRound < config.roundDurations.count {
+                currentRound += 1
+                startWorkPhase(duration: config.roundDurations[currentRound - 1])
+            } else {
+                completePhase()
+            }
 
         case .emom:
             if currentRound < totalRounds {
@@ -335,9 +350,23 @@ final class TimerEngine {
         switch config.type {
         case .amrap:
             if let end = phaseEndDate {
-                let delta = end.timeIntervalSinceNow
+                var delta = end.timeIntervalSinceNow
                 if delta > 0 {
-                    notifications.append((delta, "\(notificationPrefix)-end", "AMRAP Complete!"))
+                    if config.roundDurations.count > 1 {
+                        // Multi-round AMRAP: announce each round change with
+                        // its exercises, then the finish.
+                        for r in currentRound...totalRounds {
+                            if r < totalRounds {
+                                let detail = (roundDetail?(r + 1) ?? nil).map { " — \($0)" } ?? ""
+                                notifications.append((delta, "\(notificationPrefix)-round-\(r)", "Round \(r + 1) of \(totalRounds)\(detail)"))
+                                delta += config.roundDurations[r]
+                            } else {
+                                notifications.append((delta, "\(notificationPrefix)-end", "AMRAP Complete!"))
+                            }
+                        }
+                    } else {
+                        notifications.append((delta, "\(notificationPrefix)-end", "AMRAP Complete!"))
+                    }
                 }
             }
         case .emom:
@@ -449,6 +478,8 @@ final class TimerEngine {
             fastForwardIntervals()
         case .emom:
             fastForwardEMOM()
+        case .amrap where config.roundDurations.count > 1:
+            fastForwardAmrapRounds()
         default:
             if let end = phaseEndDate {
                 timeRemaining = max(0, end.timeIntervalSinceNow)
@@ -506,6 +537,29 @@ final class TimerEngine {
         currentRound = simulatedRound
         phaseEndDate = simulatedEnd
         timeRemaining = max(0, simulatedEnd.timeIntervalSinceNow)
+    }
+
+    /// Like fastForwardEMOM, but the rounds have their own durations
+    /// (multi-round AMRAP).
+    private func fastForwardAmrapRounds() {
+        guard let endDate = phaseEndDate else { return }
+        var simulatedEnd = endDate
+        var simulatedRound = currentRound
+
+        while simulatedEnd.timeIntervalSinceNow < 0 {
+            simulatedRound += 1
+            if simulatedRound > totalRounds {
+                completePhase()
+                return
+            }
+            simulatedEnd = simulatedEnd.addingTimeInterval(config.roundDurations[simulatedRound - 1])
+        }
+
+        let roundChanged = simulatedRound != currentRound
+        currentRound = simulatedRound
+        phaseEndDate = simulatedEnd
+        timeRemaining = max(0, simulatedEnd.timeIntervalSinceNow)
+        if roundChanged { onPhaseChange?(.work) }   // resync the Live Activity
     }
 
     // MARK: - Helpers

@@ -114,8 +114,18 @@ struct LiftKitLiveActivity: Widget {
                         .foregroundColor(.orange)
                 }
             } minimal: {
-                // Minimal (pill squeezed by another live activity)
-                IslandLogo(size: 15)
+                // Minimal — what shows when another app (podcast, music,
+                // another Live Activity) shares the island. Keep the clock
+                // visible; the logo is only the no-clock fallback.
+                if LiveClock.hasClock(context.state) {
+                    LiveClock(state: context.state)
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundColor(lkGold)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                } else {
+                    IslandLogo(size: 15)
+                }
             }
         }
     }

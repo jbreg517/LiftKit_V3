@@ -216,12 +216,19 @@ struct ActiveWorkoutView: View {
     private var currentSlot: [Int] {
         let count = vm.activeSessionCards.count
         guard count > 0 else { return [] }
-        if type == .emom {
+        switch type {
+        case .emom:
             let slots = vm.emomSlots
             guard !slots.isEmpty else { return [] }
             return slots[(engine.currentRound - 1) % slots.count]
+        case .amrap:
+            // The whole round is a circuit — every card in it is "current".
+            let slots = vm.amrapSlots
+            guard !slots.isEmpty else { return [] }
+            return slots[min(max(0, engine.currentRound - 1), slots.count - 1)]
+        default:
+            return [min(vm.currentSessionIndex, count - 1)]
         }
-        return [min(vm.currentSessionIndex, count - 1)]
     }
 
     private var currentCardIndex: Int { currentSlot.first ?? 0 }
@@ -594,6 +601,7 @@ struct ActiveWorkoutView: View {
         switch type {
         case .emom:      return "Minute \(engine.currentRound)"
         case .intervals: return engine.phase == .work ? "Work" : "Rest"
+        case .amrap:     return engine.totalRounds > 1 ? "Round \(engine.currentRound)" : type.rawValue
         default:         return type.rawValue
         }
     }
@@ -673,14 +681,23 @@ struct ActiveWorkoutView: View {
         let slotFor: (Int) -> [SessionCard] = { [weak vm] round in
             guard let vm, !vm.activeSessionCards.isEmpty else { return [] }
             let cards = vm.activeSessionCards
-            if workoutType == .emom {
+            switch workoutType {
+            case .emom:
                 let slots = WorkoutViewModel.minuteSlots(for: cards)
                 guard !slots.isEmpty else { return [] }
                 return slots[(round - 1) % slots.count].compactMap {
                     cards.indices.contains($0) ? cards[$0] : nil
                 }
+            case .amrap:
+                // The round is a circuit — name every exercise in it.
+                let slots = WorkoutViewModel.roundSlots(for: cards)
+                guard !slots.isEmpty else { return [] }
+                return slots[min(max(0, round - 1), slots.count - 1)].compactMap {
+                    cards.indices.contains($0) ? cards[$0] : nil
+                }
+            default:
+                return [cards[min(vm.currentSessionIndex, cards.count - 1)]]
             }
-            return [cards[min(vm.currentSessionIndex, cards.count - 1)]]
         }
         let sessionName = vm.activeSession?.name ?? workoutType.rawValue
         let nameFor: ([SessionCard]) -> String = { slot in
@@ -736,8 +753,16 @@ struct ActiveWorkoutView: View {
             case .intervals:
                 let fullRoundsLeft = Double(engine.totalRounds - engine.currentRound) * (cfg.workDuration + cfg.restDuration)
                 return phaseEnd.addingTimeInterval(engine.phase == .work ? cfg.restDuration + fullRoundsLeft : fullRoundsLeft)
+            case .amrap:
+                // Multi-round AMRAP: current round's end + the remaining rounds.
+                let durations = cfg.roundDurations
+                if durations.count > 1, engine.currentRound < durations.count {
+                    let remaining = durations[engine.currentRound...].reduce(0, +)
+                    return phaseEnd.addingTimeInterval(remaining)
+                }
+                return phaseEnd
             default:
-                return phaseEnd   // AMRAP: the phase already is the whole workout
+                return phaseEnd
             }
         }
         let startedAt = Date()   // count-up anchor for For Time / Manual
@@ -749,6 +774,7 @@ struct ActiveWorkoutView: View {
                 switch workoutType {
                 case .emom:      label = "Minute \(engine.currentRound)"
                 case .intervals: label = engine.phase == .work ? "Work" : "Rest"
+                case .amrap:     label = engine.totalRounds > 1 ? "Round \(engine.currentRound)" : workoutType.rawValue
                 default:         label = workoutType.rawValue
                 }
                 let slot = slotFor(engine.currentRound)
@@ -812,20 +838,49 @@ struct ActiveWorkoutView: View {
     }
 
     // MARK: - AMRAP
+    // The round is a circuit: all of its exercises show at once (via
+    // slotWeightChips). Multi-round AMRAPs also show which timed round is up.
     private var amrapContent: some View {
         VStack(spacing: 0) {
             Spacer()
             timerLayout {
-                multiSessionIndicator()
                 phaseLabel(engine)
                 heroTimer(text: engine.formattedTime)
+                if engine.totalRounds > 1 {
+                    Text("Round \(engine.currentRound) of \(engine.totalRounds)")
+                        .font(LKFont.body)
+                        .foregroundColor(LKColor.textSecondary)
+                }
             } info: {
-                activeWeightChip(sessionIndex: vm.currentSessionIndex)
+                slotWeightChips
+                amrapUpNext
                 roundsCounter
                 timerControls(engine: engine)
                 notesDisplay()
             }
             Spacer()
+        }
+    }
+
+    // Previews the next timed round of a multi-round AMRAP.
+    @ViewBuilder
+    private var amrapUpNext: some View {
+        let slots = vm.amrapSlots
+        if slots.count > 1, engine.currentRound < slots.count {
+            let cards = vm.activeSessionCards
+            let label = slots[engine.currentRound]
+                .map { cards.indices.contains($0) && !cards[$0].name.isEmpty ? cards[$0].name : "Workout \($0 + 1)" }
+                .joined(separator: " + ")
+            VStack(spacing: LKSpacing.xs) {
+                Text("UP NEXT")
+                    .font(LKFont.caption)
+                    .foregroundColor(LKColor.textMuted)
+                    .tracking(1)
+                Text(label)
+                    .font(LKFont.body)
+                    .foregroundColor(LKColor.textSecondary)
+                    .lineLimit(1)
+            }
         }
     }
 

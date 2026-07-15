@@ -253,13 +253,121 @@ struct WorkoutSetupView: View {
     // MARK: AMRAP
 
     private var amrapControls: some View {
-        VStack(spacing: LKSpacing.md) {
-            VStack(alignment: .leading, spacing: LKSpacing.xs) {
-                LKSectionLabel(text: "TIME LIMIT")
-                timePicker(minutes: $vm.timeLimitMinutes, seconds: $vm.timeLimitSeconds)
+        let slots = WorkoutViewModel.roundSlots(for: vm.sessions)
+        return VStack(spacing: LKSpacing.md) {
+            if slots.count <= 1 {
+                VStack(alignment: .leading, spacing: LKSpacing.xs) {
+                    LKSectionLabel(text: "TIME LIMIT")
+                    timePicker(minutes: $vm.timeLimitMinutes, seconds: $vm.timeLimitSeconds)
+                }
             }
-            sessionsList(cards: $vm.sessions, label: "WORKOUTS")
+            amrapSessionsList(slots: slots)
         }
+    }
+
+    /// AMRAP workout list. All cards form one circuit by default; "Split into
+    /// new round" boundaries create multi-round AMRAPs where each round shows
+    /// its own duration header.
+    private func amrapSessionsList(slots: [[Int]]) -> some View {
+        let multiRound = slots.count > 1
+        return VStack(alignment: .leading, spacing: LKSpacing.xs) {
+            LKSectionLabel(text: multiRound ? "ROUNDS" : "WORKOUTS (done together each round)")
+            ForEach(Array(vm.sessions.enumerated()), id: \.element.id) { index, card in
+                if multiRound, let r = slots.firstIndex(where: { $0.first == index }) {
+                    roundHeader(card: card, roundNumber: r + 1)
+                }
+                SwipeToDeleteRow(
+                    enabled: vm.sessions.count > 1,
+                    onDelete: { vm.sessions.removeAll { $0.id == card.id } }
+                ) {
+                    SessionCardView(
+                        card: sessionBinding(cards: $vm.sessions, card: card),
+                        numberEntry: $numberEntry,
+                        context: context
+                    )
+                }
+                if index < vm.sessions.count - 1 {
+                    roundBreakToggle(card: card)
+                }
+            }
+            plainAddButton("Add Workout") {
+                vm.sessions.append(SessionCard())
+            }
+        }
+    }
+
+    /// "ROUND n · 10 min" header with a duration stepper, bound to the first
+    /// card of the round.
+    private func roundHeader(card: SessionCard, roundNumber: Int) -> some View {
+        let minutes = Binding<Int>(
+            get: { vm.sessions.first(where: { $0.id == card.id })?.roundMinutes ?? 10 },
+            set: { newValue in
+                if let i = vm.sessions.firstIndex(where: { $0.id == card.id }) {
+                    vm.sessions[i].roundMinutes = max(1, newValue)
+                }
+            }
+        )
+        return HStack {
+            Text("ROUND \(roundNumber)")
+                .font(.system(size: 11, weight: .bold))
+                .tracking(1)
+                .foregroundColor(LKColor.accent)
+            Spacer()
+            HStack(spacing: LKSpacing.sm) {
+                Button {
+                    minutes.wrappedValue -= 1
+                    HapticManager.shared.buttonTap()
+                } label: {
+                    Image(systemName: "minus.circle.fill")
+                        .font(.title3)
+                        .foregroundColor(LKColor.textSecondary)
+                }
+                .accessibilityLabel("Decrease round \(roundNumber) minutes")
+                Button {
+                    numberEntry = NumberEntryItem(
+                        title: "Round \(roundNumber)", message: "Minutes for this round",
+                        currentValue: Double(minutes.wrappedValue), minValue: 1, maxValue: 120
+                    ) { minutes.wrappedValue = Int($0) }
+                } label: {
+                    Text("\(minutes.wrappedValue) min")
+                        .font(LKFont.numeric)
+                        .foregroundColor(LKColor.accent)
+                }
+                Button {
+                    minutes.wrappedValue += 1
+                    HapticManager.shared.buttonTap()
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title3)
+                        .foregroundColor(LKColor.accent)
+                }
+                .accessibilityLabel("Increase round \(roundNumber) minutes")
+            }
+        }
+        .padding(.top, roundNumber == 1 ? 0 : LKSpacing.sm)
+    }
+
+    /// Split toggle between consecutive AMRAP cards: by default they share the
+    /// round; splitting starts a new timed round below.
+    private func roundBreakToggle(card: SessionCard) -> some View {
+        let split = card.roundBreakAfter
+        return Button {
+            if let i = vm.sessions.firstIndex(where: { $0.id == card.id }) {
+                vm.sessions[i].roundBreakAfter.toggle()
+                HapticManager.shared.buttonTap()
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: split ? "scissors.circle.fill" : "scissors.circle")
+                    .font(.system(size: 13))
+                Text(split ? "New round starts here" : "Split into new round")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundColor(split ? LKColor.accent : LKColor.textMuted)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 2)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: EMOM

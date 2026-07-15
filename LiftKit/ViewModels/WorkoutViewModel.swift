@@ -16,6 +16,13 @@ struct SessionCard: Identifiable {
     /// (e.g. a kettlebell complex done in full every minute). Unlinked cards
     /// rotate minute by minute.
     var linkedToNext: Bool = false
+    /// AMRAP: a new timed round starts *after* this card. By default every
+    /// card belongs to one circuit; splits create multi-round AMRAPs where
+    /// each round has its own exercises and duration.
+    var roundBreakAfter: Bool = false
+    /// AMRAP: duration in minutes of the round this card *starts* (read from
+    /// the first card of each round; only meaningful with 2+ rounds).
+    var roundMinutes: Int = 10
 }
 
 // MARK: - Exercise Card (Reps setup)
@@ -247,6 +254,8 @@ final class WorkoutViewModel {
             card.weightUnit = ex.weightUnit
             card.reps = ex.targetReps
             card.linkedToNext = ex.linkedToNext
+            card.roundBreakAfter = ex.roundBreakAfter
+            if ex.roundMinutes > 0 { card.roundMinutes = ex.roundMinutes }
             return card
         }
         switch type {
@@ -324,7 +333,14 @@ final class WorkoutViewModel {
         var config = TimerConfig(type: selectedTimerType)
         switch selectedTimerType {
         case .amrap:
-            config.totalDuration = Double(timeLimitMinutes * 60 + timeLimitSeconds)
+            let slots = Self.roundSlots(for: sessions)
+            if slots.count > 1 {
+                // Multi-round AMRAP: each round runs for its own duration.
+                config.roundDurations = slots.map { Double(max(1, sessions[$0[0]].roundMinutes)) * 60 }
+                config.totalDuration = config.roundDurations.reduce(0, +)
+            } else {
+                config.totalDuration = Double(timeLimitMinutes * 60 + timeLimitSeconds)
+            }
         case .emom:
             config.rounds = emomMinutes
         case .forTime:
@@ -362,6 +378,7 @@ final class WorkoutViewModel {
         // Create entries
         let cards = activeSessions(for: selectedTimerType)
         let cardGroups = minuteGroups(for: cards)
+        let roundGroups = amrapRoundGroups(for: cards)
         for (i, card) in cards.enumerated() {
             let exName = card.name.isEmpty ? "Workout \(i + 1)" : card.name
             let exercise = findOrCreateExercise(id: card.exerciseID, name: exName, equipment: card.equipment, context: context)
@@ -369,8 +386,10 @@ final class WorkoutViewModel {
             entry.equipmentRaw = card.equipment == .none ? nil : card.equipment.rawValue
             entry.weight = card.weight > 0 ? card.weight : nil
             entry.weightUnit = card.weightUnit.rawValue
-            // Persist EMOM minute-grouping so history/repeat restores the links.
+            // Persist EMOM minute-grouping / AMRAP round-grouping so
+            // history/repeat restores the links.
             if selectedTimerType == .emom { entry.supersetGroup = cardGroups[i] }
+            if selectedTimerType == .amrap { entry.supersetGroup = roundGroups[i] }
             entry.session = session
             entry.exercise = exercise
             context.insert(entry)
@@ -458,6 +477,16 @@ final class WorkoutViewModel {
                 card.weight = sets.first?.weight ?? 0
                 card.weightUnit = sets.first?.weightUnitEnum ?? .lb
                 return card
+            }
+            // Restore AMRAP round splits: a group change between consecutive
+            // entries marks a round boundary. (Round durations aren't stored
+            // on sessions, so they default to 10 min — templates keep them.)
+            if type == .amrap {
+                for i in sessions.indices where i + 1 < entries.count {
+                    if entries[i].supersetGroup != entries[i + 1].supersetGroup {
+                        sessions[i].roundBreakAfter = true
+                    }
+                }
             }
             if sessions.isEmpty { sessions = [SessionCard()] }
         case .emom:
@@ -855,6 +884,8 @@ final class WorkoutViewModel {
                     weightUnit: card.weightUnit,
                     linkedToNext: card.linkedToNext
                 )
+                te.roundBreakAfter = card.roundBreakAfter
+                te.roundMinutes = card.roundMinutes
                 te.template = template
                 context.insert(te)
             }
@@ -907,6 +938,8 @@ final class WorkoutViewModel {
                     weightUnit: card.weightUnit,
                     linkedToNext: card.linkedToNext
                 )
+                te.roundBreakAfter = card.roundBreakAfter
+                te.roundMinutes = card.roundMinutes
                 te.template = template
                 context.insert(te)
             }
@@ -952,6 +985,38 @@ final class WorkoutViewModel {
 
     /// Minute-slots of the running workout's cards.
     var emomSlots: [[Int]] { Self.minuteSlots(for: activeSessionCards) }
+
+    /// AMRAP round-slots over a card list: card indices grouped into rounds,
+    /// split after cards flagged `roundBreakAfter`. One slot = one circuit;
+    /// with no splits the whole list is a single round (classic AMRAP).
+    static func roundSlots(for cards: [SessionCard]) -> [[Int]] {
+        var slots: [[Int]] = []
+        var current: [Int] = []
+        for i in cards.indices {
+            current.append(i)
+            if i == cards.count - 1 || cards[i].roundBreakAfter {
+                slots.append(current)
+                current = []
+            }
+        }
+        return slots
+    }
+
+    /// Round-slots of the running workout's cards.
+    var amrapSlots: [[Int]] { Self.roundSlots(for: activeSessionCards) }
+
+    /// Round index per AMRAP card, persisted onto WorkoutEntry.supersetGroup
+    /// so history/repeat restores the splits. All-nil for a single-round
+    /// AMRAP (no splits to remember).
+    private func amrapRoundGroups(for cards: [SessionCard]) -> [Int?] {
+        let slots = Self.roundSlots(for: cards)
+        guard slots.count > 1 else { return Array(repeating: nil, count: cards.count) }
+        var result = [Int?](repeating: nil, count: cards.count)
+        for (g, slot) in slots.enumerated() {
+            for i in slot { result[i] = g }
+        }
+        return result
+    }
 
     /// Minute-group index per EMOM card (nil = standalone), mirroring
     /// `supersetGroups()` for session cards. Persisted onto WorkoutEntry so

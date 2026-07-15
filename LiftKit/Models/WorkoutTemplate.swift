@@ -50,6 +50,11 @@ final class TemplateExercise {
     var weightUnitRaw: String = WeightUnit.lb.rawValue
     /// Supersetted with the next exercise in the template.
     var linkedToNext: Bool = false
+    /// AMRAP: a new timed round starts after this exercise.
+    var roundBreakAfter: Bool = false
+    /// AMRAP: duration in minutes of the round this exercise starts
+    /// (0 = not set; only meaningful on the first exercise of a round).
+    var roundMinutes: Int = 0
 
     var template: WorkoutTemplate?
 
