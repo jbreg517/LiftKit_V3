@@ -14,6 +14,9 @@ final class WorkoutSession {
     var activeSeconds: TimeInterval?
     /// Elapsed seconds at each recorded split (AMRAP round / For Time checkpoint).
     var splits: [Double] = []
+    /// AMRAP: rounds the athlete counted with the +/− counter. nil for other
+    /// workout types and sessions recorded before this field existed.
+    var roundsCompleted: Int?
 
     @Relationship(deleteRule: .cascade, inverse: \WorkoutEntry.session)
     var entries: [WorkoutEntry] = []

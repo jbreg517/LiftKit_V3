@@ -894,7 +894,7 @@ struct ActiveWorkoutView: View {
                 .tracking(1)
             HStack(spacing: 0) {
                 Button {
-                    vm.completedRounds = max(0, vm.completedRounds - 1)
+                    vm.adjustCompletedRounds(by: -1, timedRound: engine.currentRound)
                     HapticManager.shared.buttonTap()
                 } label: {
                     Image(systemName: "minus")
@@ -910,7 +910,7 @@ struct ActiveWorkoutView: View {
                         message: "Enter rounds completed",
                         currentValue: Double(vm.completedRounds),
                         minValue: 0, maxValue: 999
-                    ) { vm.completedRounds = Int($0) }
+                    ) { vm.setCompletedRounds(Int($0), timedRound: engine.currentRound) }
                 } label: {
                     Text("\(vm.completedRounds)")
                         .font(LKFont.timer(isLandscapePhone ? 40 : 48))
@@ -921,9 +921,19 @@ struct ActiveWorkoutView: View {
                 .accessibilityLabel("\(vm.completedRounds) rounds completed, edit")
 
                 Button {
-                    vm.completedRounds += 1
-                    // Record the split (elapsed = total − remaining) for this round.
-                    vm.recordSplit(vm.activeConfig.totalDuration - engine.timeRemaining, context: context)
+                    vm.adjustCompletedRounds(by: 1, timedRound: engine.currentRound)
+                    // Record the split at total elapsed time (earlier timed
+                    // rounds + progress through the current one).
+                    let durations = vm.activeConfig.roundDurations
+                    let elapsed: TimeInterval
+                    if durations.count > 1 {
+                        let prior = durations.prefix(engine.currentRound - 1).reduce(0, +)
+                        let current = durations[min(engine.currentRound - 1, durations.count - 1)]
+                        elapsed = prior + max(0, current - engine.timeRemaining)
+                    } else {
+                        elapsed = vm.activeConfig.totalDuration - engine.timeRemaining
+                    }
+                    vm.recordSplit(elapsed, context: context)
                     HapticManager.shared.buttonTap()
                 } label: {
                     Image(systemName: "plus")

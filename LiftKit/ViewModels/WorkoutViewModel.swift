@@ -205,6 +205,10 @@ final class WorkoutViewModel {
     var activeExercises: [ActiveExercise] = []
     var currentSessionIndex: Int = 0
     var completedRounds: Int = 0
+    /// AMRAP: circuits counted per timed round (1-based engine round → count).
+    /// Mirrors `completedRounds` so multi-round AMRAPs attribute volume to the
+    /// exercises that were actually up when the counter was tapped.
+    var circuitsByTimedRound: [Int: Int] = [:]
     var isShowingComplete: Bool = false
     var completionMessage: String = ""
     var newPRTypes: [PRType] = []
@@ -431,6 +435,7 @@ final class WorkoutViewModel {
         }
         currentSessionIndex = 0
         completedRounds = 0
+        circuitsByTimedRound = [:]
         isShowingComplete = false
         completionMessage = completionMessages.randomElement() ?? ""
         presentActiveWorkout()
@@ -731,6 +736,41 @@ final class WorkoutViewModel {
         activeSessionCards[sessionIndex].weight = max(0, min(999, current + delta))
     }
 
+    /// Changes the AMRAP circuit counter, attributing the change to the timed
+    /// round that's currently running (so multi-round volume is exact).
+    func adjustCompletedRounds(by delta: Int, timedRound: Int) {
+        if delta > 0 {
+            completedRounds += delta
+            circuitsByTimedRound[timedRound, default: 0] += delta
+        } else if delta < 0 {
+            let removable = min(-delta, completedRounds)
+            guard removable > 0 else { return }
+            completedRounds -= removable
+            removeCircuits(removable, startingAt: timedRound)
+        }
+    }
+
+    /// Sets the counter to an absolute value (the tap-to-type entry), applying
+    /// the difference to the current timed round.
+    func setCompletedRounds(_ newValue: Int, timedRound: Int) {
+        adjustCompletedRounds(by: max(0, newValue) - completedRounds, timedRound: timedRound)
+    }
+
+    /// Removes counted circuits, preferring the round being undone, then the
+    /// most recent rounds — keeps the per-round tallies summing to the counter.
+    private func removeCircuits(_ count: Int, startingAt round: Int) {
+        var remaining = count
+        let order = [round] + circuitsByTimedRound.keys.filter { $0 != round }.sorted(by: >)
+        for r in order where remaining > 0 {
+            let have = circuitsByTimedRound[r] ?? 0
+            let take = min(have, remaining)
+            if take > 0 {
+                circuitsByTimedRound[r] = have - take
+                remaining -= take
+            }
+        }
+    }
+
     /// Records an elapsed-time split (AMRAP round / For Time checkpoint).
     func recordSplit(_ seconds: TimeInterval, context: ModelContext) {
         guard let session = activeSession, seconds > 0 else { return }
@@ -769,6 +809,8 @@ final class WorkoutViewModel {
         workoutClockPause()
         session.completedAt = Date()
         session.activeSeconds = activeWorkoutSeconds
+        if session.timerType == .amrap { session.roundsCompleted = completedRounds }
+        recordTimedWorkoutResults(context: context)
         try? context.save()
         isShowingComplete = true
     }
@@ -782,11 +824,91 @@ final class WorkoutViewModel {
         if session.activeSeconds == nil {
             session.activeSeconds = activeWorkoutSeconds
         }
+        if session.timerType == .amrap, session.roundsCompleted == nil {
+            session.roundsCompleted = completedRounds
+        }
+        recordTimedWorkoutResults(context: context)
         try? context.save()
         exportToHealthKitIfEnabled(session: session, context: context)
         activeSession = nil
         showActiveWorkout = false
         isShowingComplete = false
+    }
+
+    /// Persists what a *timed* workout actually did as SetRecords, so volume
+    /// and other stats count weighted work (reps workouts log sets live;
+    /// AMRAP/EMOM/Intervals/For Time/Manual only know their results at the
+    /// end). One record per performance of each exercise (set n = round n);
+    /// bodyweight cards (weight 0) record reps with no weight.
+    /// Idempotent — skipped when records were already written.
+    private func recordTimedWorkoutResults(context: ModelContext) {
+        guard let session = activeSession,
+              let type = session.timerType, type != .reps,
+              session.entries.allSatisfy({ $0.sets.isEmpty }) else { return }
+        let cards = activeSessionCards
+        guard !cards.isEmpty else { return }
+        let active = session.activeSeconds ?? 0
+
+        // How many times each card was performed.
+        var performances = [Int](repeating: 0, count: cards.count)
+        switch type {
+        case .amrap:
+            // The rounds counter the athlete taps: each round = one circuit,
+            // attributed to the timed round that was running at the time.
+            let slots = Self.roundSlots(for: cards)
+            let attributed = circuitsByTimedRound.values.reduce(0, +)
+            if slots.count > 1 && attributed == completedRounds {
+                for (s, slot) in slots.enumerated() {
+                    let circuits = max(0, circuitsByTimedRound[s + 1] ?? 0)
+                    for idx in slot where idx < cards.count { performances[idx] = circuits }
+                }
+            } else {
+                // Single-round AMRAP (or untracked legacy path): every
+                // exercise is in every circuit.
+                for i in cards.indices { performances[i] = max(0, completedRounds) }
+            }
+        case .emom:
+            // Work happens at the top of each minute, so minutes *started*
+            // count; cycle the minute-slots the way the workout did.
+            let started = max(1, min(activeConfig.rounds, Int(active / 60) + 1))
+            let slots = Self.minuteSlots(for: cards)
+            if !slots.isEmpty {
+                for m in 1...started {
+                    for idx in slots[(m - 1) % slots.count] where idx < cards.count {
+                        performances[idx] += 1
+                    }
+                }
+            }
+        case .intervals:
+            let cycle = max(1, activeConfig.workDuration + activeConfig.restDuration)
+            let started = max(1, min(activeConfig.intervalRounds, Int(active / cycle) + 1))
+            for i in cards.indices { performances[i] = started }
+        case .forTime:
+            // One pass through the list; count the cards marked complete
+            // (all of them when the workout finished).
+            let done = isShowingComplete ? cards.count : min(currentSessionIndex, cards.count)
+            for i in 0..<done { performances[i] = 1 }
+        case .manual:
+            for i in cards.indices { performances[i] = 1 }
+        case .reps:
+            break
+        }
+
+        for (i, card) in cards.enumerated() where performances[i] > 0 {
+            guard let entry = session.sortedEntries.first(where: { $0.sortOrder == i }) else { continue }
+            for n in 1...performances[i] {
+                let record = SetRecord(
+                    setNumber: n,
+                    weight: card.weight > 0 ? card.weight : nil,
+                    weightUnit: card.weightUnit,
+                    reps: card.reps > 0 ? card.reps : nil,
+                    plannedWeight: card.weight > 0 ? card.weight : nil,
+                    plannedReps: card.reps > 0 ? card.reps : nil
+                )
+                record.entry = entry
+                context.insert(record)
+            }
+        }
     }
 
     /// Writes the just-finished workout and its estimated burn to Apple Health

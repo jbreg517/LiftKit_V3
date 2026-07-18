@@ -363,12 +363,18 @@ struct WorkoutDetailView: View {
     }
 
     private var summarySection: some View {
-        HStack(spacing: 0) {
+        let units = UnitSystem.current
+        return HStack(spacing: 0) {
             statCell(value: session.formattedDuration, label: "Duration")
             Divider().background(LKColor.surfaceElevated)
+            if let rounds = session.roundsCompleted {
+                statCell(value: "\(rounds)", label: "Rounds")
+                Divider().background(LKColor.surfaceElevated)
+            }
             statCell(value: "\(session.entries.count)", label: "Exercises")
             Divider().background(LKColor.surfaceElevated)
-            statCell(value: "\(Int(session.totalVolume)) lb", label: "Volume")
+            // Volume in the user's unit system (it's stored/summed in lb).
+            statCell(value: "\(Int(units.weightFromLb(session.totalVolume))) \(units.weightLabel)", label: "Volume")
             Divider().background(LKColor.surfaceElevated)
             statCell(value: session.timerType?.rawValue ?? "—", label: "Type")
         }
