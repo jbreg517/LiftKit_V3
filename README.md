@@ -51,11 +51,12 @@ LiftKit/
 │       ├── History/
 │       │   └── HistoryView.swift           ← Session list + WorkoutDetailView
 │       ├── Progress/
-│       │   └── ProgressView.swift          ← Stats, PR board, charts
+│       │   ├── StatsView.swift             ← Stats, PR board, charts
+│       │   └── BodyTrackingView.swift      ← Bodyweight & measurements
 │       ├── Settings/
 │       │   └── SettingsView.swift          ← Prefs, privacy policy, disclaimer
 │       ├── Auth/
-│       │   └── LoginView.swift             ← Apple Sign In + local premium activation
+│       │   └── PaywallView.swift           ← LiftKit Pro paywall (StoreKit unlock + restore)
 │       ├── Calendar/
 │       │   ├── WorkoutCalendarView.swift   ← Monthly calendar widget (premium)
 │       │   └── ScheduleEditView.swift      ← Create/edit scheduled workouts

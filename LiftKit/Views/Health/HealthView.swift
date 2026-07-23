@@ -412,6 +412,8 @@ struct HealthView: View {
                         PointMark(x: .value("Date", m.date), y: .value(units.weightLabel, units.weightFromLb(m.value)))
                             .foregroundStyle(LKColor.textMuted.opacity(0.5))
                             .symbolSize(18)
+                            .accessibilityLabel(m.date.formatted(date: .abbreviated, time: .omitted))
+                            .accessibilityValue("\(Int(units.weightFromLb(m.value))) \(units.weightLabel)")
                     }
                     ForEach(smooth) { p in
                         LineMark(x: .value("Date", p.date), y: .value("Trend", units.weightFromLb(p.value)))
@@ -438,11 +440,15 @@ struct HealthView: View {
                         BarMark(x: .value("Date", d.date), y: .value("kcal", d.calories))
                             .foregroundStyle(LKColor.accent)
                             .cornerRadius(3)
+                            .accessibilityLabel(d.date.formatted(date: .abbreviated, time: .omitted))
+                            .accessibilityValue("\(Int(d.calories)) kcal")
                     }
                     if let goal = goalCalories {
                         RuleMark(y: .value("Target", goal))
                             .foregroundStyle(LKColor.textMuted)
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                            .accessibilityLabel("Calorie target")
+                            .accessibilityValue("\(Int(goal)) kcal")
                     }
                 }
                 .frame(height: 160)

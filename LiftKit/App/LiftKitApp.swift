@@ -117,7 +117,7 @@ struct RootTabView: View {
                     Label("History", systemImage: "clock.arrow.circlepath")
                 }
 
-            ProgressView()
+            StatsView()
                 .tag(2)
                 .tabItem {
                     Label("Progress", systemImage: "chart.line.uptrend.xyaxis")

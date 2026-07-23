@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 import Charts
 
-struct ProgressView: View {
+struct StatsView: View {
     @Query(sort: \WorkoutSession.startedAt) private var sessions: [WorkoutSession]
     @Query private var personalRecords: [PersonalRecord]
     @Query private var exercises: [Exercise]
@@ -44,6 +44,7 @@ struct ProgressView: View {
                 VStack(spacing: LKSpacing.lg) {
                     if weekStreak > 0 { streakBanner }
                     overviewGrid
+                    trendInsight
                     muscleFocusSection
                     bodyMetricsCard
                     prBoard
@@ -209,14 +210,78 @@ struct ProgressView: View {
         let totalVolume = completed.map(\.totalVolume).reduce(0, +)
         let avgDuration = completed.isEmpty ? 0 : completed.map(\.duration).reduce(0, +) / Double(completed.count)
         let prCount = Set(personalRecords.compactMap { $0.exercise?.name }).count
+        let totalTime = completed.map(\.duration).reduce(0, +)
+        let totalTimeLabel = totalTime >= 3600 ? "\(Int((totalTime / 3600).rounded()))h" : "\(Int((totalTime / 60).rounded()))m"
+        let totalRounds = completed.compactMap(\.roundsCompleted).reduce(0, +)
 
         return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: LKSpacing.md) {
             StatCard(icon: "figure.strengthtraining.traditional", value: "\(completed.count)", label: "Total Workouts", color: .blue)
             StatCard(icon: "scalemass.fill", value: "\(Int(units.weightFromLb(totalVolume))) \(units.weightLabel)", label: "Total Volume", color: .green)
             StatCard(icon: "clock.fill", value: TimerEngine.format(avgDuration), label: "Avg Duration", color: .orange)
             StatCard(icon: "trophy.fill", value: "\(prCount)", label: "Personal Records", color: .yellow)
+            StatCard(icon: "timer", value: totalTimeLabel, label: "Total Time", color: .teal)
+            StatCard(icon: "arrow.triangle.2.circlepath", value: "\(totalRounds)", label: "Rounds Done", color: .indigo)
         }
         .padding(.horizontal, LKSpacing.md)
+    }
+
+    // MARK: - Trend
+    /// Completed-workout volume (lb) for the current 30-day window and the one
+    /// before it, for a month-over-month delta.
+    private var volumeTrend: (current: Double, previous: Double) {
+        let cal = Calendar.current
+        let now = Date()
+        let d30 = cal.date(byAdding: .day, value: -30, to: now) ?? now
+        let d60 = cal.date(byAdding: .day, value: -60, to: now) ?? now
+        let completed = sessions.filter { !$0.isActive }
+        let current = completed.filter { $0.startedAt >= d30 }.map(\.totalVolume).reduce(0, +)
+        let previous = completed.filter { $0.startedAt >= d60 && $0.startedAt < d30 }.map(\.totalVolume).reduce(0, +)
+        return (current, previous)
+    }
+
+    @ViewBuilder
+    private var trendInsight: some View {
+        let (current, previous) = volumeTrend
+        if current > 0 || previous > 0 {
+            HStack(spacing: LKSpacing.md) {
+                Image(systemName: "chart.line.uptrend.xyaxis")
+                    .font(.title2)
+                    .foregroundColor(LKColor.accent)
+                    .frame(width: 32)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("VOLUME · LAST 30 DAYS")
+                        .font(LKFont.caption)
+                        .foregroundColor(LKColor.textMuted)
+                        .tracking(1.5)
+                    Text("\(Int(units.weightFromLb(current).rounded())) \(units.weightLabel)")
+                        .font(LKFont.heading)
+                        .foregroundColor(LKColor.textPrimary)
+                }
+                Spacer()
+                if previous > 0 {
+                    let pct = Int(((current - previous) / previous * 100).rounded())
+                    let up = pct >= 0
+                    VStack(alignment: .trailing, spacing: 2) {
+                        HStack(spacing: 3) {
+                            Image(systemName: up ? "arrow.up.right" : "arrow.down.right")
+                                .font(.system(size: 12, weight: .bold))
+                            Text("\(abs(pct))%")
+                                .font(LKFont.bodyBold)
+                        }
+                        .foregroundColor(up ? LKColor.success : LKColor.danger)
+                        Text("vs prior 30 days")
+                            .font(.system(size: 11))
+                            .foregroundColor(LKColor.textMuted)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Volume \(up ? "up" : "down") \(abs(pct)) percent versus the prior 30 days")
+                }
+            }
+            .padding(LKSpacing.md)
+            .background(LKColor.surface)
+            .cornerRadius(LKRadius.large)
+            .padding(.horizontal, LKSpacing.md)
+        }
     }
 
     // MARK: - PR Board
@@ -307,13 +372,13 @@ struct ProgressView: View {
                                     x: .value("Date", point.date),
                                     y: .value("Weight", point.weight)
                                 )
-                                .foregroundStyle(Color.blue)
+                                .foregroundStyle(LKColor.accent)
                                 .interpolationMethod(.catmullRom)
                                 PointMark(
                                     x: .value("Date", point.date),
                                     y: .value("Weight", point.weight)
                                 )
-                                .foregroundStyle(Color.blue)
+                                .foregroundStyle(LKColor.accent)
                                 .accessibilityLabel(point.date.formatted(date: .abbreviated, time: .omitted))
                                 .accessibilityValue("\(Int(point.weight)) \(units.weightLabel)")
                             }
@@ -329,7 +394,7 @@ struct ProgressView: View {
                                     x: .value("Date", point.date),
                                     y: .value("Reps", point.reps)
                                 )
-                                .foregroundStyle(Color.green.opacity(0.7))
+                                .foregroundStyle(LKColor.success.opacity(0.85))
                                 .cornerRadius(4)
                                 .accessibilityLabel(point.date.formatted(date: .abbreviated, time: .omitted))
                                 .accessibilityValue("\(point.reps) reps")
@@ -365,7 +430,7 @@ struct ProgressView: View {
                             y: .value("Volume", units.weightFromLb(item.volume))
                         )
                         .foregroundStyle(
-                            LinearGradient(colors: [.blue, .blue.opacity(0.5)], startPoint: .top, endPoint: .bottom)
+                            LinearGradient(colors: [LKColor.accent, LKColor.accent.opacity(0.5)], startPoint: .top, endPoint: .bottom)
                         )
                         .cornerRadius(6)
                         .accessibilityLabel("Week of \(item.week)")
