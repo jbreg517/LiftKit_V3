@@ -1,9 +1,9 @@
 import Foundation
 import SwiftData
 
-/// Stronglifts-style linear progression.
+/// Linear weight progression.
 ///
-/// Rules (matching the Stronglifts app):
+/// Rules:
 /// - Complete all reps of every set → add weight next workout
 ///   (+5 lb / +2.5 kg standard, +10 lb / +5 kg for deadlift).
 /// - Miss any reps → repeat the same weight next workout.

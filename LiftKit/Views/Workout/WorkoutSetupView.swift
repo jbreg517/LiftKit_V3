@@ -967,7 +967,7 @@ struct ExerciseCardView: View {
                 }
             }
 
-            // Progression hint (Stronglifts-style auto weight suggestion)
+            // Progression hint (auto weight suggestion)
             if let note = card.progressionNote {
                 HStack(spacing: 4) {
                     Image(systemName: progressionIcon)

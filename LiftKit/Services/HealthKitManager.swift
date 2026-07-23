@@ -5,9 +5,8 @@ import HealthKit
 /// `healthKitEnabled` setting — when that's off, every method is a no-op so the
 /// rest of the app behaves exactly as it did before HealthKit existed.
 ///
-/// Two jobs, matching how the LiftKit suite meets in Apple Health (FuelKit logs
-/// food, RunKit logs distance, LiftKit logs lifting):
-///   • Read  — nutrition (energy + macros) that FuelKit, or any app, has logged.
+/// Two jobs, using Apple Health as the shared exchange with other apps:
+///   • Read  — nutrition (energy + macros) that any app has logged.
 ///   • Write — completed workouts and their estimated calorie burn.
 ///
 /// Nothing here leaves the device except into the user's own Health store.

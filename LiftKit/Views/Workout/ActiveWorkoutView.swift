@@ -1843,7 +1843,7 @@ struct SetEditSheet: View {
 // MARK: - Warm-up calculator
 
 enum WarmupMath {
-    /// Stronglifts-style warm-up ramp to a working weight (bar ×2, then 40/60/80%).
+    /// Linear warm-up ramp to a working weight (bar ×2, then 40/60/80%).
     static func sets(working: Double, unit: WeightUnit) -> [(weight: Double, reps: Int)] {
         let bar: Double = unit == .lb ? 45 : 20
         guard working > bar else { return [] }

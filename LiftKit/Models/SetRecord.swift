@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-/// Optional tag for a logged set (Strong/Hevy-style).
+/// Optional tag for a logged set (normal, warm-up, drop, or failure).
 enum SetType: String, CaseIterable, Identifiable {
     case normal, warmup, drop, failure
     var id: String { rawValue }

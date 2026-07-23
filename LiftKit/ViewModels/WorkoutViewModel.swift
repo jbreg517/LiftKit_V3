@@ -271,7 +271,7 @@ final class WorkoutViewModel {
         }
     }
 
-    /// Applies Stronglifts-style weight progression to the current rep-based
+    /// Applies linear weight progression to the current rep-based
     /// exercise cards, overriding the working weight with the next suggested
     /// weight when prior history exists. Used when entering setup from a
     /// template or a repeated session.
