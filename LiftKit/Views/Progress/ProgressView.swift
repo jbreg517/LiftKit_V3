@@ -158,6 +158,8 @@ struct ProgressView: View {
                         y: .value("Muscle", item.muscle.label)
                     )
                     .foregroundStyle(LKColor.accent)
+                    .accessibilityLabel(item.muscle.label)
+                    .accessibilityValue("\(item.label) sets")
                     .annotation(position: .trailing) {
                         Text(item.label)
                             .font(.caption2)
@@ -312,6 +314,8 @@ struct ProgressView: View {
                                     y: .value("Weight", point.weight)
                                 )
                                 .foregroundStyle(Color.blue)
+                                .accessibilityLabel(point.date.formatted(date: .abbreviated, time: .omitted))
+                                .accessibilityValue("\(Int(point.weight)) \(units.weightLabel)")
                             }
                         }
                         .frame(height: 200)
@@ -327,6 +331,8 @@ struct ProgressView: View {
                                 )
                                 .foregroundStyle(Color.green.opacity(0.7))
                                 .cornerRadius(4)
+                                .accessibilityLabel(point.date.formatted(date: .abbreviated, time: .omitted))
+                                .accessibilityValue("\(point.reps) reps")
                             }
                         }
                         .frame(height: 150)
@@ -362,6 +368,8 @@ struct ProgressView: View {
                             LinearGradient(colors: [.blue, .blue.opacity(0.5)], startPoint: .top, endPoint: .bottom)
                         )
                         .cornerRadius(6)
+                        .accessibilityLabel("Week of \(item.week)")
+                        .accessibilityValue("\(Int(units.weightFromLb(item.volume))) \(units.weightLabel)")
                     }
                 }
                 .frame(height: 180)

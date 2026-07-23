@@ -113,6 +113,14 @@ final class StoreManager: ObservableObject {
     }
 }
 
+/// Build-time feature flags. The tip jar UI is fully built but stays hidden
+/// until its consumable products ship, so the 1.0 build carries no "coming
+/// soon" placeholder (App Review guideline 2.1). Flip to `true` once the tip
+/// products exist in App Store Connect.
+enum AppFeatures {
+    static let tipJarEnabled = false
+}
+
 /// The features LiftKit Pro unlocks. Drives both the paywall and each lock
 /// state, so the list stays in one place.
 enum PremiumFeature: String, CaseIterable, Identifiable {

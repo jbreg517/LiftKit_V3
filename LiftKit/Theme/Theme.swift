@@ -38,6 +38,7 @@ enum LKColor {
 //   title 28 → .title · heading 20 → .title3 · body 16/17 → .body
 //   caption 12 → .caption · phase 14/15 → .subheadline · numeric 28 → .title
 enum LKFont {
+    static let largeTitle = Font.system(.largeTitle, design: .default,    weight: .heavy)
     static let title    = Font.system(.title,       design: .default,    weight: .heavy)
     static let heading  = Font.system(.title3,      design: .default,    weight: .bold)
     static let body     = Font.system(.body,        design: .default,    weight: .regular)

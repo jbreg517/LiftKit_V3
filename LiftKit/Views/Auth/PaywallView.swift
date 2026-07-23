@@ -20,7 +20,7 @@ struct PaywallView: View {
                     if let highlight { contextBanner(highlight) }
                     featureList
                     purchaseSection
-                    tipJarNote
+                    if AppFeatures.tipJarEnabled { tipJarNote }
                     footerNote
                 }
                 .padding(LKSpacing.lg)
@@ -50,7 +50,7 @@ struct PaywallView: View {
                 .font(.system(size: 52))
                 .foregroundColor(LKColor.accent)
             Text("LiftKit Pro")
-                .font(.system(size: 30, weight: .heavy))
+                .font(LKFont.largeTitle)
                 .foregroundColor(LKColor.textPrimary)
             Text("A one-time purchase. Unlocks everything below, forever, on all your devices — no account required.")
                 .font(LKFont.body)

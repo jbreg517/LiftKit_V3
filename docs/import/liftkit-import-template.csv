@@ -1,0 +1,7 @@
+Date,Workout Name,Exercise,Equipment,Set,Weight,Unit,Reps,Duration (sec),RPE,Notes
+2026-01-15,Push Day,Bench Press,Barbell,1,60,kg,5,,7,Example row — delete before importing
+2026-01-15,Push Day,Bench Press,Barbell,2,60,kg,5,,8,
+2026-01-15,Push Day,Overhead Press,Barbell,1,40,kg,5,,,
+2026-01-15,Push Day,Plank,Bodyweight,1,,,,60,,Timed hold — leave Reps blank
+2026-01-17,Pull Day,Pull Up,Bodyweight,1,,,8,,,
+2026-01-17,Pull Day,Kettlebell Swing,Kettlebell,1,24,kg,15,,,

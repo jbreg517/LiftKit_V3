@@ -5,7 +5,7 @@ import UIKit
 /// App version, bumped on every commit/push so the running build is
 /// identifiable in Settings. Increment by 0.01 each push.
 enum AppVersion {
-    static let current = "0.57"
+    static let current = "0.58"
 }
 
 struct SettingsView: View {
@@ -281,14 +281,16 @@ struct SettingsView: View {
                         .foregroundColor(LKColor.accent)
                     }
 
-                    // Tip jar — not yet functional; shown so supporters know it's planned.
-                    HStack {
-                        Label("Tip jar", systemImage: "cup.and.saucer.fill")
-                            .foregroundColor(LKColor.textSecondary)
-                        Spacer()
-                        Text("Coming soon")
-                            .font(LKFont.caption)
-                            .foregroundColor(LKColor.textMuted)
+                    // Tip jar — built but hidden until its products ship (guideline 2.1).
+                    if AppFeatures.tipJarEnabled {
+                        HStack {
+                            Label("Tip jar", systemImage: "cup.and.saucer.fill")
+                                .foregroundColor(LKColor.textSecondary)
+                            Spacer()
+                            Text("Coming soon")
+                                .font(LKFont.caption)
+                                .foregroundColor(LKColor.textMuted)
+                        }
                     }
                 }
 

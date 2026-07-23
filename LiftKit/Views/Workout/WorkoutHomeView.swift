@@ -148,7 +148,7 @@ struct WorkoutHomeView: View {
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .navigationBarLeading) {
             Text("LiftKit")
-                .font(.system(size: 34, weight: .heavy))
+                .font(LKFont.largeTitle)
                 .foregroundColor(LKColor.textPrimary)
         }
         ToolbarItem(placement: .navigationBarTrailing) {

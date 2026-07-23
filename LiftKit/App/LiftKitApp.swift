@@ -61,25 +61,35 @@ enum LiftKitStore {
         // off, so the store is local-only and nothing leaves the device.
         let useICloud = UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")
 
-        func makeContainer(cloud: Bool) throws -> ModelContainer {
+        func makeContainer(cloud: Bool, inMemory: Bool = false) throws -> ModelContainer {
             let config = ModelConfiguration(
                 schema: schema,
-                isStoredInMemoryOnly: false,
+                isStoredInMemoryOnly: inMemory,
                 cloudKitDatabase: cloud ? .automatic : .none
             )
             return try ModelContainer(for: schema, configurations: [config])
         }
 
-        do {
-            return try makeContainer(cloud: useICloud)
-        } catch {
-            // If CloudKit setup fails (e.g. missing entitlement), fall back to
-            // a local-only store rather than crashing.
-            if useICloud, let local = try? makeContainer(cloud: false) {
-                return local
-            }
-            fatalError("Could not create ModelContainer: \(error)")
+        // Try the preferred store, then progressively safer fallbacks. The app
+        // must never crash on launch — an unrecoverable ModelContainer would be
+        // a crash-loop (bad UX and an App Review rejection under 2.1). If the
+        // on-disk store can't be opened (e.g. a failed migration), the last
+        // resort is an in-memory store so the app still runs this session.
+        if let container = try? makeContainer(cloud: useICloud) {
+            return container
         }
+        if useICloud, let local = try? makeContainer(cloud: false) {
+            return local   // CloudKit unavailable (e.g. missing entitlement) → local only
+        }
+        if let memory = try? makeContainer(cloud: false, inMemory: true) {
+            return memory  // on-disk store unreadable → run without persistence this launch
+        }
+        // Creating an in-memory container essentially never fails; this final
+        // guard exists only to satisfy the non-optional return.
+        return try! ModelContainer(
+            for: schema,
+            configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)]
+        )
     }()
 }
 
