@@ -8,6 +8,7 @@ import Charts
 /// third-party integrations, all on-device.
 struct HealthView: View {
     @Bindable var vm: WorkoutViewModel
+    @ObservedObject private var store = StoreManager.shared
 
     @Environment(\.modelContext) private var context
     @Query private var userProfiles: [UserProfile]
@@ -19,14 +20,13 @@ struct HealthView: View {
     @State private var showGoals = false
     @State private var showWeightAdd = false
     @State private var showNutritionAdd = false
-    @State private var showLogin = false
     @State private var showClearHealth = false
     @AppStorage("unitSystem") private var unitSystemRaw = "imperial"
     @AppStorage("healthKitEnabled") private var healthKitEnabled = false
     @State private var hkToday: HealthKitManager.DailyMacros?
     @State private var hkSeries: [HealthKitManager.DailyMacros] = []
 
-    private var isPremium: Bool { userProfiles.first?.isPremium ?? false }
+    private var isPremium: Bool { store.isPro }
     private var hp: HealthProfile? { healthProfiles.first }
     private var units: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .imperial }
 
@@ -62,7 +62,6 @@ struct HealthView: View {
             .sheet(isPresented: $showNutritionAdd) {
                 NutritionQuickAddSheet { p, c, f, a in addMacros(p: p, c: c, f: f, a: a) }
             }
-            .sheet(isPresented: $showLogin) { LoginView(vm: vm) }
             .alert("Delete health data?", isPresented: $showClearHealth) {
                 Button("Delete", role: .destructive) { clearHealthData() }
                 Button("Cancel", role: .cancel) {}
@@ -501,10 +500,13 @@ struct HealthView: View {
                 lockedBullet("flame.fill", "Workout calorie-burn estimates")
             }
             .padding(.horizontal, LKSpacing.xl)
-            Text("A Premium feature. Everything stays on your device.")
+            Text("A LiftKit Pro feature. Everything stays on your device.")
                 .font(LKFont.caption).foregroundColor(LKColor.textMuted)
                 .multilineTextAlignment(.center)
-            Button("Sign In to Unlock") { showLogin = true }
+            Button("Unlock with LiftKit Pro") {
+                vm.paywallFeature = .health
+                vm.showPaywall = true
+            }
                 .buttonStyle(LKPrimaryButtonStyle())
                 .padding(.horizontal, LKSpacing.xl)
             Spacer()

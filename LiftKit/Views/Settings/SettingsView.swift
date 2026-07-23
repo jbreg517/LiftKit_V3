@@ -5,7 +5,7 @@ import UIKit
 /// App version, bumped on every commit/push so the running build is
 /// identifiable in Settings. Increment by 0.01 each push.
 enum AppVersion {
-    static let current = "0.56"
+    static let current = "0.57"
 }
 
 struct SettingsView: View {
@@ -22,6 +22,7 @@ struct SettingsView: View {
     @AppStorage("availableEquipment") private var availableEquipmentRaw = EquipmentPrefs.defaultRaw
 
     @Environment(\.modelContext) private var context
+    @ObservedObject private var store = StoreManager.shared
     @Query private var profiles: [UserProfile]
     @Query(sort: \WorkoutSession.startedAt) private var sessions: [WorkoutSession]
     @Query private var nutritionDays: [NutritionDay]
@@ -107,6 +108,7 @@ struct SettingsView: View {
     @State private var showDisclaimer    = false
     @State private var showTour          = false
     @State private var showClearAll      = false
+    @State private var showPaywall       = false
     @State private var exportFile: ExportFile?
     @State private var requestingHealthAuth = false
     @State private var healthKitNote: String?
@@ -243,36 +245,50 @@ struct SettingsView: View {
                     .foregroundColor(LKColor.danger)
                 }
 
-                if let profile = currentProfile {
-                    Section("Account") {
-                        if let name = profile.displayName, !name.isEmpty {
-                            HStack {
-                                Text("Name")
-                                Spacer()
-                                Text(name)
-                                    .foregroundColor(LKColor.textSecondary)
-                            }
-                        }
-                        if let email = profile.email, !email.isEmpty {
-                            HStack {
-                                Text("Email")
-                                Spacer()
-                                Text(email)
-                                    .foregroundColor(LKColor.textSecondary)
-                                    .lineLimit(1)
-                            }
-                        }
+                Section("LiftKit Pro") {
+                    if store.isPro {
                         HStack {
-                            Text("Status")
+                            Label("LiftKit Pro", systemImage: "crown.fill")
+                                .foregroundColor(LKColor.accent)
                             Spacer()
-                            Text(profile.isPremium ? "Premium ✓" : "Free")
-                                .foregroundColor(profile.isPremium ? LKColor.accent : LKColor.textSecondary)
+                            Text("Active ✓")
+                                .foregroundColor(LKColor.textSecondary)
                         }
-                        Button("Log Out", role: .destructive) {
-                            for p in profiles { context.delete(p) }
-                            try? context.save()
+                        Text("Thanks for supporting LiftKit.")
+                            .font(LKFont.caption)
+                            .foregroundColor(LKColor.textMuted)
+                        Button("Restore Purchase") {
+                            Task { await store.restore() }
                         }
-                        .foregroundColor(LKColor.danger)
+                        .foregroundColor(LKColor.accent)
+                    } else {
+                        Button {
+                            showPaywall = true
+                        } label: {
+                            HStack {
+                                Label("Upgrade to LiftKit Pro", systemImage: "crown.fill")
+                                Spacer()
+                                if store.product != nil {
+                                    Text(store.priceText)
+                                        .foregroundColor(LKColor.textSecondary)
+                                }
+                            }
+                            .foregroundColor(LKColor.accent)
+                        }
+                        Button("Restore Purchase") {
+                            Task { await store.restore() }
+                        }
+                        .foregroundColor(LKColor.accent)
+                    }
+
+                    // Tip jar — not yet functional; shown so supporters know it's planned.
+                    HStack {
+                        Label("Tip jar", systemImage: "cup.and.saucer.fill")
+                            .foregroundColor(LKColor.textSecondary)
+                        Spacer()
+                        Text("Coming soon")
+                            .font(LKFont.caption)
+                            .foregroundColor(LKColor.textMuted)
                     }
                 }
 
@@ -306,6 +322,7 @@ struct SettingsView: View {
             .sheet(isPresented: $showPrivacyPolicy) { PrivacyPolicyView() }
             .sheet(isPresented: $showDisclaimer)    { DisclaimerView() }
             .sheet(isPresented: $showTour)          { TourView(onDone: { showTour = false }) }
+            .sheet(isPresented: $showPaywall)       { PaywallView() }
             .sheet(item: $exportFile) { ShareSheet(items: [$0.url]) }
             .alert("Delete all data?", isPresented: $showClearAll) {
                 Button("Delete Everything", role: .destructive) { clearAllData() }
@@ -442,8 +459,6 @@ struct PrivacyPolicyView: View {
                     "Your workout data is used solely to display your history, track personal records, and power the progress features within the app. We do not use your data for advertising, analytics, or any commercial purpose.")
                 policySection("Data Storage",
                     "All data is stored locally on your device using Apple's SwiftData framework. If you enable iCloud Backup, your data may be included in your personal iCloud backup, which is governed by Apple's privacy policy. We have no access to iCloud backups.")
-                policySection("Authentication",
-                    "If you choose to activate Premium using Sign in with Apple, we receive a stable unique identifier (used to recognise your account on re-login), and optionally your name and email address as you choose to share. All of this is stored on-device only to maintain your premium status. We do not store passwords.")
                 policySection("Third-Party Services",
                     "LiftKit contains no third-party SDKs, analytics libraries, advertising frameworks, or crash-reporting services. Zero data is shared with third parties.")
                 policySection("Your Rights",

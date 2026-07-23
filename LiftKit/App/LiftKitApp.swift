@@ -141,6 +141,9 @@ struct RootTabView: View {
         .fullScreenCover(isPresented: $vm.showActiveWorkout) {
             ActiveWorkoutView(vm: vm)
         }
+        .sheet(isPresented: $vm.showPaywall) {
+            PaywallView(highlight: vm.paywallFeature)
+        }
         .onAppear { handlePendingQuickAction() }            // cold launch
         .onChange(of: quickActions.pending) { _, _ in
             handlePendingQuickAction()                       // warm launch

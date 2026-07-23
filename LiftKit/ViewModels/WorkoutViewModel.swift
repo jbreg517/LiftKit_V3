@@ -166,7 +166,8 @@ final class WorkoutViewModel {
     /// Selected bottom tab (0 Workout, 1 History, 2 Progress, 3 Health, 4 Settings).
     var selectedTab           = 0
     var showTypePicker        = false
-    var showLogin             = false
+    var showPaywall           = false
+    var paywallFeature: PremiumFeature? = nil
     var showActiveWorkout     = false
     var showSaveTemplate      = false
     var showWorkoutSetup      = false
@@ -966,9 +967,11 @@ final class WorkoutViewModel {
         // Check template limit
         let descriptor = FetchDescriptor<WorkoutTemplate>()
         let count = (try? context.fetch(descriptor).count) ?? 0
-        let isPremium = userProfile?.isPremium ?? false
+        let isPremium = StoreManager.shared.isPro
         if !isPremium && count >= UserProfile.maxFreeTemplates {
-            templateNameError = "Upgrade to premium for more templates"
+            templateNameError = "Upgrade to LiftKit Pro for unlimited plans"
+            paywallFeature = .plans
+            showPaywall = true
             return nil
         }
 

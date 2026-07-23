@@ -50,7 +50,8 @@
 		A70000000000000000000042 /* BodyTrackingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000042 /* BodyTrackingView.swift */; };
 		A70000000000000000000046 /* HealthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000046 /* HealthView.swift */; };
 		A70000000000000000000024 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000024 /* SettingsView.swift */; };
-		A70000000000000000000025 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000025 /* LoginView.swift */; };
+		A70000000000000000000090 /* StoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000090 /* StoreManager.swift */; };
+		A70000000000000000000091 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000091 /* PaywallView.swift */; };
 		A70000000000000000000026 /* WorkoutCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000026 /* WorkoutCalendarView.swift */; };
 		A70000000000000000000027 /* ScheduleEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000027 /* ScheduleEditView.swift */; };
 		A70000000000000000000028 /* NumberEntrySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000028 /* NumberEntrySheet.swift */; };
@@ -162,7 +163,8 @@
 		A60000000000000000000042 /* BodyTrackingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BodyTrackingView.swift; sourceTree = "<group>"; };
 		A60000000000000000000046 /* HealthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthView.swift; sourceTree = "<group>"; };
 		A60000000000000000000024 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		A60000000000000000000025 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		A60000000000000000000090 /* StoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreManager.swift; sourceTree = "<group>"; };
+		A60000000000000000000091 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		A60000000000000000000026 /* WorkoutCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutCalendarView.swift; sourceTree = "<group>"; };
 		A60000000000000000000027 /* ScheduleEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleEditView.swift; sourceTree = "<group>"; };
 		A60000000000000000000028 /* NumberEntrySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumberEntrySheet.swift; sourceTree = "<group>"; };
@@ -318,6 +320,7 @@
 				A60000000000000000000033 /* SoundEngine.swift */,
 				A60000000000000000000034 /* LiftKitActivityAttributes.swift */,
 				A60000000000000000000035 /* LiveActivityManager.swift */,
+				A60000000000000000000090 /* StoreManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -394,7 +397,7 @@
 		A5000000000000000000000E /* Auth */ = {
 			isa = PBXGroup;
 			children = (
-				A60000000000000000000025 /* LoginView.swift */,
+				A60000000000000000000091 /* PaywallView.swift */,
 			);
 			path = Auth;
 			sourceTree = "<group>";
@@ -656,7 +659,8 @@
 				A70000000000000000000042 /* BodyTrackingView.swift in Sources */,
 				A70000000000000000000046 /* HealthView.swift in Sources */,
 				A70000000000000000000024 /* SettingsView.swift in Sources */,
-				A70000000000000000000025 /* LoginView.swift in Sources */,
+				A70000000000000000000090 /* StoreManager.swift in Sources */,
+				A70000000000000000000091 /* PaywallView.swift in Sources */,
 				A70000000000000000000026 /* WorkoutCalendarView.swift in Sources */,
 				A70000000000000000000027 /* ScheduleEditView.swift in Sources */,
 				A70000000000000000000028 /* NumberEntrySheet.swift in Sources */,

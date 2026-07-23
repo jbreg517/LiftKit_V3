@@ -11,13 +11,14 @@ struct WorkoutHomeView: View {
     @AppStorage("availableEquipment") private var availableEquipmentRaw = EquipmentPrefs.defaultRaw
 
     @Bindable var vm: WorkoutViewModel
+    @ObservedObject private var store = StoreManager.shared
 
     @State private var showCalendarPicker = false
     @State private var showSeriesSchedule = false
     @State private var showUpcoming = false
 
     private var userProfile: UserProfile? { profiles.first }
-    private var isPremium: Bool { userProfile?.isPremium ?? false }
+    private var isPremium: Bool { store.isPro }
 
     /// Uncompleted schedules due today or carried forward from a missed day.
     private var dueSchedules: [WorkoutSchedule] {
@@ -47,9 +48,12 @@ struct WorkoutHomeView: View {
                     .accessibilityHint("Choose a workout type to start")
                     .padding(.horizontal, LKSpacing.md)
 
-                    // Calendar (premium only)
+                    // Calendar (Pro only)
                     if isPremium {
                         WorkoutCalendarView(vm: vm)
+                            .padding(.horizontal, LKSpacing.md)
+                    } else {
+                        lockedCalendarCard
                             .padding(.horizontal, LKSpacing.md)
                     }
 
@@ -76,9 +80,6 @@ struct WorkoutHomeView: View {
         }
         .sheet(isPresented: $vm.showTypePicker) {
             WorkoutTypePickerView(vm: vm)
-        }
-        .sheet(isPresented: $vm.showLogin) {
-            LoginView(vm: vm)
         }
         .sheet(isPresented: $showSeriesSchedule) {
             SeriesScheduleSheet()
@@ -151,49 +152,91 @@ struct WorkoutHomeView: View {
                 .foregroundColor(LKColor.textPrimary)
         }
         ToolbarItem(placement: .navigationBarTrailing) {
-            if let profile = userProfile {
-                loggedInChip(profile: profile)
+            if store.isPro {
+                proBadge
             } else {
-                loginButton
+                upgradePill
             }
         }
     }
 
-    private func loggedInChip(profile: UserProfile) -> some View {
+    private var proBadge: some View {
         HStack(spacing: LKSpacing.xs) {
-            Image(systemName: "person.fill")
-                .font(.caption)
-            Text(profile.displayName ?? "Premium")
+            Image(systemName: "crown.fill")
+                .font(.system(size: 11))
+                .foregroundColor(LKColor.accent)
+            Text("Pro")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(LKColor.textSecondary)
-            if profile.isPremium {
-                Image(systemName: "crown.fill")
-                    .font(.system(size: 10))
-                    .foregroundColor(LKColor.accent)
-            }
         }
         .padding(.horizontal, LKSpacing.sm)
         .padding(.vertical, LKSpacing.xs)
         .overlay(
             Capsule().strokeBorder(LKColor.surfaceElevated, lineWidth: 1)
         )
+        .accessibilityLabel("LiftKit Pro")
     }
 
-    private var loginButton: some View {
+    private var upgradePill: some View {
         Button {
-            vm.showLogin = true
+            vm.paywallFeature = nil
+            vm.showPaywall = true
+            HapticManager.shared.buttonTap()
         } label: {
             HStack(spacing: LKSpacing.xs) {
-                Image(systemName: "person.fill")
-                    .font(.caption)
-                Text("Log In")
+                Image(systemName: "crown.fill")
+                    .font(.system(size: 11))
+                Text("Upgrade")
                     .font(.system(size: 14, weight: .semibold))
             }
-            .foregroundColor(LKColor.textSecondary)
+            .foregroundColor(LKColor.accent)
             .padding(.horizontal, LKSpacing.sm)
             .padding(.vertical, LKSpacing.xs)
-            .overlay(Capsule().strokeBorder(LKColor.surfaceElevated, lineWidth: 1))
+            .overlay(Capsule().strokeBorder(LKColor.accent.opacity(0.5), lineWidth: 1))
         }
+        .accessibilityLabel("Upgrade to LiftKit Pro")
+    }
+
+    private var lockedCalendarCard: some View {
+        Button {
+            vm.paywallFeature = .scheduling
+            vm.showPaywall = true
+            HapticManager.shared.buttonTap()
+        } label: {
+            HStack(spacing: LKSpacing.md) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 22))
+                    .foregroundColor(LKColor.accent)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: LKSpacing.xs) {
+                        Text("Workout Calendar")
+                            .font(LKFont.bodyBold)
+                            .foregroundColor(LKColor.textPrimary)
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(LKColor.textMuted)
+                    }
+                    Text("Schedule sessions ahead with LiftKit Pro.")
+                        .font(LKFont.caption)
+                        .foregroundColor(LKColor.textSecondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(LKColor.textMuted)
+            }
+            .padding(LKSpacing.md)
+            .frame(maxWidth: .infinity)
+            .background(LKColor.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: LKRadius.large)
+                    .strokeBorder(LKColor.surfaceElevated, lineWidth: 1)
+            )
+            .cornerRadius(LKRadius.large)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Workout calendar, a Pro feature. Double tap to learn more.")
     }
 
     // MARK: - Recommended section
@@ -319,12 +362,36 @@ struct WorkoutHomeView: View {
                 .padding(.horizontal, LKSpacing.md)
 
             } else {
-                Text("Free accounts limited to 5 plans. Sign in for premium.")
-                    .font(LKFont.caption)
-                    .foregroundColor(LKColor.textMuted)
-                    .multilineTextAlignment(.center)
+                Button {
+                    vm.paywallFeature = .plans
+                    vm.showPaywall = true
+                    HapticManager.shared.buttonTap()
+                } label: {
+                    VStack(spacing: 4) {
+                        HStack(spacing: LKSpacing.xs) {
+                            Image(systemName: "crown.fill")
+                                .font(.system(size: 16))
+                            Text("Unlock unlimited plans")
+                                .font(LKFont.bodyBold)
+                        }
+                        .foregroundColor(LKColor.accent)
+                        Text("Your free plan holds \(UserProfile.maxFreeTemplates). Upgrade to LiftKit Pro for more.")
+                            .font(LKFont.caption)
+                            .foregroundColor(LKColor.textMuted)
+                            .multilineTextAlignment(.center)
+                    }
                     .frame(maxWidth: .infinity)
-                    .padding(.horizontal, LKSpacing.md)
+                    .padding(LKSpacing.md)
+                    .background(LKColor.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: LKRadius.large)
+                            .strokeBorder(LKColor.accent.opacity(0.4), lineWidth: 1)
+                    )
+                    .cornerRadius(LKRadius.large)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, LKSpacing.md)
             }
 
             // Premium users with > 10 templates see "View All"
