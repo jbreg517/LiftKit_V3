@@ -425,7 +425,7 @@ final class TimerEngine {
             let content = UNMutableNotificationContent()
             content.title = notificationTitle
             content.body = body
-            content.sound = .default
+            content.sound = soundEnabled ? .default : nil
             content.interruptionLevel = .timeSensitive
             let trigger = UNTimeIntervalNotificationTrigger(timeInterval: delay, repeats: false)
             let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)

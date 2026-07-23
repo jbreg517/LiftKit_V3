@@ -20,7 +20,6 @@ struct LiftKitApp: App {
 
     init() {
         requestNotificationPermission()
-        configureAudioSession()
     }
 
     var body: some Scene {
@@ -33,13 +32,6 @@ struct LiftKitApp: App {
 
     private func requestNotificationPermission() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
-    }
-
-    private func configureAudioSession() {
-        do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, options: .mixWithOthers)
-            try AVAudioSession.sharedInstance().setActive(true)
-        } catch { }
     }
 }
 
@@ -420,8 +412,6 @@ struct TourView: View {
         }
     }
 }
-
-import AVFoundation
 
 // MARK: - Siri / App Intents (Phase 1)
 //

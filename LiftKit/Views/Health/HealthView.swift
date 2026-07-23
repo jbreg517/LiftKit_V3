@@ -292,7 +292,7 @@ struct HealthView: View {
                 }
                 macroPills(protein: protein, carb: carb, fat: fat, alcohol: alcohol, showAlcohol: !useHK)
                 if useHK {
-                    Text("Pulled from Apple Health — log food in FuelKit (or any Health app) and it shows up here.")
+                    Text("Pulled from Apple Health — log your food in any Health-connected app and it shows up here.")
                         .font(LKFont.caption).foregroundColor(LKColor.textMuted)
                 } else {
                     Button { showNutritionAdd = true } label: {

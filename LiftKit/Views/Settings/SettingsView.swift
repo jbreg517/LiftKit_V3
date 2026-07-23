@@ -5,7 +5,7 @@ import UIKit
 /// App version, bumped on every commit/push so the running build is
 /// identifiable in Settings. Increment by 0.01 each push.
 enum AppVersion {
-    static let current = "0.54"
+    static let current = "0.55"
 }
 
 struct SettingsView: View {
@@ -217,7 +217,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Apple Health")
                 } footer: {
-                    Text(healthKitNote ?? "Reads the calories and macros you log in FuelKit (or any Apple Health app) and saves your completed workouts and their calorie burn back to Apple Health. Nothing is shared with the developer. You choose what to share in the Health permission prompt; manage it any time in Health ▸ Sharing.")
+                    Text(healthKitNote ?? "Reads the calories and macros you've logged in Apple Health and saves your completed workouts and their calorie burn back to Apple Health. Nothing is shared with the developer. You choose what to share in the Health permission prompt; manage it any time in Health ▸ Sharing.")
                 }
 
                 Section("Data") {
