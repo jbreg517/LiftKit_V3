@@ -16,8 +16,15 @@ final class StoreManager: ObservableObject {
 
     /// The loaded product (nil until fetched, or if the store is unreachable).
     @Published private(set) var product: Product?
-    /// True when the user owns Pro. Source of truth for every gated feature.
-    @Published private(set) var isPro = false
+    /// True when the user actually owns Pro (a verified App Store entitlement).
+    @Published private(set) var hasEntitlement = false
+
+    /// Source of truth for every gated feature. Combines the real entitlement
+    /// with the pre-pricing override — which is inert in App Store production
+    /// (see `AppFeatures.proOverrideActive`). So a TestFlight/dev build can run
+    /// with Pro unlocked before the IAP exists, yet a shipped build never hands
+    /// Pro out for free.
+    var isPro: Bool { AppFeatures.proOverrideActive || hasEntitlement }
     /// A purchase / restore is in flight.
     @Published private(set) var isWorking = false
     /// User-facing error from the last purchase or restore, if any.
@@ -59,7 +66,7 @@ final class StoreManager: ObservableObject {
                 owned = true
             }
         }
-        isPro = owned
+        hasEntitlement = owned
     }
 
     /// Buy the Pro unlock. No-op if the product hasn't loaded yet.
@@ -119,6 +126,36 @@ final class StoreManager: ObservableObject {
 /// products exist in App Store Connect.
 enum AppFeatures {
     static let tipJarEnabled = false
+
+    /// TEMPORARY: unlock Pro for everyone while the Paid Apps agreement /
+    /// tax+banking (blocked on the EIN) and the `com.ferrixguild.liftkit.pro`
+    /// IAP don't exist yet — otherwise the paywall shows "store unavailable"
+    /// and nothing gated can be tested. Set back to `false` once the IAP is
+    /// live so purchases become the real unlock path.
+    static let grantProWhileUnpriced = true
+
+    /// Whether the Pro override is honored. Gated on NOT being an App Store
+    /// production build, so this can never ship as a free unlock: TestFlight
+    /// and dev builds get Pro, a store build always requires a real purchase —
+    /// even if `grantProWhileUnpriced` is accidentally left `true`.
+    static var proOverrideActive: Bool {
+        grantProWhileUnpriced && !AppEnvironment.isAppStoreProduction
+    }
+}
+
+/// Distinguishes how the running build was distributed, via the App Store
+/// receipt name. Production builds carry a `receipt`; TestFlight carries a
+/// `sandboxReceipt`; simulator/dev builds have none.
+enum AppEnvironment {
+    /// True only for a build installed from the App Store (production receipt).
+    static var isAppStoreProduction: Bool {
+        #if DEBUG
+        return false
+        #else
+        guard let url = Bundle.main.appStoreReceiptURL else { return false }
+        return url.lastPathComponent == "receipt"
+        #endif
+    }
 }
 
 /// The features LiftKit Pro unlocks. Drives both the paywall and each lock
