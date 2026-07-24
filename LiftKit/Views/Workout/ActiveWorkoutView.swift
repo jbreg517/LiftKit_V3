@@ -239,6 +239,9 @@ struct ActiveWorkoutView: View {
             let slots = vm.intervalSlots
             guard !slots.isEmpty else { return [] }
             return slots[(engine.currentRound - 1) % slots.count]
+        case .forTime:
+            // Repeats the list each round; the current card wraps within a round.
+            return [vm.forTimePositionInRound % count]
         default:
             return [min(vm.currentSessionIndex, count - 1)]
         }
@@ -685,6 +688,9 @@ struct ActiveWorkoutView: View {
                 return slots[min(max(0, round - 1), slots.count - 1)].compactMap {
                     cards.indices.contains($0) ? cards[$0] : nil
                 }
+            case .forTime:
+                // The list repeats each round; wrap to the current card.
+                return [cards[vm.forTimePositionInRound % cards.count]]
             default:
                 return [cards[min(vm.currentSessionIndex, cards.count - 1)]]
             }
@@ -1034,9 +1040,14 @@ struct ActiveWorkoutView: View {
                 Text("Cap: \(TimerEngine.format(vm.activeConfig.totalDuration))")
                     .font(LKFont.caption)
                     .foregroundColor(LKColor.textMuted)
+                if vm.activeConfig.forTimeRounds > 1 {
+                    Text("Round \(vm.forTimeCurrentRound) of \(vm.activeConfig.forTimeRounds)")
+                        .font(LKFont.body)
+                        .foregroundColor(LKColor.textSecondary)
+                }
             } info: {
                 forTimeChecklist
-                if vm.currentSessionIndex < vm.activeSessionCards.count {
+                if vm.currentSessionIndex < vm.forTimeTotalSteps {
                     markCompleteButton
                 }
                 timerControls(engine: engine)
@@ -1058,8 +1069,8 @@ struct ActiveWorkoutView: View {
 
     @ViewBuilder
     private func forTimeRow(idx: Int, card: SessionCard) -> some View {
-        let isDone = idx < vm.currentSessionIndex
-        let isCurrent = idx == vm.currentSessionIndex
+        let isDone = idx < vm.forTimePositionInRound
+        let isCurrent = idx == vm.forTimePositionInRound
         if isCurrent {
             VStack(alignment: .leading, spacing: LKSpacing.sm) {
                 HStack(spacing: LKSpacing.sm) {
@@ -1112,26 +1123,37 @@ struct ActiveWorkoutView: View {
         return parts.joined(separator: " · ")
     }
 
+    // Large gold action button, matching the AMRAP/EMOM rounds counter. Marks the
+    // current exercise done and advances; at the end of the list it rolls into the
+    // next round, and finishes the workout after the final round.
     private var markCompleteButton: some View {
         Button {
             vm.recordSplit(engine.elapsedTime, context: context)
-            let nextIdx = vm.currentSessionIndex + 1
-            if nextIdx < vm.activeSessionCards.count {
-                vm.currentSessionIndex = nextIdx
-            } else {
+            vm.currentSessionIndex += 1
+            if vm.currentSessionIndex >= vm.forTimeTotalSteps {
                 vm.completeWorkout(context: context)
                 engine.stop()
             }
             HapticManager.shared.buttonTap()
         } label: {
-            Label("Mark Complete", systemImage: "checkmark.circle.fill")
-                .font(LKFont.bodyBold)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(isLandscapePhone ? LKSpacing.sm : LKSpacing.md)
-                .background(LKColor.work)
-                .cornerRadius(LKRadius.medium)
+            VStack(spacing: 2) {
+                Text("MARK COMPLETE")
+                    .font(.system(size: 13, weight: .bold))
+                    .tracking(1)
+                    .foregroundColor(LKColor.onAccent.opacity(0.75))
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: isLandscapePhone ? 32 : 44))
+                    .foregroundColor(LKColor.onAccent)
+                Text("Tap when you finish this exercise")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(LKColor.onAccent.opacity(0.75))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, isLandscapePhone ? LKSpacing.md : LKSpacing.lg)
+            .background(LKColor.accent)
+            .clipShape(RoundedRectangle(cornerRadius: LKRadius.large, style: .continuous))
         }
+        .accessibilityLabel("Mark current exercise complete")
         .padding(.horizontal, LKSpacing.md)
     }
 

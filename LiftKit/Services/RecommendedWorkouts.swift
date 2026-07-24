@@ -69,6 +69,7 @@ struct RecommendedWorkout: Identifiable {
     var sessions: [RecSession] = []       // .amrap/.emom/.forTime/.intervals/.manual
     var restBetweenSets: Int = 90         // .reps
     var timeCapMinutes: Int = 10          // .amrap/.forTime
+    var forTimeRounds: Int = 1            // .forTime
     var emomMinutes: Int = 12             // .emom
     var work: Int = 20                    // .intervals
     var rest: Int = 10                    // .intervals

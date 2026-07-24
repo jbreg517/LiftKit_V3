@@ -186,6 +186,8 @@ final class WorkoutViewModel {
     var timeLimitMinutes: Int = 10
     var timeLimitSeconds: Int = 0
     var sessions: [SessionCard] = [SessionCard()]
+    /// For Time: number of rounds through the exercise list.
+    var forTimeRounds: Int = 1
 
     // EMOM
     var emomMinutes: Int = 10
@@ -307,6 +309,7 @@ final class WorkoutViewModel {
         restBetweenSets = rec.restBetweenSets
         timeLimitMinutes = rec.timeCapMinutes
         timeLimitSeconds = 0
+        forTimeRounds = max(1, rec.forTimeRounds)
         emomMinutes = rec.emomMinutes
         workSeconds = rec.work
         restSeconds = rec.rest
@@ -357,6 +360,7 @@ final class WorkoutViewModel {
             config.rounds = emomMinutes
         case .forTime:
             config.totalDuration = Double(timeLimitMinutes * 60 + timeLimitSeconds)
+            config.forTimeRounds = max(1, forTimeRounds)
         case .intervals:
             config.workDuration = Double(workSeconds)
             config.restDuration = Double(restSeconds)
@@ -919,10 +923,12 @@ final class WorkoutViewModel {
                 }
             }
         case .forTime:
-            // One pass through the list; count the cards marked complete
-            // (all of them when the workout finished).
-            let done = isShowingComplete ? cards.count : min(currentSessionIndex, cards.count)
-            for i in 0..<done { performances[i] = 1 }
+            // The list repeats `forTimeRounds` times; `currentSessionIndex` is a
+            // global step counter. Each completed step performs one card, so a
+            // card's performances = how many times its slot came up.
+            let total = forTimeTotalSteps
+            let done = isShowingComplete ? total : min(currentSessionIndex, total)
+            for step in 0..<done { performances[step % cards.count] += 1 }
         case .manual:
             for i in cards.indices { performances[i] = 1 }
         case .reps:
@@ -1171,6 +1177,24 @@ final class WorkoutViewModel {
     /// Round-slots of the running workout's cards.
     var amrapSlots: [[Int]] { Self.roundSlots(for: activeSessionCards) }
 
+    // MARK: - For Time round helpers
+    // For Time repeats the exercise list `forTimeRounds` times. `currentSessionIndex`
+    // is a global step counter across all rounds (0 ..< forTimeTotalSteps).
+
+    /// Number of exercises per round (never 0).
+    var forTimeCardCount: Int { max(1, activeSessionCards.count) }
+
+    /// Total mark-complete steps across every round.
+    var forTimeTotalSteps: Int { max(1, activeConfig.forTimeRounds) * forTimeCardCount }
+
+    /// 1-based current round (1 ... forTimeRounds).
+    var forTimeCurrentRound: Int {
+        min(max(1, activeConfig.forTimeRounds), currentSessionIndex / forTimeCardCount + 1)
+    }
+
+    /// 0-based index of the exercise that is currently "up" within this round.
+    var forTimePositionInRound: Int { currentSessionIndex % forTimeCardCount }
+
     /// Round index per AMRAP card, persisted onto WorkoutEntry.supersetGroup
     /// so history/repeat restores the splits. All-nil for a single-round
     /// AMRAP (no splits to remember).
@@ -1242,6 +1266,7 @@ final class WorkoutViewModel {
         timeLimitMinutes = 10
         timeLimitSeconds = 0
         sessions = [SessionCard()]
+        forTimeRounds = 1
         emomMinutes = 10
         emomSessions = [SessionCard()]
         workSeconds = 40

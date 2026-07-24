@@ -6,6 +6,8 @@ struct TimerConfig {
     var type: TimerType
     // AMRAP / For Time / Manual
     var totalDuration: TimeInterval = 600
+    /// For Time: how many times to repeat the exercise list (default 1).
+    var forTimeRounds: Int = 1
     /// Multi-round AMRAP: per-round durations in seconds (e.g. two 10-minute
     /// circuits). Empty or a single entry = classic one-block AMRAP using
     /// `totalDuration`.

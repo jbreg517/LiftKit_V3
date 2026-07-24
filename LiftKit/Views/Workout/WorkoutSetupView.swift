@@ -417,7 +417,16 @@ struct WorkoutSetupView: View {
                 LKSectionLabel(text: "TIME CAP")
                 timePicker(minutes: $vm.timeLimitMinutes, seconds: $vm.timeLimitSeconds)
             }
-            sessionsList(cards: $vm.sessions, label: "WORKOUTS")
+            VStack(alignment: .leading, spacing: LKSpacing.xs) {
+                LKSectionLabel(text: "ROUNDS")
+                stepperRow(value: $vm.forTimeRounds, label: "ROUNDS", min: 1, max: 50,
+                           numberEntryTitle: "Rounds", numberEntryMessage: "Rounds through the list",
+                           minEntry: 1, maxEntry: 50)
+                    .padding(LKSpacing.md)
+                    .background(LKColor.surface)
+                    .cornerRadius(LKRadius.large)
+            }
+            sessionsList(cards: $vm.sessions, label: "WORKOUTS (repeat each round)")
         }
     }
 
