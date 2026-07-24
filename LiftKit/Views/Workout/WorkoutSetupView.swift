@@ -5,6 +5,7 @@ struct WorkoutSetupView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @Bindable var vm: WorkoutViewModel
+    @ObservedObject private var store = StoreManager.shared
 
     @State private var numberEntry: NumberEntryItem?
     @State private var showSaveTemplate = false
@@ -14,6 +15,9 @@ struct WorkoutSetupView: View {
     @State private var didApplyProgression = false
     @State private var infoAlert: String?
     @State private var scheduleTemplate: WorkoutTemplate?
+    // Scheduling is a Pro feature. This view is itself presented as a sheet, so
+    // its paywall must present locally — a parent sheet can't stack another.
+    @State private var showPaywall = false
 
     let type: TimerType
 
@@ -63,6 +67,7 @@ struct WorkoutSetupView: View {
         }
         .sheet(isPresented: $showSaveTemplate) { saveTemplateSheet }
         .sheet(item: $scheduleTemplate) { RecurringScheduleSheet(template: $0) }
+        .sheet(isPresented: $showPaywall) { PaywallView(highlight: .scheduling) }
         .alert(infoAlert ?? "", isPresented: Binding(get: { infoAlert != nil }, set: { if !$0 { infoAlert = nil } })) {
             Button("OK", role: .cancel) {}
         }
@@ -125,13 +130,31 @@ struct WorkoutSetupView: View {
 
     // MARK: - Schedule button
 
+    @ViewBuilder
     private var scheduleButton: some View {
-        Button {
-            scheduleWorkout()
-        } label: {
-            Label("Schedule", systemImage: "calendar")
+        if store.isPro {
+            Button {
+                scheduleWorkout()
+            } label: {
+                Label("Schedule", systemImage: "calendar")
+            }
+            .buttonStyle(LKSecondaryButtonStyle())
+        } else {
+            // Locked: grayed out with a padlock; opens the paywall.
+            Button {
+                HapticManager.shared.buttonTap()
+                showPaywall = true
+            } label: {
+                Label("Schedule", systemImage: "lock.fill")
+                    .font(LKFont.bodyBold)
+                    .foregroundColor(LKColor.textMuted)
+                    .frame(maxWidth: .infinity)
+                    .padding(LKSpacing.md)
+                    .background(LKColor.surfaceElevated.opacity(0.5))
+                    .cornerRadius(LKRadius.medium)
+            }
+            .accessibilityLabel("Schedule, a Pro feature. Double tap to upgrade.")
         }
-        .buttonStyle(LKSecondaryButtonStyle())
     }
 
     /// Persists the current workout as a template first — updating the one being
@@ -445,13 +468,9 @@ struct WorkoutSetupView: View {
     // MARK: Reps
 
     private var repsControls: some View {
-        VStack(spacing: LKSpacing.md) {
-            VStack(alignment: .leading, spacing: LKSpacing.xs) {
-                LKSectionLabel(text: "REST BETWEEN SETS")
-                stepperRow(value: $vm.restBetweenSets, label: "sec", min: 0, max: 300, numberEntryTitle: "Rest", numberEntryMessage: "Seconds between sets", minEntry: 0, maxEntry: 300)
-            }
-            exercisesList
-        }
+        // Rest between sets is set per exercise (on each card), seeded from the
+        // Settings default — so different lifts can rest differently.
+        exercisesList
     }
 
     // MARK: Manual
@@ -621,7 +640,9 @@ struct WorkoutSetupView: View {
             }
             if vm.exercises.count < 20 {
                 plainAddButton("Add Exercise") {
-                    vm.exercises.append(ExerciseCard())
+                    var c = ExerciseCard()
+                    c.restSeconds = vm.restBetweenSets   // seed from the workout default
+                    vm.exercises.append(c)
                 }
             }
         }
@@ -966,6 +987,32 @@ struct ExerciseCardView: View {
                     plusAction: { card.weight = min(999, card.weight + weightIncrement) }
                 ) {
                     LKUnitToggle(unit: $card.weightUnit)
+                }
+            }
+
+            // Rest between sets (per exercise)
+            HStack(spacing: LKSpacing.md) {
+                HStack(spacing: 4) {
+                    Image(systemName: "timer").font(.system(size: 13, weight: .semibold))
+                    Text("Rest").font(.system(size: 13, weight: .semibold))
+                }
+                .foregroundColor(LKColor.textSecondary)
+                Spacer(minLength: LKSpacing.md)
+                LKCardControlBlock(
+                    minusAction: { card.restSeconds = max(0, card.restSeconds - 15) },
+                    numberText: card.restSeconds > 0 ? "\(card.restSeconds)" : "Off",
+                    numberAction: {
+                        numberEntry = NumberEntryItem(
+                            title: "Rest", message: "Seconds between sets",
+                            currentValue: Double(card.restSeconds), minValue: 0, maxValue: 600
+                        ) { card.restSeconds = Int($0) }
+                    },
+                    plusAction: { card.restSeconds = min(600, card.restSeconds + 15) }
+                ) {
+                    Text("sec")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(LKColor.textMuted)
+                        .frame(width: cardTagW, alignment: .leading)
                 }
             }
 

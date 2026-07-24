@@ -150,7 +150,15 @@ struct ActiveWorkoutView: View {
         }
         .sheet(isPresented: $showSaveTemplate) { saveTemplateSheet }
         .confirmationDialog("End Workout?", isPresented: $showEndDialog, titleVisibility: .visible) {
-            Button("Save & End")  { vm.endWorkout(context: context) }
+            // Save & End records results and shows the completion summary (same
+            // overlay as a natural finish); the user dismisses it to leave.
+            Button("Save & End") {
+                engine.stop()
+                restEngine.stop()
+                LiveActivityManager.shared.stop()
+                vm.completeWorkout(context: context)
+            }
+            // Discard drops the workout and returns straight home.
             Button("Discard", role: .destructive) { vm.discardWorkout(context: context) }
             Button("Cancel", role: .cancel) {}
         }
@@ -878,7 +886,7 @@ struct ActiveWorkoutView: View {
                         .font(.system(size: 13, weight: .bold))
                         .tracking(1)
                         .foregroundColor(LKColor.onAccent.opacity(0.75))
-                    Text("\(vm.completedRounds)")
+                    Text("\(vm.roundCircuits(engine.currentRound))")
                         .font(LKFont.timer(isLandscapePhone ? 52 : 66))
                         .foregroundColor(LKColor.onAccent)
                         .contentTransition(.numericText())
@@ -891,7 +899,7 @@ struct ActiveWorkoutView: View {
                 .background(LKColor.accent)
                 .clipShape(RoundedRectangle(cornerRadius: LKRadius.large, style: .continuous))
             }
-            .accessibilityLabel("\(vm.completedRounds) rounds completed. Double tap to add a round.")
+            .accessibilityLabel("\(vm.roundCircuits(engine.currentRound)) rounds completed. Double tap to add a round.")
 
             HStack(spacing: LKSpacing.xl) {
                 Button { subtractRound() } label: {
@@ -938,9 +946,9 @@ struct ActiveWorkoutView: View {
         numberEntry = NumberEntryItem(
             title: "Rounds Completed",
             message: "Enter rounds completed",
-            currentValue: Double(vm.completedRounds),
+            currentValue: Double(vm.roundCircuits(engine.currentRound)),
             minValue: 0, maxValue: 999
-        ) { vm.setCompletedRounds(Int($0), timedRound: engine.currentRound) }
+        ) { vm.setRoundCircuits(Int($0), timedRound: engine.currentRound) }
     }
 
     // MARK: - EMOM
@@ -1282,8 +1290,69 @@ struct ActiveWorkoutView: View {
                     setCircle(exIdx: exIdx, setIdx: setIdx, set: set)
                 }
             }
+
+            // Rest between sets — editable per exercise, applies to the next rest.
+            restRow(exIdx: exIdx, ex: ex)
         }
         .lkCard()
+    }
+
+    /// Per-exercise rest-between-sets control. Editing it changes the rest used
+    /// after the next logged set of this exercise.
+    private func restRow(exIdx: Int, ex: ActiveExercise) -> some View {
+        HStack(spacing: LKSpacing.sm) {
+            Image(systemName: "timer")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(LKColor.textMuted)
+            Text("REST BETWEEN SETS")
+                .font(.system(size: 11, weight: .bold))
+                .tracking(1)
+                .foregroundColor(LKColor.textMuted)
+            Spacer(minLength: LKSpacing.sm)
+            HStack(spacing: 0) {
+                Button { adjustRest(exIdx: exIdx, delta: -15) } label: {
+                    Image(systemName: "minus")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(LKColor.textSecondary)
+                        .frame(width: 38, height: 38)
+                }
+                .accessibilityLabel("Decrease rest by 15 seconds")
+
+                Button {
+                    numberEntry = NumberEntryItem(
+                        title: "Rest", message: "Seconds between sets",
+                        currentValue: Double(ex.restSeconds), minValue: 0, maxValue: 600
+                    ) { newValue in
+                        if vm.activeExercises.indices.contains(exIdx) {
+                            vm.activeExercises[exIdx].restSeconds = Int(newValue)
+                        }
+                    }
+                } label: {
+                    Text(ex.restSeconds > 0 ? "\(ex.restSeconds)s" : "Off")
+                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                        .foregroundColor(LKColor.accent)
+                        .frame(minWidth: 48)
+                }
+                .accessibilityLabel("Rest \(ex.restSeconds) seconds, edit")
+
+                Button { adjustRest(exIdx: exIdx, delta: 15) } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(LKColor.accent)
+                        .frame(width: 38, height: 38)
+                }
+                .accessibilityLabel("Increase rest by 15 seconds")
+            }
+            .background(LKColor.surfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+    }
+
+    private func adjustRest(exIdx: Int, delta: Int) {
+        guard vm.activeExercises.indices.contains(exIdx) else { return }
+        vm.activeExercises[exIdx].restSeconds =
+            max(0, min(600, vm.activeExercises[exIdx].restSeconds + delta))
+        HapticManager.shared.buttonTap()
     }
 
     /// Thin gold rail under the exercise header showing sets done vs planned.
@@ -1431,7 +1500,7 @@ struct ActiveWorkoutView: View {
             } else {
                 // Mark complete, start rest timer (unless that was the last set)
                 vm.logSet(exerciseIndex: exIdx, setIndex: setIdx, context: context)
-                afterSetLogged()
+                afterSetLogged(exIdx: exIdx)
                 HapticManager.shared.setLogged()
             }
         } label: {
@@ -1490,7 +1559,7 @@ struct ActiveWorkoutView: View {
         } else {
             vm.activeExercises[exIdx].sets[setIdx].actualReps = reps
             vm.logSet(exerciseIndex: exIdx, setIndex: setIdx, context: context)
-            afterSetLogged()
+            afterSetLogged(exIdx: exIdx)
         }
         HapticManager.shared.setLogged()
     }
@@ -1527,10 +1596,14 @@ struct ActiveWorkoutView: View {
         return "Set \(set.setNumber), \(set.actualReps) reps, \(set.isCompleted ? "completed" : "incomplete")"
     }
 
-    private func startRestIfNeeded() {
-        let rest = Double(vm.activeConfig.restBetweenSets)
-        if rest > 0 {
-            restEngine.startRestTimer(rest)   // fires onPhaseChange → Live Activity
+    /// Starts the rest timer using the just-completed exercise's own rest
+    /// setting (0 = no rest, skip straight to the next set).
+    private func startRestIfNeeded(exIdx: Int) {
+        let seconds = vm.activeExercises.indices.contains(exIdx)
+            ? vm.activeExercises[exIdx].restSeconds
+            : vm.activeConfig.restBetweenSets
+        if seconds > 0 {
+            restEngine.startRestTimer(Double(seconds))   // fires onPhaseChange → Live Activity
         } else {
             updateRepsLiveActivity()
         }
@@ -1538,11 +1611,11 @@ struct ActiveWorkoutView: View {
 
     /// Post-set bookkeeping: start the rest timer, or end the Live Activity
     /// when that set finished the workout.
-    private func afterSetLogged() {
+    private func afterSetLogged(exIdx: Int) {
         if vm.isShowingComplete {
             LiveActivityManager.shared.stop()
         } else {
-            startRestIfNeeded()
+            startRestIfNeeded(exIdx: exIdx)
         }
     }
 
@@ -1625,7 +1698,7 @@ struct ActiveWorkoutView: View {
         vm.activeExercises[exIdx].sets[setIdx].actualDuration = actual
         vm.logSet(exerciseIndex: exIdx, setIndex: setIdx, context: context)
         HapticManager.shared.setLogged()
-        afterSetLogged()
+        afterSetLogged(exIdx: exIdx)
     }
 
     // MARK: - Manual

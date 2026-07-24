@@ -5,7 +5,7 @@ import UIKit
 /// App version, bumped on every commit/push so the running build is
 /// identifiable in Settings. Increment by 0.01 each push.
 enum AppVersion {
-    static let current = "0.66"
+    static let current = "0.67"
 }
 
 struct SettingsView: View {
@@ -29,6 +29,37 @@ struct SettingsView: View {
     @Query private var schedules: [WorkoutSchedule]
 
     private var currentProfile: UserProfile? { profiles.first }
+
+    // MARK: Weight increment (whole 1–10 + optional half step)
+
+    /// The whole-number part of the increment (1–10).
+    private var incrementWholeBinding: Binding<Int> {
+        Binding(
+            get: { max(1, min(10, Int(weightIncrement))) },
+            set: { newWhole in
+                let half = weightIncrement.truncatingRemainder(dividingBy: 1) >= 0.5
+                weightIncrement = Double(newWhole) + (half ? 0.5 : 0)
+            }
+        )
+    }
+
+    /// Whether the increment carries a +0.5 half step.
+    private var incrementHalfBinding: Binding<Bool> {
+        Binding(
+            get: { weightIncrement.truncatingRemainder(dividingBy: 1) >= 0.5 },
+            set: { isHalf in
+                let whole = max(1, min(10, Int(weightIncrement)))
+                weightIncrement = Double(whole) + (isHalf ? 0.5 : 0)
+            }
+        )
+    }
+
+    /// Human label for the effective increment ("5" or "2.5").
+    private var incrementLabel: String {
+        weightIncrement == weightIncrement.rounded()
+            ? "\(Int(weightIncrement))"
+            : String(format: "%.1f", weightIncrement)
+    }
 
     private var buildString: String {
         Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
@@ -125,12 +156,27 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, LKSpacing.xs)
 
-                    Picker("Weight Increment", selection: $weightIncrement) {
-                        ForEach([1.0, 2.5, 5.0, 10.0], id: \.self) { v in
-                            Text(v == v.rounded() ? "\(Int(v))" : String(format: "%.1f", v)).tag(v)
-                        }
+                    Picker("Weight Increment", selection: incrementWholeBinding) {
+                        ForEach(1...10, id: \.self) { n in Text("\(n)").tag(n) }
                     }
+                    .pickerStyle(.menu)
                     .tint(LKColor.accent)
+
+                    Picker("Half step (+0.5)", selection: incrementHalfBinding) {
+                        Text("Off").tag(false)
+                        Text("On").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+
+                    HStack {
+                        Text("Each tap changes weight by")
+                            .font(LKFont.caption)
+                            .foregroundColor(LKColor.textMuted)
+                        Spacer()
+                        Text(incrementLabel)
+                            .font(LKFont.bodyBold)
+                            .foregroundColor(LKColor.textSecondary)
+                    }
                 }
 
                 Section("Appearance") {
@@ -148,6 +194,15 @@ struct SettingsView: View {
                         Text("Metric (kg)").tag("metric")
                     }
                     .pickerStyle(.segmented)
+                    .onChange(of: unitSystem) { _, newValue in
+                        // Default increment follows the unit: 5 for lb, 4 for kg.
+                        // Only swap the untouched default so a custom choice stays.
+                        if newValue == "metric" && weightIncrement == 5 {
+                            weightIncrement = 4
+                        } else if newValue == "imperial" && weightIncrement == 4 {
+                            weightIncrement = 5
+                        }
+                    }
                 } header: {
                     Text("Units")
                 } footer: {

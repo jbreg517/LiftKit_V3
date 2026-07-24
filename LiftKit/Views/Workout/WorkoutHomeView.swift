@@ -301,23 +301,38 @@ struct WorkoutHomeView: View {
                     .tracking(2)
                 Spacer()
                 if !templates.isEmpty {
-                    Menu {
+                    if isPremium {
+                        Menu {
+                            Button {
+                                showSeriesSchedule = true
+                                HapticManager.shared.buttonTap()
+                            } label: {
+                                Label("Schedule a Series", systemImage: "calendar.badge.plus")
+                            }
+                            Button {
+                                showUpcoming = true
+                                HapticManager.shared.buttonTap()
+                            } label: {
+                                Label("Manage Upcoming", systemImage: "calendar.badge.clock")
+                            }
+                        } label: {
+                            Label("Schedule", systemImage: "calendar")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(LKColor.accent)
+                        }
+                    } else {
+                        // Scheduling is a Pro feature — show a locked control that
+                        // opens the paywall instead of the scheduling menu.
                         Button {
-                            showSeriesSchedule = true
+                            vm.paywallFeature = .scheduling
+                            vm.showPaywall = true
                             HapticManager.shared.buttonTap()
                         } label: {
-                            Label("Schedule a Series", systemImage: "calendar.badge.plus")
+                            Label("Schedule", systemImage: "lock.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(LKColor.textMuted)
                         }
-                        Button {
-                            showUpcoming = true
-                            HapticManager.shared.buttonTap()
-                        } label: {
-                            Label("Manage Upcoming", systemImage: "calendar.badge.clock")
-                        }
-                    } label: {
-                        Label("Schedule", systemImage: "calendar")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(LKColor.accent)
+                        .accessibilityLabel("Schedule, a Pro feature. Double tap to upgrade.")
                     }
                 }
             }

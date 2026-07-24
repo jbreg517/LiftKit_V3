@@ -48,6 +48,9 @@ final class TemplateExercise {
     var equipmentRaw: String?
     var targetWeight: Double = 0
     var weightUnitRaw: String = WeightUnit.lb.rawValue
+    /// Reps: rest between sets in seconds for this exercise. 0 = fall back to
+    /// the workout default (seeded from Settings).
+    var restSeconds: Int = 0
     /// Supersetted with the next exercise in the template.
     var linkedToNext: Bool = false
     /// AMRAP: a new timed round starts after this exercise.

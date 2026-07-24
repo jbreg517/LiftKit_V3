@@ -39,6 +39,8 @@ struct ExerciseCard: Identifiable {
     /// Track hold time (e.g. planks) instead of reps.
     var isTimed: Bool = false
     var durationSeconds: Int = 60
+    /// Rest between sets in seconds for this exercise (per-exercise, editable).
+    var restSeconds: Int = 90
     /// Supersetted with the next exercise in the list (alternate between them).
     var linkedToNext: Bool = false
     // Transient progression hint shown in setup (not persisted).
@@ -71,6 +73,8 @@ struct ActiveExercise: Identifiable {
     var weightUnit: WeightUnit
     var isTimed: Bool
     var sets: [ActiveSet]
+    /// Rest between sets in seconds for this exercise. Editable mid-workout.
+    var restSeconds: Int
     /// "Last: 135×5 · 135×5" from the previous session, computed once at start.
     var previousSummary: String? = nil
     /// Superset group index (nil = standalone). Consecutive exercises sharing
@@ -83,6 +87,7 @@ struct ActiveExercise: Identifiable {
         self.weight = card.weight
         self.weightUnit = card.weightUnit
         self.isTimed = card.isTimed
+        self.restSeconds = card.restSeconds
         self.sets = (0..<card.sets).map { i in
             ActiveSet(
                 id: UUID(),
@@ -245,6 +250,7 @@ final class WorkoutViewModel {
             card.reps = ex.targetReps
             card.isTimed = ex.timerType == .forTime
             card.durationSeconds = ex.targetDuration > 0 ? ex.targetDuration : 60
+            card.restSeconds = ex.restSeconds > 0 ? ex.restSeconds : restBetweenSets
             card.linkedToNext = ex.linkedToNext
             return card
         }
@@ -314,6 +320,7 @@ final class WorkoutViewModel {
             c.reps = r.reps
             c.isTimed = r.isTimed
             c.durationSeconds = r.durationSeconds
+            c.restSeconds = restBetweenSets
             return c
         }
         let sessCards: [SessionCard] = rec.sessions.map { r in
@@ -464,6 +471,7 @@ final class WorkoutViewModel {
                 card.weightUnit = sets.first?.weightUnitEnum ?? .lb
                 card.isTimed = entry.timerType == .forTime
                 if let dur = sets.first?.duration { card.durationSeconds = Int(dur) }
+                card.restSeconds = restBetweenSets
                 return card
             }
             // Restore superset links: consecutive entries sharing a group are linked.
@@ -761,10 +769,16 @@ final class WorkoutViewModel {
         }
     }
 
-    /// Sets the counter to an absolute value (the tap-to-type entry), applying
-    /// the difference to the current timed round.
-    func setCompletedRounds(_ newValue: Int, timedRound: Int) {
-        adjustCompletedRounds(by: max(0, newValue) - completedRounds, timedRound: timedRound)
+    /// Circuits counted in a specific timed round. This is what the live counter
+    /// shows, so a multi-round AMRAP restarts the visible count at 0 each round
+    /// even though `completedRounds` (the recorded grand total) keeps climbing.
+    /// For a single-round AMRAP there's only round 1, so it equals the total.
+    func roundCircuits(_ timedRound: Int) -> Int { circuitsByTimedRound[timedRound] ?? 0 }
+
+    /// Sets a single timed round's circuit count to an absolute value (the
+    /// tap-to-type entry on the live counter).
+    func setRoundCircuits(_ newValue: Int, timedRound: Int) {
+        adjustCompletedRounds(by: max(0, newValue) - roundCircuits(timedRound), timedRound: timedRound)
     }
 
     /// Removes counted circuits, preferring the round being undone, then the
@@ -1012,6 +1026,7 @@ final class WorkoutViewModel {
                     weightUnit: card.weightUnit,
                     linkedToNext: card.linkedToNext
                 )
+                te.restSeconds = card.restSeconds
                 te.template = template
                 context.insert(te)
             }
@@ -1066,6 +1081,7 @@ final class WorkoutViewModel {
                     weightUnit: card.weightUnit,
                     linkedToNext: card.linkedToNext
                 )
+                te.restSeconds = card.restSeconds
                 te.template = template
                 context.insert(te)
             }
@@ -1234,7 +1250,9 @@ final class WorkoutViewModel {
         intervalSessions = [SessionCard()]
         // Seed rest-between-sets from the user's Settings default (falls back to 90s).
         restBetweenSets = Int(UserDefaults.standard.object(forKey: "defaultRestSeconds") as? Double ?? 90)
-        exercises = [ExerciseCard()]
+        var firstExercise = ExerciseCard()
+        firstExercise.restSeconds = restBetweenSets
+        exercises = [firstExercise]
         manualSessions = [SessionCard()]
     }
 }

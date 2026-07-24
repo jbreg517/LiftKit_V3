@@ -100,6 +100,7 @@ struct RootTabView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject private var quickActions = QuickActions.shared
+    @ObservedObject private var store = StoreManager.shared
     @Query private var templates: [WorkoutTemplate]
     @Query private var schedules: [WorkoutSchedule]
 
@@ -126,7 +127,16 @@ struct RootTabView: View {
             HealthView(vm: vm)
                 .tag(3)
                 .tabItem {
-                    Label("Health", systemImage: "heart.text.square.fill")
+                    if store.isPro {
+                        Label("Health", systemImage: "heart.text.square.fill")
+                    } else {
+                        // Locked: grayed heart with a semi-transparent padlock over it.
+                        Label {
+                            Text("Health")
+                        } icon: {
+                            Image(uiImage: RootTabView.lockedHealthIcon)
+                        }
+                    }
                 }
 
             SettingsView()
@@ -162,6 +172,29 @@ struct RootTabView: View {
             if phase == .background { refreshQuickActions() }
         }
     }
+
+    /// The Health tab icon for free users: a grayed heart with a semi-transparent
+    /// padlock centered over it, signalling the tab is a Pro feature. Composited
+    /// once (SwiftUI's `.tabItem` can't overlay views, so we bake a UIImage).
+    static let lockedHealthIcon: UIImage = {
+        let heart = (UIImage(systemName: "heart.text.square.fill",
+                             withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .regular))
+            ?? UIImage()).withTintColor(.systemGray, renderingMode: .alwaysOriginal)
+        let lock = UIImage(systemName: "lock.fill",
+                           withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .bold))?
+            .withTintColor(UIColor.label.withAlphaComponent(0.6), renderingMode: .alwaysOriginal)
+        let size = heart.size
+        let composed = UIGraphicsImageRenderer(size: size).image { _ in
+            heart.draw(in: CGRect(origin: .zero, size: size))
+            if let lock {
+                let ls = lock.size
+                lock.draw(in: CGRect(x: (size.width - ls.width) / 2,
+                                     y: (size.height - ls.height) / 2,
+                                     width: ls.width, height: ls.height))
+            }
+        }
+        return composed.withRenderingMode(.alwaysOriginal)
+    }()
 
     // MARK: Quick actions (Home Screen long-press)
 
