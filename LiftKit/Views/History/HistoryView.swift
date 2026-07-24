@@ -5,13 +5,45 @@ struct HistoryView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \WorkoutSession.startedAt, order: .reverse) private var sessions: [WorkoutSession]
     @Bindable var vm: WorkoutViewModel
+    @AppStorage("healthKitEnabled") private var healthKitEnabled = false
+    @State private var externalWorkouts: [HealthKitManager.ExternalWorkout] = []
 
     private var completed: [WorkoutSession] { sessions.filter { !$0.isActive } }
+
+    private enum HistoryItem: Identifiable {
+        case native(WorkoutSession)
+        case external(HealthKitManager.ExternalWorkout)
+        var id: String {
+            switch self {
+            case .native(let s):   return "n-\(s.id.uuidString)"
+            case .external(let e): return "e-\(e.id.uuidString)"
+            }
+        }
+        var date: Date {
+            switch self {
+            case .native(let s):   return s.startedAt
+            case .external(let e): return e.date
+            }
+        }
+    }
+
+    /// Native LiftKit sessions + external Health workouts, newest first.
+    private var mergedItems: [HistoryItem] {
+        (completed.map(HistoryItem.native) + externalWorkouts.map(HistoryItem.external))
+            .sorted { $0.date > $1.date }
+    }
+
+    private func loadExternal() async {
+        guard healthKitEnabled else { externalWorkouts = []; return }
+        let end = Date()
+        let start = Calendar.current.date(byAdding: .month, value: -12, to: end) ?? end
+        externalWorkouts = await HealthKitManager.shared.externalWorkouts(from: start, to: end)
+    }
 
     var body: some View {
         NavigationStack {
             Group {
-                if completed.isEmpty {
+                if completed.isEmpty && externalWorkouts.isEmpty {
                     ContentUnavailableView(
                         "No Workouts Yet",
                         systemImage: "figure.strengthtraining.traditional",
@@ -20,32 +52,14 @@ struct HistoryView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: LKSpacing.sm) {
-                            ForEach(completed) { session in
-                                SwipeToDeleteRow(enabled: true, onDelete: {
-                                    context.delete(session)
-                                    try? context.save()
-                                }) {
-                                    NavigationLink {
-                                        WorkoutDetailView(session: session, vm: vm)
-                                    } label: {
-                                        SessionRow(session: session)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .contextMenu {
-                                        Button {
-                                            vm.loadFromSession(session)
-                                        } label: {
-                                            Label("Do Again", systemImage: "arrow.counterclockwise")
-                                        }
-                                        Button(role: .destructive) {
-                                            context.delete(session)
-                                            try? context.save()
-                                        } label: {
-                                            Label("Delete", systemImage: "trash")
-                                        }
-                                    }
+                            ForEach(mergedItems) { item in
+                                switch item {
+                                case .native(let session):
+                                    nativeRow(session)
+                                case .external(let workout):
+                                    ExternalWorkoutRow(workout: workout)
+                                        .padding(.horizontal, LKSpacing.md)
                                 }
-                                .padding(.horizontal, LKSpacing.md)
                             }
                         }
                         .padding(.vertical, LKSpacing.md)
@@ -55,9 +69,42 @@ struct HistoryView: View {
             }
             .navigationTitle("History")
             .background(LKColor.background.ignoresSafeArea())
+            .task { await loadExternal() }
+            .onChange(of: healthKitEnabled) { _, _ in
+                Task { await loadExternal() }
+            }
         }
         // Note: showWorkoutSetup / showActiveWorkout are presented at the root
         // (LiftKitApp.RootTabView) so only one presenter drives each binding.
+    }
+
+    @ViewBuilder
+    private func nativeRow(_ session: WorkoutSession) -> some View {
+        SwipeToDeleteRow(enabled: true, onDelete: {
+            context.delete(session)
+            try? context.save()
+        }) {
+            NavigationLink {
+                WorkoutDetailView(session: session, vm: vm)
+            } label: {
+                SessionRow(session: session)
+            }
+            .buttonStyle(.plain)
+            .contextMenu {
+                Button {
+                    vm.loadFromSession(session)
+                } label: {
+                    Label("Do Again", systemImage: "arrow.counterclockwise")
+                }
+                Button(role: .destructive) {
+                    context.delete(session)
+                    try? context.save()
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
+        }
+        .padding(.horizontal, LKSpacing.md)
     }
 }
 
@@ -109,6 +156,79 @@ struct SessionRow: View {
         )
         .cornerRadius(LKRadius.large)
         .contentShape(Rectangle())
+    }
+}
+
+// MARK: - External Workout Row (from Apple Health)
+/// A read-only row for a workout logged by another app or an Apple Watch,
+/// surfaced so History shows the user's complete training picture.
+struct ExternalWorkoutRow: View {
+    let workout: HealthKitManager.ExternalWorkout
+
+    private var durationText: String {
+        let mins = Int(workout.duration) / 60
+        if mins >= 60 { return "\(mins / 60)h \(mins % 60)m" }
+        return "\(mins)m"
+    }
+
+    private var distanceText: String? {
+        guard let d = workout.distanceMeters, d > 0 else { return nil }
+        return String(format: "%.2f km", d / 1000)
+    }
+
+    var body: some View {
+        HStack(spacing: LKSpacing.md) {
+            Image(systemName: workout.icon)
+                .font(.title3)
+                .foregroundColor(LKColor.accent)
+                .frame(width: 30)
+            VStack(alignment: .leading, spacing: LKSpacing.xs) {
+                HStack {
+                    Text(workout.typeLabel)
+                        .font(.headline)
+                        .foregroundColor(LKColor.textPrimary)
+                    Spacer()
+                    HStack(spacing: 3) {
+                        Image(systemName: "heart.text.square")
+                            .font(.system(size: 9))
+                        Text(workout.sourceName)
+                            .font(.caption2)
+                            .lineLimit(1)
+                    }
+                    .foregroundColor(LKColor.textSecondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(LKColor.surfaceElevated)
+                    .clipShape(Capsule())
+                }
+                HStack(spacing: LKSpacing.sm) {
+                    Text(workout.date.formatted(date: .abbreviated, time: .omitted))
+                    Text("·")
+                    Text(durationText)
+                    if let distanceText {
+                        Text("·")
+                        Text(distanceText)
+                    }
+                    if workout.energyKcal > 0 {
+                        Text("·")
+                        Text("\(Int(workout.energyKcal)) kcal")
+                    }
+                }
+                .font(LKFont.caption)
+                .foregroundColor(LKColor.textSecondary)
+            }
+        }
+        .padding(LKSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(LKColor.surface)
+        .overlay(
+            RoundedRectangle(cornerRadius: LKRadius.large)
+                .strokeBorder(LKColor.surfaceElevated, lineWidth: 1)
+        )
+        .cornerRadius(LKRadius.large)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(workout.typeLabel) from \(workout.sourceName), \(durationText)")
     }
 }
 

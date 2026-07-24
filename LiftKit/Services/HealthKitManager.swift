@@ -33,6 +33,11 @@ final class HealthKitManager {
             HKQuantityType(.dietaryProtein),
             HKQuantityType(.dietaryCarbohydrates),
             HKQuantityType(.dietaryFatTotal),
+            // Workouts from other apps / Apple Watch, for the unified history.
+            HKObjectType.workoutType(),
+            HKQuantityType(.activeEnergyBurned),
+            HKQuantityType(.distanceWalkingRunning),
+            HKQuantityType(.distanceCycling),
         ]
     }
 
@@ -180,6 +185,95 @@ final class HealthKitManager {
             _ = try await builder.finishWorkout()
         } catch {
             // Best-effort: a denied write or unavailable store shouldn't surface.
+        }
+    }
+
+    // MARK: - Read workouts (unified history)
+
+    /// A workout logged in Apple Health by another app or an Apple Watch — e.g.
+    /// a RunKit run or a Watch session. LiftKit's own workouts are excluded so
+    /// the unified history never double-lists them.
+    struct ExternalWorkout: Identifiable {
+        let id: UUID
+        let date: Date
+        let end: Date
+        let activityType: HKWorkoutActivityType
+        let energyKcal: Double
+        let distanceMeters: Double?
+        let sourceName: String
+
+        var duration: TimeInterval { end.timeIntervalSince(date) }
+
+        var typeLabel: String {
+            switch activityType {
+            case .running:                    return "Run"
+            case .walking:                    return "Walk"
+            case .cycling:                    return "Ride"
+            case .hiking:                     return "Hike"
+            case .swimming:                   return "Swim"
+            case .rowing:                     return "Row"
+            case .elliptical:                 return "Elliptical"
+            case .yoga:                       return "Yoga"
+            case .coreTraining:               return "Core"
+            case .highIntensityIntervalTraining: return "HIIT"
+            case .traditionalStrengthTraining, .functionalStrengthTraining:
+                                              return "Strength"
+            default:                          return "Workout"
+            }
+        }
+
+        var icon: String {
+            switch activityType {
+            case .running:                    return "figure.run"
+            case .walking:                    return "figure.walk"
+            case .cycling:                    return "figure.outdoor.cycle"
+            case .hiking:                     return "figure.hiking"
+            case .swimming:                   return "figure.pool.swim"
+            case .rowing:                     return "figure.rower"
+            case .elliptical:                 return "figure.elliptical"
+            case .yoga:                       return "figure.yoga"
+            case .coreTraining:               return "figure.core.training"
+            case .highIntensityIntervalTraining: return "figure.highintensity.intervaltraining"
+            case .traditionalStrengthTraining, .functionalStrengthTraining:
+                                              return "dumbbell.fill"
+            default:                          return "figure.mixed.cardio"
+            }
+        }
+    }
+
+    /// External workouts in [start, end], most recent first. Empty when disabled
+    /// or unavailable. LiftKit-authored workouts are filtered out (shown natively).
+    func externalWorkouts(from start: Date, to end: Date, limit: Int = 50) async -> [ExternalWorkout] {
+        guard isEnabled, isAvailable else { return [] }
+        let selfBundle = Bundle.main.bundleIdentifier
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.workout(predicate)],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .reverse)],
+            limit: limit)
+        do {
+            let workouts = try await descriptor.result(for: store)
+            return workouts.compactMap { w -> ExternalWorkout? in
+                if let selfBundle, w.sourceRevision.source.bundleIdentifier == selfBundle {
+                    return nil   // our own workout — already shown natively
+                }
+                let energy = w.statistics(for: HKQuantityType(.activeEnergyBurned))?
+                    .sumQuantity()?.doubleValue(for: .kilocalorie()) ?? 0
+                let distance = w.statistics(for: HKQuantityType(.distanceWalkingRunning))?
+                    .sumQuantity()?.doubleValue(for: .meter())
+                    ?? w.statistics(for: HKQuantityType(.distanceCycling))?
+                    .sumQuantity()?.doubleValue(for: .meter())
+                return ExternalWorkout(
+                    id: w.uuid,
+                    date: w.startDate,
+                    end: w.endDate,
+                    activityType: w.workoutActivityType,
+                    energyKcal: energy,
+                    distanceMeters: distance,
+                    sourceName: w.sourceRevision.source.name)
+            }
+        } catch {
+            return []
         }
     }
 }
