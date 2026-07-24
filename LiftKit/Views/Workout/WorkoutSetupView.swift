@@ -419,7 +419,9 @@ struct WorkoutSetupView: View {
                     intervalPreset("EMOM-style", work: 50, rest: 10, rounds: 10)
                 }
             }
-            sessionsList(cards: $vm.intervalSessions, label: "WORKOUTS")
+            sessionsList(cards: $vm.intervalSessions,
+                         label: "WORKOUTS (rotate each round — link to combine)",
+                         linkable: true, linkNoun: "interval")
         }
     }
 
@@ -531,7 +533,7 @@ struct WorkoutSetupView: View {
 
     // MARK: - Sessions list
 
-    private func sessionsList(cards: Binding<[SessionCard]>, label: String, linkable: Bool = false) -> some View {
+    private func sessionsList(cards: Binding<[SessionCard]>, label: String, linkable: Bool = false, linkNoun: String = "minute") -> some View {
         VStack(alignment: .leading, spacing: LKSpacing.xs) {
             LKSectionLabel(text: label)
             // Iterate by identity (not index) and bind by id. Index-based ForEach
@@ -549,7 +551,7 @@ struct WorkoutSetupView: View {
                     )
                 }
                 if linkable && index < cards.wrappedValue.count - 1 {
-                    minuteLink(cards: cards, card: card)
+                    minuteLink(cards: cards, card: card, noun: linkNoun)
                 }
             }
             plainAddButton("Add Workout") {
@@ -558,10 +560,10 @@ struct WorkoutSetupView: View {
         }
     }
 
-    /// "Same minute" toggle shown between consecutive EMOM cards. Linked cards
-    /// are all done every minute (a complex, e.g. clean + press + squat)
-    /// instead of rotating one per minute.
-    private func minuteLink(cards: Binding<[SessionCard]>, card: SessionCard) -> some View {
+    /// "Same minute/interval" toggle shown between consecutive cards. Linked
+    /// cards are all done in the same slot (a complex, e.g. clean + press +
+    /// squat) instead of rotating one per minute/round.
+    private func minuteLink(cards: Binding<[SessionCard]>, card: SessionCard, noun: String = "minute") -> some View {
         let linked = card.linkedToNext
         return Button {
             if let i = cards.wrappedValue.firstIndex(where: { $0.id == card.id }) {
@@ -572,7 +574,7 @@ struct WorkoutSetupView: View {
             HStack(spacing: 4) {
                 Image(systemName: linked ? "link.circle.fill" : "link.circle")
                     .font(.system(size: 13))
-                Text(linked ? "Same minute" : "Link into same minute")
+                Text(linked ? "Same \(noun)" : "Link into same \(noun)")
                     .font(.system(size: 11, weight: .semibold))
             }
             .foregroundColor(linked ? LKColor.accent : LKColor.textMuted)

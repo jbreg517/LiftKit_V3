@@ -394,6 +394,7 @@ final class WorkoutViewModel {
             // Persist EMOM minute-grouping / AMRAP round-grouping so
             // history/repeat restores the links.
             if selectedTimerType == .emom { entry.supersetGroup = cardGroups[i] }
+            if selectedTimerType == .intervals { entry.supersetGroup = cardGroups[i] }
             if selectedTimerType == .amrap { entry.supersetGroup = roundGroups[i] }
             entry.session = session
             entry.exercise = exercise
@@ -520,9 +521,18 @@ final class WorkoutViewModel {
                 card.name = entry.exercise?.name ?? ""
                 card.equipment = entry.exercise.flatMap { $0.equipmentEnum } ?? Equipment.none
                 let sets = entry.sortedSets
+                card.reps = sets.first?.plannedReps ?? sets.first?.reps ?? 10
                 card.weight = sets.first?.weight ?? 0
                 card.weightUnit = sets.first?.weightUnitEnum ?? .lb
                 return card
+            }
+            // Restore superset links: consecutive entries sharing a group rotate
+            // together in the same interval.
+            for i in intervalSessions.indices where i + 1 < entries.count {
+                let g = entries[i].supersetGroup
+                if g != nil && g == entries[i + 1].supersetGroup {
+                    intervalSessions[i].linkedToNext = true
+                }
             }
             if intervalSessions.isEmpty { intervalSessions = [SessionCard()] }
         case .manual:
@@ -881,9 +891,19 @@ final class WorkoutViewModel {
                 }
             }
         case .intervals:
+            // One work slot per round, rotating the exercise list (linked cards
+            // share a round). Count rounds *started* so the current one is
+            // attributed even if the athlete ends mid-round.
             let cycle = max(1, activeConfig.workDuration + activeConfig.restDuration)
             let started = max(1, min(activeConfig.intervalRounds, Int(active / cycle) + 1))
-            for i in cards.indices { performances[i] = started }
+            let slots = Self.minuteSlots(for: cards)
+            if !slots.isEmpty {
+                for r in 1...started {
+                    for idx in slots[(r - 1) % slots.count] where idx < cards.count {
+                        performances[idx] += 1
+                    }
+                }
+            }
         case .forTime:
             // One pass through the list; count the cards marked complete
             // (all of them when the workout finished).
@@ -1110,6 +1130,11 @@ final class WorkoutViewModel {
 
     /// Minute-slots of the running workout's cards.
     var emomSlots: [[Int]] { Self.minuteSlots(for: activeSessionCards) }
+
+    /// Interval-slots of the running workout's cards. Intervals rotate the
+    /// exercise list one slot per round (like EMOM minutes); linked cards share
+    /// a slot and are performed together as a superset that round.
+    var intervalSlots: [[Int]] { Self.minuteSlots(for: activeSessionCards) }
 
     /// AMRAP round-slots over a card list: card indices grouped into rounds,
     /// split after cards flagged `roundBreakAfter`. One slot = one circuit;

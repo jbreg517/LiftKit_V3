@@ -226,6 +226,11 @@ struct ActiveWorkoutView: View {
             let slots = vm.amrapSlots
             guard !slots.isEmpty else { return [] }
             return slots[min(max(0, engine.currentRound - 1), slots.count - 1)]
+        case .intervals:
+            // One slot per round, rotating the list (linked cards share a slot).
+            let slots = vm.intervalSlots
+            guard !slots.isEmpty else { return [] }
+            return slots[(engine.currentRound - 1) % slots.count]
         default:
             return [min(vm.currentSessionIndex, count - 1)]
         }
@@ -246,21 +251,22 @@ struct ActiveWorkoutView: View {
     }
 
     // MARK: - Timer Controls
+    // Two equally-sized, easy-to-hit controls: Next (advance the phase/round)
+    // and Pause/Resume. The old small Stop button was removed — "End" in the nav
+    // bar covers ending the workout.
     private func timerControls(engine: TimerEngine) -> some View {
-        // In landscape (compact height) the controls shrink so the timer can dominate.
-        let mainSize: CGFloat = isLandscapePhone ? 60 : 88
-        let sideSize: CGFloat = isLandscapePhone ? 44 : 60
-        return HStack(spacing: isLandscapePhone ? LKSpacing.lg : LKSpacing.xl) {
-            // Skip
+        let btnSize: CGFloat = isLandscapePhone ? 68 : 96
+        return HStack(spacing: isLandscapePhone ? LKSpacing.xl : 40) {
+            // Next / Skip — advances to the next phase or round.
             Button { engine.skip(); HapticManager.shared.buttonTap() } label: {
                 Image(systemName: "forward.fill")
-                    .font(isLandscapePhone ? .body : .title2)
-                    .foregroundColor(LKColor.textSecondary)
-                    .frame(width: sideSize, height: sideSize)
+                    .font(isLandscapePhone ? .title : .largeTitle)
+                    .foregroundColor(LKColor.accent)
+                    .frame(width: btnSize, height: btnSize)
                     .background(LKColor.surfaceElevated)
                     .clipShape(Circle())
             }
-            .accessibilityLabel("Skip")
+            .accessibilityLabel("Next")
 
             // Pause / Resume
             Button {
@@ -269,27 +275,13 @@ struct ActiveWorkoutView: View {
                 HapticManager.shared.buttonTap()
             } label: {
                 Image(systemName: engine.isRunning ? "pause.fill" : "play.fill")
-                    .font(isLandscapePhone ? .title2 : .title)
+                    .font(isLandscapePhone ? .title : .largeTitle)
                     .foregroundColor(LKColor.onAccent)
-                    .frame(width: mainSize, height: mainSize)
+                    .frame(width: btnSize, height: btnSize)
                     .background(LKColor.accent)
                     .clipShape(Circle())
             }
             .accessibilityLabel(engine.isRunning ? "Pause" : "Resume")
-
-            // Stop
-            Button {
-                showEndDialog = true
-                HapticManager.shared.buttonTap()
-            } label: {
-                Image(systemName: "stop.fill")
-                    .font(isLandscapePhone ? .body : .title2)
-                    .foregroundColor(LKColor.danger)
-                    .frame(width: sideSize, height: sideSize)
-                    .background(LKColor.surfaceElevated)
-                    .clipShape(Circle())
-            }
-            .accessibilityLabel("Stop")
         }
     }
 
@@ -350,10 +342,11 @@ struct ActiveWorkoutView: View {
                 // In a multi-exercise minute the name identifies each row
                 // (shown instead of the wider equipment capsule).
                 Text(card.name.isEmpty ? "Workout \(sessionIndex + 1)" : card.name)
-                    .font(LKFont.caption)
+                    .font(LKFont.bodyBold)
                     .foregroundColor(LKColor.textPrimary)
                     .lineLimit(1)
-                    .frame(maxWidth: 96, alignment: .leading)
+                    .minimumScaleFactor(0.7)
+                    .frame(maxWidth: 120, alignment: .leading)
             } else if card.equipment != .none {
                 Label {
                     Text(card.equipment.rawValue)
@@ -374,9 +367,9 @@ struct ActiveWorkoutView: View {
                     HapticManager.shared.buttonTap()
                 } label: {
                     Image(systemName: "minus")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(LKColor.textSecondary)
-                        .frame(width: 32, height: 40)
+                        .frame(width: 42, height: 50)
                 }
                 .accessibilityLabel("Decrease weight by 5")
 
@@ -388,14 +381,14 @@ struct ActiveWorkoutView: View {
                 } label: {
                     VStack(spacing: 0) {
                         Text("\(Int(card.weight))")
-                            .font(.system(size: 17, weight: .bold, design: .monospaced))
+                            .font(.system(size: 21, weight: .bold, design: .monospaced))
                             .foregroundColor(LKColor.accent)
                             .contentTransition(.numericText())
                         Text(card.weightUnit.rawValue)
-                            .font(.system(size: 8, weight: .semibold))
+                            .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(LKColor.textMuted)
                     }
-                    .frame(minWidth: 44)
+                    .frame(minWidth: 54)
                 }
                 .accessibilityLabel("\(Int(card.weight)) \(card.weightUnit.rawValue), edit weight")
 
@@ -404,9 +397,9 @@ struct ActiveWorkoutView: View {
                     HapticManager.shared.buttonTap()
                 } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(LKColor.accent)
-                        .frame(width: 32, height: 40)
+                        .frame(width: 42, height: 50)
                 }
                 .accessibilityLabel("Increase weight by 5")
             }
@@ -423,9 +416,9 @@ struct ActiveWorkoutView: View {
                     HapticManager.shared.buttonTap()
                 } label: {
                     Image(systemName: "minus")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(LKColor.textSecondary)
-                        .frame(width: 32, height: 40)
+                        .frame(width: 42, height: 50)
                 }
                 .accessibilityLabel("Decrease reps")
 
@@ -441,14 +434,14 @@ struct ActiveWorkoutView: View {
                 } label: {
                     VStack(spacing: 0) {
                         Text("\(card.reps)")
-                            .font(.system(size: 17, weight: .bold, design: .monospaced))
+                            .font(.system(size: 21, weight: .bold, design: .monospaced))
                             .foregroundColor(LKColor.accent)
                             .contentTransition(.numericText())
                         Text("reps")
-                            .font(.system(size: 8, weight: .semibold))
+                            .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(LKColor.textMuted)
                     }
-                    .frame(minWidth: 40)
+                    .frame(minWidth: 48)
                 }
                 .accessibilityLabel("\(card.reps) reps, edit reps")
 
@@ -459,9 +452,9 @@ struct ActiveWorkoutView: View {
                     HapticManager.shared.buttonTap()
                 } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(LKColor.accent)
-                        .frame(width: 32, height: 40)
+                        .frame(width: 42, height: 50)
                 }
                 .accessibilityLabel("Increase reps")
             }
@@ -483,17 +476,6 @@ struct ActiveWorkoutView: View {
                     .background(LKColor.surface)
                     .cornerRadius(LKRadius.small)
                     .padding(.horizontal, LKSpacing.md)
-            }
-        }
-    }
-
-    // MARK: - Multi-session indicator
-    private func multiSessionIndicator() -> some View {
-        Group {
-            if !isLandscapePhone, vm.activeSessionCards.count > 1 {
-                Text("Workout \(vm.currentSessionIndex + 1) of \(vm.activeSessionCards.count)")
-                    .font(LKFont.body)
-                    .foregroundColor(LKColor.textSecondary)
             }
         }
     }
@@ -884,68 +866,81 @@ struct ActiveWorkoutView: View {
         }
     }
 
-    // Rounds counter as one unified rounded control, matching the stepper
-    // styling used across the workout cards.
+    // Rounds counter: one large gold button that adds a round on tap (the main
+    // action during an AMRAP), with small Remove / Edit corrections beneath.
     private var roundsCounter: some View {
-        VStack(spacing: LKSpacing.xs) {
-            Text("ROUNDS COMPLETED")
-                .font(LKFont.caption)
-                .foregroundColor(LKColor.textMuted)
-                .tracking(1)
-            HStack(spacing: 0) {
-                Button {
-                    vm.adjustCompletedRounds(by: -1, timedRound: engine.currentRound)
-                    HapticManager.shared.buttonTap()
-                } label: {
-                    Image(systemName: "minus")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(LKColor.textSecondary)
-                        .frame(width: 52, height: isLandscapePhone ? 56 : 68)
-                }
-                .accessibilityLabel("Subtract round")
-
-                Button {
-                    numberEntry = NumberEntryItem(
-                        title: "Rounds Completed",
-                        message: "Enter rounds completed",
-                        currentValue: Double(vm.completedRounds),
-                        minValue: 0, maxValue: 999
-                    ) { vm.setCompletedRounds(Int($0), timedRound: engine.currentRound) }
-                } label: {
+        VStack(spacing: LKSpacing.sm) {
+            Button {
+                addRound()
+            } label: {
+                VStack(spacing: 2) {
+                    Text("ROUNDS COMPLETED")
+                        .font(.system(size: 13, weight: .bold))
+                        .tracking(1)
+                        .foregroundColor(LKColor.onAccent.opacity(0.75))
                     Text("\(vm.completedRounds)")
-                        .font(LKFont.timer(isLandscapePhone ? 40 : 48))
-                        .foregroundColor(LKColor.accent)
+                        .font(LKFont.timer(isLandscapePhone ? 52 : 66))
+                        .foregroundColor(LKColor.onAccent)
                         .contentTransition(.numericText())
-                        .frame(minWidth: 72)
+                    Text("Tap to add a round")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(LKColor.onAccent.opacity(0.75))
                 }
-                .accessibilityLabel("\(vm.completedRounds) rounds completed, edit")
-
-                Button {
-                    vm.adjustCompletedRounds(by: 1, timedRound: engine.currentRound)
-                    // Record the split at total elapsed time (earlier timed
-                    // rounds + progress through the current one).
-                    let durations = vm.activeConfig.roundDurations
-                    let elapsed: TimeInterval
-                    if durations.count > 1 {
-                        let prior = durations.prefix(engine.currentRound - 1).reduce(0, +)
-                        let current = durations[min(engine.currentRound - 1, durations.count - 1)]
-                        elapsed = prior + max(0, current - engine.timeRemaining)
-                    } else {
-                        elapsed = vm.activeConfig.totalDuration - engine.timeRemaining
-                    }
-                    vm.recordSplit(elapsed, context: context)
-                    HapticManager.shared.buttonTap()
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(LKColor.accent)
-                        .frame(width: 52, height: isLandscapePhone ? 56 : 68)
-                }
-                .accessibilityLabel("Add round")
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, isLandscapePhone ? LKSpacing.md : LKSpacing.lg)
+                .background(LKColor.accent)
+                .clipShape(RoundedRectangle(cornerRadius: LKRadius.large, style: .continuous))
             }
-            .background(LKColor.surfaceElevated)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .accessibilityLabel("\(vm.completedRounds) rounds completed. Double tap to add a round.")
+
+            HStack(spacing: LKSpacing.xl) {
+                Button { subtractRound() } label: {
+                    Label("Remove", systemImage: "minus.circle")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(LKColor.textSecondary)
+                }
+                .accessibilityLabel("Remove a round")
+
+                Button { editRounds() } label: {
+                    Label("Edit", systemImage: "pencil")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(LKColor.textSecondary)
+                }
+                .accessibilityLabel("Edit rounds completed")
+            }
         }
+        .padding(.horizontal, LKSpacing.md)
+    }
+
+    /// Adds one round and records the split at total elapsed time (earlier timed
+    /// rounds + progress through the current one).
+    private func addRound() {
+        vm.adjustCompletedRounds(by: 1, timedRound: engine.currentRound)
+        let durations = vm.activeConfig.roundDurations
+        let elapsed: TimeInterval
+        if durations.count > 1 {
+            let prior = durations.prefix(engine.currentRound - 1).reduce(0, +)
+            let current = durations[min(engine.currentRound - 1, durations.count - 1)]
+            elapsed = prior + max(0, current - engine.timeRemaining)
+        } else {
+            elapsed = vm.activeConfig.totalDuration - engine.timeRemaining
+        }
+        vm.recordSplit(elapsed, context: context)
+        HapticManager.shared.buttonTap()
+    }
+
+    private func subtractRound() {
+        vm.adjustCompletedRounds(by: -1, timedRound: engine.currentRound)
+        HapticManager.shared.buttonTap()
+    }
+
+    private func editRounds() {
+        numberEntry = NumberEntryItem(
+            title: "Rounds Completed",
+            message: "Enter rounds completed",
+            currentValue: Double(vm.completedRounds),
+            minValue: 0, maxValue: 999
+        ) { vm.setCompletedRounds(Int($0), timedRound: engine.currentRound) }
     }
 
     // MARK: - EMOM
@@ -962,7 +957,7 @@ struct ActiveWorkoutView: View {
                     .foregroundColor(LKColor.textSecondary)
             } info: {
                 slotWeightChips
-                upNextView
+                upNextPreview(slots: vm.emomSlots)
                 timerControls(engine: engine)
                 notesDisplay()
             }
@@ -987,11 +982,10 @@ struct ActiveWorkoutView: View {
         }
     }
 
-    // "Up Next" previews the following minute-slot; hidden when every exercise
-    // is linked into one slot (the same complex repeats every minute).
+    // "Up Next" previews the following slot (EMOM minute / Intervals round);
+    // hidden when everything is linked into one slot (the same complex repeats).
     @ViewBuilder
-    private var upNextView: some View {
-        let slots = vm.emomSlots
+    private func upNextPreview(slots: [[Int]]) -> some View {
         if slots.count > 1 {
             let cards = vm.activeSessionCards
             let nextSlot = slots[engine.currentRound % slots.count]
@@ -1000,11 +994,11 @@ struct ActiveWorkoutView: View {
                 .joined(separator: " + ")
             VStack(spacing: LKSpacing.xs) {
                 Text("UP NEXT")
-                    .font(LKFont.caption)
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(LKColor.textMuted)
                     .tracking(1)
                 Text(label)
-                    .font(LKFont.body)
+                    .font(LKFont.bodyBold)
                     .foregroundColor(LKColor.textSecondary)
                     .lineLimit(1)
             }
@@ -1012,12 +1006,14 @@ struct ActiveWorkoutView: View {
     }
 
     // MARK: - For Time
+    // Shows the whole list of exercises to complete. Finished ones check off and
+    // fade to the top; the current one is highlighted with its weight/reps
+    // controls, and "Mark Complete" advances down the list.
     private var forTimeContent: some View {
         let isOverCap = engine.elapsedTime > vm.activeConfig.totalDuration
         return VStack(spacing: 0) {
             Spacer()
             timerLayout {
-                multiSessionIndicator()
                 if isOverCap {
                     Text("TIME CAP")
                         .font(LKFont.phase)
@@ -1031,13 +1027,81 @@ struct ActiveWorkoutView: View {
                     .font(LKFont.caption)
                     .foregroundColor(LKColor.textMuted)
             } info: {
-                activeWeightChip(sessionIndex: vm.currentSessionIndex)
-                markCompleteButton
+                forTimeChecklist
+                if vm.currentSessionIndex < vm.activeSessionCards.count {
+                    markCompleteButton
+                }
                 timerControls(engine: engine)
                 notesDisplay()
             }
             Spacer()
         }
+    }
+
+    /// The ordered list of For Time exercises with per-item completion state.
+    private var forTimeChecklist: some View {
+        VStack(spacing: LKSpacing.sm) {
+            ForEach(Array(vm.activeSessionCards.enumerated()), id: \.element.id) { idx, card in
+                forTimeRow(idx: idx, card: card)
+            }
+        }
+        .padding(.horizontal, LKSpacing.md)
+    }
+
+    @ViewBuilder
+    private func forTimeRow(idx: Int, card: SessionCard) -> some View {
+        let isDone = idx < vm.currentSessionIndex
+        let isCurrent = idx == vm.currentSessionIndex
+        if isCurrent {
+            VStack(alignment: .leading, spacing: LKSpacing.sm) {
+                HStack(spacing: LKSpacing.sm) {
+                    Image(systemName: "arrowtriangle.right.fill")
+                        .font(.system(size: 13))
+                        .foregroundColor(LKColor.accent)
+                    Text(card.name.isEmpty ? "Workout \(idx + 1)" : card.name)
+                        .font(LKFont.bodyBold)
+                        .foregroundColor(LKColor.textPrimary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                activeWeightChip(sessionIndex: idx)
+            }
+            .padding(LKSpacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(LKColor.surface)
+            .clipShape(RoundedRectangle(cornerRadius: LKRadius.medium, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: LKRadius.medium, style: .continuous)
+                    .stroke(LKColor.accent, lineWidth: 1.5)
+            )
+        } else {
+            HStack(spacing: LKSpacing.sm) {
+                Image(systemName: isDone ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 19))
+                    .foregroundColor(isDone ? LKColor.work : LKColor.textMuted)
+                Text(card.name.isEmpty ? "Workout \(idx + 1)" : card.name)
+                    .font(LKFont.body)
+                    .foregroundColor(isDone ? LKColor.textMuted : LKColor.textSecondary)
+                    .strikethrough(isDone)
+                    .lineLimit(1)
+                Spacer(minLength: LKSpacing.sm)
+                Text(forTimeSummary(card))
+                    .font(LKFont.caption)
+                    .foregroundColor(LKColor.textMuted)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, LKSpacing.md)
+            .padding(.vertical, LKSpacing.sm)
+            .opacity(isDone ? 0.55 : 1)
+        }
+    }
+
+    /// Compact "10 reps · 135 lb" summary for a not-current For Time row.
+    private func forTimeSummary(_ card: SessionCard) -> String {
+        var parts: [String] = []
+        if card.reps > 0 { parts.append("\(card.reps) reps") }
+        if card.weight > 0 { parts.append("\(Int(card.weight)) \(card.weightUnit.rawValue)") }
+        return parts.joined(separator: " · ")
     }
 
     private var markCompleteButton: some View {
@@ -1064,18 +1128,20 @@ struct ActiveWorkoutView: View {
     }
 
     // MARK: - Intervals
+    // Each round shows its exercise(s) — the list rotates one slot per round,
+    // and linked cards appear together as that round's superset.
     private var intervalsContent: some View {
         VStack(spacing: 0) {
             Spacer()
             timerLayout {
-                multiSessionIndicator()
                 phaseLabel(engine)
                 heroTimer(text: engine.formattedTime)
                 Text("Round \(engine.currentRound) of \(engine.totalRounds)")
                     .font(LKFont.body)
                     .foregroundColor(LKColor.textSecondary)
             } info: {
-                activeWeightChip(sessionIndex: vm.currentSessionIndex)
+                slotWeightChips
+                upNextPreview(slots: vm.intervalSlots)
                 timerControls(engine: engine)
                 notesDisplay()
             }
@@ -1292,7 +1358,7 @@ struct ActiveWorkoutView: View {
                             .foregroundColor(LKColor.accent)
                             .contentTransition(.numericText())
                         Text(ex.weightUnit.rawValue)
-                            .font(.system(size: 9, weight: .semibold))
+                            .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(LKColor.textMuted)
                     }
                     .frame(minWidth: 54)
@@ -1373,15 +1439,15 @@ struct ActiveWorkoutView: View {
             // set logging (deliberately not a plain circle row).
             VStack(spacing: 3) {
                 Text("SET \(set.setNumber)")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
                     .tracking(0.5)
                     .foregroundColor(setCaptionColor(set: set, isRunning: isRunning))
                 Text(setCircleLabel(set: set, isRunning: isRunning))
-                    .font(.system(size: set.isTimed ? 14 : 16, weight: .bold))
+                    .font(.system(size: set.isTimed ? 16 : 18, weight: .bold))
                     .foregroundColor(setCircleTextColor(set: set, isRunning: isRunning))
                     .contentTransition(.numericText())
             }
-            .frame(width: 52, height: 56)
+            .frame(width: 56, height: 62)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(setCircleFill(set: set, isRunning: isRunning))

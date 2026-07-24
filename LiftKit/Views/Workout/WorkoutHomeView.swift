@@ -70,7 +70,8 @@ struct WorkoutHomeView: View {
                 .readableWidth()
             }
             .background(LKColor.background.ignoresSafeArea())
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("LiftKit")
+            .navigationBarTitleDisplayMode(.large)
             .toolbar { toolbarContent }
             .onAppear {
                 vm.userProfile = userProfile
@@ -144,13 +145,11 @@ struct WorkoutHomeView: View {
     }
 
     // MARK: - Toolbar
+    // The title is a real `.navigationTitle` (large) — driving it through a
+    // leading toolbar item made the iOS 26 toolbar collapse the oversized text
+    // into an empty "•••" overflow menu.
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .navigationBarLeading) {
-            Text("LiftKit")
-                .font(LKFont.largeTitle)
-                .foregroundColor(LKColor.textPrimary)
-        }
         ToolbarItem(placement: .navigationBarTrailing) {
             if store.isPro {
                 proBadge
