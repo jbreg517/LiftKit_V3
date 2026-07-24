@@ -147,9 +147,6 @@ workflows:
       # with the iOS 26 SDK means the app renders in Liquid Glass; verify that
       # on-device (or opt out via UIDesignRequiresCompatibility in Info.plist).
       xcode: latest
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.ferrixguild.liftkit
 
     scripts:
       - name: Set version and build number
@@ -171,12 +168,22 @@ workflows:
       - name: Set up code signing
         script: |
           set -eo pipefail
-          # `ios_signing` above fetched the app's App Store cert + profile. The
-          # widget extension is a separate bundle ID and needs its own profile,
-          # or the App Store export fails. Fetch it (creating it if missing),
-          # then apply every profile in the environment.
+          # Manual App Store signing via the app_store_connect API key. Fetch —
+          # creating if missing — an App Store profile + distribution cert for
+          # BOTH the app and the widget extension, add the cert to the build
+          # keychain, then point the project at the fetched profiles.
+          #
+          # PREREQUISITE: both App IDs must already be registered at
+          # developer.apple.com, and `com.ferrixguild.liftkit` must have
+          # HealthKit, In-App Purchase, and Push Notifications enabled — else the
+          # created profile won't carry those entitlements and the build fails
+          # with a "doesn't include the … entitlement" error.
+          keychain initialize
+          app-store-connect fetch-signing-files "com.ferrixguild.liftkit" \
+            --type IOS_APP_STORE --create
           app-store-connect fetch-signing-files "com.ferrixguild.liftkit.widgets" \
             --type IOS_APP_STORE --create
+          keychain add-certificates
           xcode-project use-profiles
 
       - name: Build signed IPA
