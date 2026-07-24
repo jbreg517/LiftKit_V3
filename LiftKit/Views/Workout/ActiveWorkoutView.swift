@@ -1599,11 +1599,11 @@ struct ActiveWorkoutView: View {
     /// Starts the rest timer using the just-completed exercise's own rest
     /// setting (0 = no rest, skip straight to the next set).
     private func startRestIfNeeded(exIdx: Int) {
-        let seconds = vm.activeExercises.indices.contains(exIdx)
-            ? vm.activeExercises[exIdx].restSeconds
+        let seconds: Double = vm.activeExercises.indices.contains(exIdx)
+            ? Double(vm.activeExercises[exIdx].restSeconds)
             : vm.activeConfig.restBetweenSets
         if seconds > 0 {
-            restEngine.startRestTimer(Double(seconds))   // fires onPhaseChange → Live Activity
+            restEngine.startRestTimer(seconds)   // fires onPhaseChange → Live Activity
         } else {
             updateRepsLiveActivity()
         }
