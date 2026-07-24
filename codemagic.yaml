@@ -125,7 +125,12 @@ workflows:
   #      upload an App Store Connect API key (Issuer ID, Key ID, .p8 file).
   #      Name it EXACTLY the same string used in `integrations:` below.
   #   3. App record created in App Store Connect (so TestFlight has a target).
-  #   4. For the paywall to load: sign the Paid Apps agreement (tax + banking)
+  #   4. Create a Codemagic environment-variable GROUP named `signing` with a
+  #      secure var `CERTIFICATE_PRIVATE_KEY` = a PEM RSA private key
+  #      (generate with `openssl genrsa 2048`). Codemagic uses it to create and
+  #      reuse one Apple Distribution certificate — App Store Connect never
+  #      hands back a cert's private key, so CI must own one.
+  #   5. For the paywall to load: sign the Paid Apps agreement (tax + banking)
   #      and create the non-consumable IAP `com.ferrixguild.liftkit.pro`.
   #
   # Trigger: manual (no `triggering:` block) so it only runs when you start it
@@ -147,6 +152,8 @@ workflows:
       # with the iOS 26 SDK means the app renders in Liquid Glass; verify that
       # on-device (or opt out via UIDesignRequiresCompatibility in Info.plist).
       xcode: latest
+      groups:
+        - signing   # must define CERTIFICATE_PRIVATE_KEY (a distribution-cert private key)
 
     scripts:
       - name: Set version and build number
@@ -179,10 +186,19 @@ workflows:
           # created profile won't carry those entitlements and the build fails
           # with a "doesn't include the … entitlement" error.
           keychain initialize
+          # --certificate-key supplies the distribution cert's private key.
+          # App Store Connect only serves the PUBLIC cert, so without a
+          # persistent key you get "Cannot save Signing Certificates without
+          # certificate private key". With it, --create makes ONE Apple
+          # Distribution cert on the first run and reuses it every build.
           app-store-connect fetch-signing-files "com.ferrixguild.liftkit" \
-            --type IOS_APP_STORE --create
+            --type IOS_APP_STORE \
+            --certificate-key=@env:CERTIFICATE_PRIVATE_KEY \
+            --create
           app-store-connect fetch-signing-files "com.ferrixguild.liftkit.widgets" \
-            --type IOS_APP_STORE --create
+            --type IOS_APP_STORE \
+            --certificate-key=@env:CERTIFICATE_PRIVATE_KEY \
+            --create
           keychain add-certificates
           xcode-project use-profiles
 
