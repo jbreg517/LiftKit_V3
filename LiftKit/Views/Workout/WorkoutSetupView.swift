@@ -210,6 +210,10 @@ struct WorkoutSetupView: View {
                 .padding(LKSpacing.md)
                 .background(LKColor.surface)
                 .cornerRadius(LKRadius.medium)
+            if let attr = vm.setupAttribution {
+                InspiredByLink(name: attr, urlString: vm.setupAttributionURL)
+                    .padding(.top, 2)
+            }
         }
     }
 
@@ -851,6 +855,7 @@ struct SessionCardView: View {
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                if !card.name.isEmpty { HowToLink(exerciseName: card.name) }
                 LKCardControlBlock(
                     minusAction: { card.reps = max(1, card.reps - 1) },
                     numberText: "\(card.reps)",
@@ -943,7 +948,10 @@ struct ExerciseCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: LKSpacing.lg) {
             // Name — opens the exercise library picker (Option C)
-            nameButton
+            HStack(spacing: LKSpacing.sm) {
+                nameButton
+                if !card.name.isEmpty { HowToLink(exerciseName: card.name, size: 17) }
+            }
 
             // Sets + reps/time
             HStack(spacing: LKSpacing.md) {

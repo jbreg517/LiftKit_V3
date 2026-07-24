@@ -1081,6 +1081,7 @@ struct ActiveWorkoutView: View {
                         .font(LKFont.bodyBold)
                         .foregroundColor(LKColor.textPrimary)
                         .lineLimit(1)
+                    if !card.name.isEmpty { HowToLink(exerciseName: card.name) }
                     Spacer(minLength: 0)
                 }
                 activeWeightChip(sessionIndex: idx)
@@ -1279,9 +1280,12 @@ struct ActiveWorkoutView: View {
         VStack(alignment: .leading, spacing: LKSpacing.md) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: LKSpacing.xs) {
-                    Text(ex.name)
-                        .font(LKFont.heading)
-                        .foregroundColor(LKColor.textPrimary)
+                    HStack(spacing: LKSpacing.sm) {
+                        Text(ex.name)
+                            .font(LKFont.heading)
+                            .foregroundColor(LKColor.textPrimary)
+                        if !ex.name.isEmpty { HowToLink(exerciseName: ex.name, size: 16) }
+                    }
                     if ex.supersetGroup != nil {
                         Label("SUPERSET", systemImage: "link")
                             .font(.system(size: 10, weight: .bold))

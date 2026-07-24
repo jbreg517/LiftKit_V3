@@ -135,6 +135,13 @@ struct WorkoutCatalogRow: View {
                             .clipShape(Capsule())
                     }
                 }
+                if let attr = rec.attribution {
+                    // Plain credit while browsing; the tappable "Inspired by ›"
+                    // link lives on the setup screen (rows are one big button).
+                    Text(rec.attributionURL != nil ? "Inspired by \(attr)" : attr)
+                        .font(.system(size: 9))
+                        .foregroundColor(LKColor.textMuted)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(LKSpacing.md)

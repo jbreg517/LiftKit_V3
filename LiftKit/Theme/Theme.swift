@@ -204,6 +204,66 @@ struct EquipmentIcon: View {
     }
 }
 
+// MARK: - Exercise How-To Links
+/// Builds a link to help a user learn a movement. We deliberately point at a
+/// YouTube *search* (a query, not a specific video) rather than storing a fixed
+/// URL: a search never dead-links, always returns current results, endorses no
+/// single creator, and links out rather than reproducing anyone's content.
+enum ExerciseHowTo {
+    static func searchURL(for exerciseName: String) -> URL? {
+        let trimmed = exerciseName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        var comps = URLComponents(string: "https://www.youtube.com/results")
+        comps?.queryItems = [URLQueryItem(name: "search_query", value: "\(trimmed) how to")]
+        return comps?.url
+    }
+}
+
+/// Tappable "how-to" glyph shown next to an exercise name. Renders nothing for
+/// blank names. Opens the YouTube search for that movement.
+struct HowToLink: View {
+    let exerciseName: String
+    var size: CGFloat = 15
+
+    var body: some View {
+        if let url = ExerciseHowTo.searchURL(for: exerciseName) {
+            Link(destination: url) {
+                Image(systemName: "play.circle")
+                    .font(.system(size: size))
+                    .foregroundColor(LKColor.textMuted)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("How to do \(exerciseName)")
+        }
+    }
+}
+
+/// Credit line for a workout adapted from a named coach/program. With a URL it
+/// reads "Inspired by ___ ›" and links to the author's page; without one it
+/// shows a plain descriptor (e.g. "CrossFit benchmark").
+struct InspiredByLink: View {
+    let name: String
+    var urlString: String? = nil
+
+    var body: some View {
+        if let urlString, let url = URL(string: urlString) {
+            Link(destination: url) {
+                HStack(spacing: 3) {
+                    Text("Inspired by \(name)")
+                    Image(systemName: "arrow.up.right.square")
+                }
+                .font(LKFont.caption)
+                .foregroundColor(LKColor.accent)
+            }
+            .buttonStyle(.plain)
+        } else {
+            Text(name)
+                .font(LKFont.caption)
+                .foregroundColor(LKColor.textMuted)
+        }
+    }
+}
+
 // MARK: - Hex Color Initializer
 extension Color {
     init(hex: String) {

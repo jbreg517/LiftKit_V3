@@ -181,6 +181,11 @@ final class WorkoutViewModel {
     var selectedTimerType: TimerType = .amrap
     var workoutName: String = ""
     var notes: String = ""
+    /// Credit for a loaded recommended workout adapted from a named coach/program
+    /// (nil for user-built or unattributed workouts). Surfaced as an "Inspired by"
+    /// link on the setup screen.
+    var setupAttribution: String? = nil
+    var setupAttributionURL: String? = nil
 
     // AMRAP / For Time
     var timeLimitMinutes: Int = 10
@@ -239,6 +244,8 @@ final class WorkoutViewModel {
         editingTemplate = template
         selectedTimerType = type
         workoutName = template.name
+        setupAttribution = nil
+        setupAttributionURL = nil
         // Templates don't store rest time, so seed it from the Settings default.
         restBetweenSets = Int(UserDefaults.standard.object(forKey: "defaultRestSeconds") as? Double ?? 90)
         let sorted = template.sortedExercises
@@ -310,6 +317,8 @@ final class WorkoutViewModel {
         timeLimitMinutes = rec.timeCapMinutes
         timeLimitSeconds = 0
         forTimeRounds = max(1, rec.forTimeRounds)
+        setupAttribution = rec.attribution
+        setupAttributionURL = rec.attributionURL
         emomMinutes = rec.emomMinutes
         workSeconds = rec.work
         restSeconds = rec.rest
@@ -1263,6 +1272,8 @@ final class WorkoutViewModel {
         editingTemplate = nil
         workoutName = ""
         notes = ""
+        setupAttribution = nil
+        setupAttributionURL = nil
         timeLimitMinutes = 10
         timeLimitSeconds = 0
         sessions = [SessionCard()]
