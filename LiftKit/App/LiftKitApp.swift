@@ -224,8 +224,8 @@ final class QuickActions: ObservableObject {
     /// Control command for the live workout (Siri pause / resume / end).
     @Published var control: WorkoutControl?
 
-    static let scheduledType  = "com.liftkit.quick.scheduled"
-    static let favoritePrefix = "com.liftkit.quick.favorite."
+    static let scheduledType  = "com.ferrixguild.liftkit.quick.scheduled"
+    static let favoritePrefix = "com.ferrixguild.liftkit.quick.favorite."
 
     static func updateShortcuts(scheduledName: String?, favorites: [(id: UUID, name: String)]) {
         var items: [UIApplicationShortcutItem] = []

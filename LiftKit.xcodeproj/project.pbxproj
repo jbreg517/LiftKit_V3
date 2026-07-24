@@ -851,7 +851,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = "1.1.0";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.liftkit.app";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ferrixguild.liftkit";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -876,7 +876,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = "1.1.0";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.liftkit.app";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ferrixguild.liftkit";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -893,7 +893,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = "1.0";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.liftkit.liftkit-tests";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ferrixguild.liftkit.tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
@@ -911,7 +911,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = "1.0";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.liftkit.liftkit-tests";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ferrixguild.liftkit.tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
@@ -934,7 +934,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = "1.1.0";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.liftkit.app.widgets";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ferrixguild.liftkit.widgets";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -957,7 +957,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = "1.1.0";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.liftkit.app.widgets";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ferrixguild.liftkit.widgets";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -974,7 +974,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = "1.0";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.liftkit.liftkit-uitests";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ferrixguild.liftkit.uitests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
@@ -991,7 +991,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = "1.0";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.liftkit.liftkit-uitests";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ferrixguild.liftkit.uitests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;

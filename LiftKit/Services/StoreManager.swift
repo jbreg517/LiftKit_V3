@@ -12,7 +12,7 @@ final class StoreManager: ObservableObject {
 
     /// Non-consumable product ID. Must match the product created in
     /// App Store Connect (In-App Purchases → Non-Consumable).
-    static let proProductID = "com.liftkit.app.pro"
+    static let proProductID = "com.ferrixguild.liftkit.pro"
 
     /// The loaded product (nil until fetched, or if the store is unreachable).
     @Published private(set) var product: Product?

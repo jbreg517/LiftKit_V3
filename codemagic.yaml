@@ -118,7 +118,7 @@ workflows:
   #
   # ONE-TIME SETUP IN THE CODEMAGIC UI (cannot be done from this file):
   #   1. Apple Developer Program enrollment, then register BOTH App IDs at
-  #      developer.apple.com: `com.liftkit.app` and `com.liftkit.app.widgets`.
+  #      developer.apple.com: `com.ferrixguild.liftkit` and `com.ferrixguild.liftkit.widgets`.
   #      On the app's App ID enable HealthKit, In-App Purchase, and Push
   #      Notifications (Live Activities).
   #   2. Codemagic > Teams/Personal > Integrations > "App Store Connect":
@@ -126,7 +126,7 @@ workflows:
   #      Name it EXACTLY the same string used in `integrations:` below.
   #   3. App record created in App Store Connect (so TestFlight has a target).
   #   4. For the paywall to load: sign the Paid Apps agreement (tax + banking)
-  #      and create the non-consumable IAP `com.liftkit.app.pro`.
+  #      and create the non-consumable IAP `com.ferrixguild.liftkit.pro`.
   #
   # Trigger: manual (no `triggering:` block) so it only runs when you start it
   # from the Codemagic UI — keeps it deliberate and saves build minutes.
@@ -149,7 +149,7 @@ workflows:
       xcode: latest
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.liftkit.app
+        bundle_identifier: com.ferrixguild.liftkit
 
     scripts:
       - name: Set version and build number
@@ -175,7 +175,7 @@ workflows:
           # widget extension is a separate bundle ID and needs its own profile,
           # or the App Store export fails. Fetch it (creating it if missing),
           # then apply every profile in the environment.
-          app-store-connect fetch-signing-files "com.liftkit.app.widgets" \
+          app-store-connect fetch-signing-files "com.ferrixguild.liftkit.widgets" \
             --type IOS_APP_STORE --create
           xcode-project use-profiles
 
