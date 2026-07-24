@@ -138,7 +138,7 @@ workflows:
     max_build_duration: 60
 
     integrations:
-      app_store_connect: LiftKit App Store Connect   # <-- match the key name in Codemagic UI
+      app_store_connect: "liftkit app manager"   # <-- must EXACTLY match the integration name in Codemagic UI
 
     environment:
       # App Store submissions must be built with the iOS 26 SDK (required since
