@@ -970,7 +970,18 @@ struct HealthGoalsSheet: View {
     private func load() {
         guard !loaded else { return }
         loaded = true
-        guard let p = profiles.first else { return }
+        if let p = profiles.first {
+            applyLocal(p)
+        } else if let s = SuiteProfileStore.load() {
+            // Fresh LiftKit, but the user set a goal in RunKit / FuelKit — adopt it.
+            applyShared(s)
+        } else {
+            // First run anywhere — seed measurements from the Health app if allowed.
+            prefillFromHealth()
+        }
+    }
+
+    private func applyLocal(_ p: HealthProfile) {
         if p.heightInches > 0 {
             heightFeet = Int(p.heightInches) / 12
             heightInches = Int(p.heightInches) % 12
@@ -987,6 +998,43 @@ struct HealthGoalsSheet: View {
             displayProtein = proteinDisplayOptions.min(by: { abs($0 - disp) < abs($1 - disp) }) ?? disp
         }
         if p.fatPercent > 0 { fatPercent = p.fatPercent }
+    }
+
+    /// Prefills the form from the suite-shared profile (goal set in another app).
+    private func applyShared(_ s: SuiteProfile) {
+        if s.heightInches > 0 {
+            heightFeet = Int(s.heightInches) / 12
+            heightInches = Int(s.heightInches) % 12
+            heightCm = Int((s.heightInches * 2.54).rounded())
+        }
+        if s.age > 0 { age = s.age }
+        sex = BiologicalSex(rawValue: s.biologicalSex) ?? .unspecified
+        activity = ActivityLevel(rawValue: s.activityLevel) ?? .moderate
+        goal = WeightGoalType(rawValue: s.goalType) ?? .maintain
+        rate = s.weeklyRateLb
+        if s.goalWeightLb > 0 { goalWeight = String(Int(units.weightFromLb(s.goalWeightLb).rounded())) }
+        if s.proteinPerLb > 0 {
+            let disp = units == .metric ? s.proteinPerLb / 0.453592 : s.proteinPerLb
+            displayProtein = proteinDisplayOptions.min(by: { abs($0 - disp) < abs($1 - disp) }) ?? disp
+        }
+        if s.fatPercent > 0 { fatPercent = s.fatPercent }
+    }
+
+    /// Best-effort prefill of height / age / sex from the Health app on a truly
+    /// first run (no local or suite-shared profile yet).
+    private func prefillFromHealth() {
+        if let raw = HealthKitManager.shared.biologicalSexRaw() {
+            sex = BiologicalSex(rawValue: raw) ?? .unspecified
+        }
+        if let a = HealthKitManager.shared.age() { age = a }
+        Task {
+            guard let h = await HealthKitManager.shared.latestHeightInches(), h > 0 else { return }
+            await MainActor.run {
+                heightFeet = Int(h) / 12
+                heightInches = Int(h) % 12
+                heightCm = Int((h * 2.54).rounded())
+            }
+        }
     }
 
     private func save() {
@@ -1008,6 +1056,24 @@ struct HealthGoalsSheet: View {
         p.proteinPerLb = units == .metric ? displayProtein * 0.453592 : displayProtein
         p.fatPercent = fatPercent
         try? context.save()
+
+        // Share the goal + measurements with RunKit / FuelKit through the App
+        // Group, and mirror height to Apple Health. Weight rides Health on its own
+        // (written when a bodyweight is logged), so preserve the shared latest
+        // weight rather than clearing it here.
+        var suite = SuiteProfileStore.load() ?? SuiteProfile()
+        suite.heightInches = p.heightInches
+        suite.age = p.age
+        suite.biologicalSex = p.biologicalSex.rawValue
+        suite.goalType = p.goalType.rawValue
+        suite.goalWeightLb = p.goalWeightLb
+        suite.weeklyRateLb = p.weeklyRateLb
+        suite.activityLevel = p.activityLevel.rawValue
+        suite.proteinPerLb = p.proteinPerLb
+        suite.fatPercent = p.fatPercent
+        SuiteProfileStore.save(suite)
+        Task { await HealthKitManager.shared.saveHeight(inches: p.heightInches) }
+
         dismiss()
     }
 }

@@ -252,10 +252,22 @@ struct AddBodyMetricSheet: View {
 
     private func save() {
         guard let value, value > 0 else { return }
-        let metric = BodyMetric(date: date, type: type, value: type.fromDisplay(value, units))
+        let canonical = type.fromDisplay(value, units)   // bodyweight in lb
+        let metric = BodyMetric(date: date, type: type, value: canonical)
         context.insert(metric)
         try? context.save()
         HapticManager.shared.buttonTap()
+
+        // Bodyweight is a shared measurement: write it to Apple Health (so the
+        // suite and any Health app see it) and cache the latest lb in the shared
+        // profile for apps that don't have Health access.
+        if type == .bodyweight {
+            Task { await HealthKitManager.shared.saveBodyMass(lb: canonical, date: date) }
+            var suite = SuiteProfileStore.load() ?? SuiteProfile()
+            suite.latestWeightLb = canonical
+            SuiteProfileStore.save(suite)
+        }
+
         dismiss()
     }
 }

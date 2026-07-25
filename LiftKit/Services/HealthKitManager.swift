@@ -38,6 +38,12 @@ final class HealthKitManager {
             HKQuantityType(.activeEnergyBurned),
             HKQuantityType(.distanceWalkingRunning),
             HKQuantityType(.distanceCycling),
+            // Body measurements shared across the suite (and any Health app).
+            HKQuantityType(.bodyMass),
+            HKQuantityType(.height),
+            // Characteristics (set by the user in the Health app) used to prefill.
+            HKCharacteristicType(.biologicalSex),
+            HKCharacteristicType(.dateOfBirth),
         ]
     }
 
@@ -45,6 +51,8 @@ final class HealthKitManager {
         [
             HKQuantityType(.activeEnergyBurned),
             HKObjectType.workoutType(),
+            HKQuantityType(.bodyMass),
+            HKQuantityType(.height),
         ]
     }
 
@@ -137,6 +145,81 @@ final class HealthKitManager {
             return stats?.sumQuantity()?.doubleValue(for: unit) ?? 0
         } catch {
             return 0
+        }
+    }
+
+    // MARK: - Body measurements (height & weight)
+    // Height and weight are standard Health types, so writing them shares with
+    // the whole suite (and any other Health app), and reading them pulls in a
+    // weight logged elsewhere. All calls no-op when the toggle is off.
+
+    /// Saves a bodyweight sample (pounds) to Apple Health. Best-effort.
+    func saveBodyMass(lb: Double, date: Date = Date()) async {
+        guard isEnabled, isAvailable, lb > 0 else { return }
+        await save(.bodyMass, unit: .pound(), value: lb, date: date)
+    }
+
+    /// Saves a height sample (inches) to Apple Health. Best-effort.
+    func saveHeight(inches: Double) async {
+        guard isEnabled, isAvailable, inches > 0 else { return }
+        await save(.height, unit: .inch(), value: inches, date: Date())
+    }
+
+    /// Most-recent bodyweight in pounds from Apple Health, or nil.
+    func latestBodyMassLb() async -> Double? {
+        await latestQuantity(.bodyMass, unit: .pound())
+    }
+
+    /// Most-recent height in inches from Apple Health, or nil.
+    func latestHeightInches() async -> Double? {
+        await latestQuantity(.height, unit: .inch())
+    }
+
+    /// The user's biological sex from the Health app, as a `BiologicalSex` raw
+    /// value ("male"/"female"/"unspecified"). nil when unset or unauthorized.
+    func biologicalSexRaw() -> String? {
+        guard isEnabled, isAvailable else { return nil }
+        guard let sex = try? store.biologicalSex().biologicalSex else { return nil }
+        switch sex {
+        case .male:   return "male"
+        case .female: return "female"
+        default:      return nil
+        }
+    }
+
+    /// The user's age derived from their Health-app date of birth. nil when unset
+    /// or unauthorized.
+    func age() -> Int? {
+        guard isEnabled, isAvailable,
+              let comps = try? store.dateOfBirthComponents(),
+              let dob = Calendar.current.date(from: comps) else { return nil }
+        let years = Calendar.current.dateComponents([.year], from: dob, to: Date()).year
+        return years.map { max(0, $0) }
+    }
+
+    /// Writes a single quantity sample. Failures are swallowed (best-effort).
+    private func save(_ id: HKQuantityTypeIdentifier, unit: HKUnit, value: Double, date: Date) async {
+        let type = HKQuantityType(id)
+        let sample = HKQuantitySample(
+            type: type,
+            quantity: HKQuantity(unit: unit, doubleValue: value),
+            start: date, end: date)
+        do { try await store.save(sample) } catch { /* best-effort */ }
+    }
+
+    /// Latest value of a quantity type in `unit`, or nil on empty/failure.
+    private func latestQuantity(_ id: HKQuantityTypeIdentifier, unit: HKUnit) async -> Double? {
+        guard isEnabled, isAvailable else { return nil }
+        let type = HKQuantityType(id)
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.quantitySample(type: type, predicate: nil)],
+            sortDescriptors: [SortDescriptor(\.endDate, order: .reverse)],
+            limit: 1)
+        do {
+            let samples = try await descriptor.result(for: store)
+            return samples.first?.quantity.doubleValue(for: unit)
+        } catch {
+            return nil
         }
     }
 
