@@ -659,6 +659,11 @@ struct SeriesScheduleSheet: View {
     private let weekdayLabels = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
     private let maxTemplates = 5
 
+    /// Schedules can extend at most one year from the start date.
+    private var maxEndDate: Date {
+        cal.date(byAdding: .year, value: 1, to: startDate) ?? startDate
+    }
+
     private var selected: [WorkoutTemplate] {
         selectedIDs.compactMap { id in templates.first { $0.id == id } }
     }
@@ -750,7 +755,7 @@ struct SeriesScheduleSheet: View {
 
                 Section("Range") {
                     DatePicker("Start", selection: $startDate, displayedComponents: .date).tint(LKColor.accent)
-                    DatePicker("End", selection: $endDate, in: startDate..., displayedComponents: .date).tint(LKColor.accent)
+                    DatePicker("End", selection: $endDate, in: startDate...maxEndDate, displayedComponents: .date).tint(LKColor.accent)
                 }
 
                 Section {
@@ -828,6 +833,11 @@ struct RecurringScheduleSheet: View {
     private let cal = Calendar.current
     private let weekdayLabels = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
 
+    /// Schedules can extend at most one year from the start date.
+    private var maxEndDate: Date {
+        cal.date(byAdding: .year, value: 1, to: startDate) ?? startDate
+    }
+
     private var occurrenceCount: Int {
         guard !weekdays.isEmpty else { return 0 }
         var count = 0
@@ -867,7 +877,7 @@ struct RecurringScheduleSheet: View {
 
                 Section("Range") {
                     DatePicker("Start", selection: $startDate, displayedComponents: .date).tint(LKColor.accent)
-                    DatePicker("End", selection: $endDate, in: startDate..., displayedComponents: .date).tint(LKColor.accent)
+                    DatePicker("End", selection: $endDate, in: startDate...maxEndDate, displayedComponents: .date).tint(LKColor.accent)
                 }
 
                 Section {
