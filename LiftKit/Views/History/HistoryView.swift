@@ -82,7 +82,7 @@ struct HistoryView: View {
     private func nativeRow(_ session: WorkoutSession) -> some View {
         SwipeToDeleteRow(enabled: true, onDelete: {
             context.delete(session)
-            try? context.save()
+            Persist.save(context)
         }) {
             NavigationLink {
                 WorkoutDetailView(session: session, vm: vm)
@@ -98,7 +98,7 @@ struct HistoryView: View {
                 }
                 Button(role: .destructive) {
                     context.delete(session)
-                    try? context.save()
+                    Persist.save(context)
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }
@@ -465,7 +465,7 @@ struct WorkoutDetailView: View {
             let trimmed = draftNotes.trimmingCharacters(in: .whitespacesAndNewlines)
             session.notes = trimmed.isEmpty ? nil : trimmed
         }
-        try? context.save()
+        Persist.save(context)
         clearDrafts()
     }
 

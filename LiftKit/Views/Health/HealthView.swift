@@ -54,7 +54,7 @@ struct HealthView: View {
             .onAppear {
                 if isPremium && healthProfiles.isEmpty {
                     context.insert(HealthProfile())
-                    try? context.save()
+                    Persist.save(context)
                 }
             }
             .sheet(isPresented: $showGoals) { HealthGoalsSheet() }
@@ -776,17 +776,17 @@ struct HealthView: View {
         day.carbG += c
         day.fatG += f
         day.alcoholG += a
-        try? context.save()
+        Persist.save(context)
     }
     private func clearToday() {
-        if let day = todayLog { context.delete(day); try? context.save() }
+        if let day = todayLog { context.delete(day); Persist.save(context) }
     }
 
     private func clearHealthData() {
         try? context.delete(model: BodyMetric.self)
         try? context.delete(model: NutritionDay.self)
         try? context.delete(model: HealthProfile.self)
-        try? context.save()
+        Persist.save(context)
     }
 
     private func kcal(_ v: Double) -> String { "\(Int(v.rounded()))" }
@@ -1055,7 +1055,7 @@ struct HealthGoalsSheet: View {
         p.goalWeightLb = goalDisplay > 0 ? units.weightToLb(goalDisplay) : 0
         p.proteinPerLb = units == .metric ? displayProtein * 0.453592 : displayProtein
         p.fatPercent = fatPercent
-        try? context.save()
+        Persist.save(context)
 
         // Share the goal + measurements with RunKit / FuelKit through the App
         // Group, and mirror height to Apple Health. Weight rides Health on its own

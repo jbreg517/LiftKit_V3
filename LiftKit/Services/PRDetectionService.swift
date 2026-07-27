@@ -51,7 +51,7 @@ final class PRDetectionService {
             }
         }
 
-        try? context.save()
+        Persist.save(context)
         return newPRs
     }
 }

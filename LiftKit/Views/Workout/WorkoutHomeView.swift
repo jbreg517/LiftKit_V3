@@ -132,7 +132,7 @@ struct WorkoutHomeView: View {
         guard let template = sched.template else { return }
         sched.isCompleted = true
         WorkoutReminders.cancel(sched)
-        try? context.save()
+        Persist.save(context)
         vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
         vm.markTemplateUsed(template, context: context)
         vm.showWorkoutSetup = true
@@ -141,7 +141,7 @@ struct WorkoutHomeView: View {
     private func clearSchedule(_ sched: WorkoutSchedule) {
         WorkoutReminders.cancel(sched)
         context.delete(sched)
-        try? context.save()
+        Persist.save(context)
     }
 
     // MARK: - Toolbar
@@ -341,7 +341,7 @@ struct WorkoutHomeView: View {
             ForEach(visibleTemplates) { template in
                 SwipeToDeleteRow(enabled: true, onDelete: {
                     context.delete(template)
-                    try? context.save()
+                    Persist.save(context)
                 }) {
                     PlanCard(template: template, onTap: {
                         vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
@@ -349,7 +349,7 @@ struct WorkoutHomeView: View {
                         vm.showWorkoutSetup = true
                     }, onToggleFavorite: {
                         template.isFavorite.toggle()
-                        try? context.save()
+                        Persist.save(context)
                         HapticManager.shared.buttonTap()
                     })
                 }
@@ -573,7 +573,7 @@ struct AllTemplatesView: View {
                 ForEach(filtered) { template in
                     SwipeToDeleteRow(enabled: true, onDelete: {
                         context.delete(template)
-                        try? context.save()
+                        Persist.save(context)
                     }) {
                         PlanCard(template: template, onTap: {
                             vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
@@ -581,7 +581,7 @@ struct AllTemplatesView: View {
                             vm.showWorkoutSetup = true
                         }, onToggleFavorite: {
                             template.isFavorite.toggle()
-                            try? context.save()
+                            Persist.save(context)
                             HapticManager.shared.buttonTap()
                         })
                     }
@@ -814,7 +814,7 @@ struct SeriesScheduleSheet: View {
             guard let next = cal.date(byAdding: .day, value: 1, to: current) else { break }
             current = next
         }
-        try? context.save()
+        Persist.save(context)
         dismiss()
     }
 }
@@ -923,7 +923,7 @@ struct RecurringScheduleSheet: View {
             guard let next = cal.date(byAdding: .day, value: 1, to: current) else { break }
             current = next
         }
-        try? context.save()
+        Persist.save(context)
         dismiss()
     }
 }

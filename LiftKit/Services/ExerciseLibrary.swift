@@ -36,7 +36,7 @@ final class ExerciseLibrary {
             ex.secondaryMuscles = entry.secondary
             context.insert(ex)
         }
-        try? context.save()
+        Persist.save(context)
     }
 
     /// Fills in muscle tags for existing exercises (library seeds + matching
@@ -71,7 +71,7 @@ final class ExerciseLibrary {
                 changed = true
             }
         }
-        if changed { try? context.save() }
+        if changed { Persist.save(context) }
     }
 
     private struct LibraryEntry {

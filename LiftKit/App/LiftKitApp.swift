@@ -127,9 +127,11 @@ enum LiftKitStore {
         // the app still runs — but `isEphemeral` is set so the UI can warn that
         // nothing is being saved, rather than losing the session silently.
         if let container = try? makeContainer(cloud: useICloud) {
+            StoreHealth.shared.storePath = storeURL.path
             return container
         }
         if useICloud, let local = try? makeContainer(cloud: false) {
+            StoreHealth.shared.storePath = storeURL.path
             return local   // CloudKit unavailable (e.g. missing entitlement) → local only
         }
         isEphemeral = true
@@ -145,6 +147,49 @@ enum LiftKitStore {
     }()
 }
 
+// MARK: - Persistence
+// Save through `Persist.save(context)` instead of `Persist.save(context)`. A
+// swallowed error is indistinguishable from success — which is exactly how a
+// session of data goes missing without anyone noticing. Failures are recorded in
+// `StoreHealth` and surfaced in the UI.
+enum Persist {
+    static func save(_ context: ModelContext) {
+        guard context.hasChanges else { return }
+        do {
+            try context.save()
+        } catch {
+            StoreHealth.shared.recordSaveFailure(error)
+        }
+    }
+}
+
+/// Observable record of storage trouble — failed saves, plus the on-disk store
+/// path for diagnostics. Drives a visible banner and a Settings → Storage row so
+/// persistence problems are never silent.
+final class StoreHealth: ObservableObject {
+    static let shared = StoreHealth()
+
+    @Published private(set) var failedSaveCount = 0
+    @Published private(set) var lastErrorMessage: String?
+    /// Absolute path of the on-disk store; nil when running in memory.
+    var storePath: String?
+
+    private init() {}
+
+    /// True when persistence isn't working this launch — either the store fell
+    /// back to memory, or a save has failed.
+    var isHealthy: Bool { !LiftKitStore.isEphemeral && failedSaveCount == 0 }
+
+    func recordSaveFailure(_ error: Error) {
+        let message = String(describing: error)
+        let apply = {
+            self.failedSaveCount += 1
+            self.lastErrorMessage = message
+        }
+        if Thread.isMainThread { apply() } else { DispatchQueue.main.async(execute: apply) }
+    }
+}
+
 // MARK: - Root Tab View
 struct RootTabView: View {
     @Bindable var vm: WorkoutViewModel
@@ -156,6 +201,7 @@ struct RootTabView: View {
     @Query private var templates: [WorkoutTemplate]
     @Query private var schedules: [WorkoutSchedule]
     @State private var storeWarningAcknowledged = false
+    @ObservedObject private var storeHealth = StoreHealth.shared
 
     var body: some View {
         TabView(selection: $vm.selectedTab) {
@@ -199,6 +245,14 @@ struct RootTabView: View {
                 }
         }
         .tint(LKColor.accent)
+        // A save has failed this session — data isn't persisting. Visible strip
+        // so it isn't silent (the launch-time in-memory case gets the full-screen
+        // notice above).
+        .safeAreaInset(edge: .top) {
+            if storeHealth.failedSaveCount > 0 {
+                StoreSaveFailureBanner()
+            }
+        }
         .fullScreenCover(isPresented: Binding(get: { !hasOnboarded }, set: { _ in })) {
             OnboardingView { hasOnboarded = true }
         }
@@ -333,6 +387,25 @@ struct StoreWarningView: View {
             }
         }
         .interactiveDismissDisabled()
+    }
+}
+
+/// Persistent strip shown when a save has failed this session, so lost writes
+/// aren't silent. Stays until the app restarts and persistence recovers.
+struct StoreSaveFailureBanner: View {
+    var body: some View {
+        HStack(spacing: LKSpacing.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+            Text("Some changes couldn’t be saved. Restart the app; if it keeps happening, update or reinstall.")
+                .font(LKFont.caption)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, LKSpacing.md)
+        .padding(.vertical, LKSpacing.sm)
+        .frame(maxWidth: .infinity)
+        .background(LKColor.danger)
     }
 }
 

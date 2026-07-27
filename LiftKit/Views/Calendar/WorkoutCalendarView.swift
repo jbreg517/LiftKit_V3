@@ -440,14 +440,14 @@ struct UpcomingSchedulesView: View {
     private func deleteSchedule(_ sched: WorkoutSchedule) {
         WorkoutReminders.cancel(sched)
         context.delete(sched)
-        try? context.save()
+        Persist.save(context)
     }
     private func cancelSeries(_ group: SeriesGroup) {
         for s in group.schedules {
             WorkoutReminders.cancel(s)
             context.delete(s)
         }
-        try? context.save()
+        Persist.save(context)
     }
     /// Removes every upcoming scheduled workout (series occurrences + one-offs)
     /// and their reminders. Past/completed workouts are untouched.
@@ -456,7 +456,7 @@ struct UpcomingSchedulesView: View {
             WorkoutReminders.cancel(s)
             context.delete(s)
         }
-        try? context.save()
+        Persist.save(context)
     }
 
     // MARK: Formatting

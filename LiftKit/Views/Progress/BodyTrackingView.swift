@@ -178,7 +178,7 @@ struct BodyTrackingView: View {
                     .contextMenu {
                         Button(role: .destructive) {
                             context.delete(m)
-                            try? context.save()
+                            Persist.save(context)
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
@@ -255,7 +255,7 @@ struct AddBodyMetricSheet: View {
         let canonical = type.fromDisplay(value, units)   // bodyweight in lb
         let metric = BodyMetric(date: date, type: type, value: canonical)
         context.insert(metric)
-        try? context.save()
+        Persist.save(context)
         HapticManager.shared.buttonTap()
 
         // Bodyweight is a shared measurement: write it to Apple Health (so the

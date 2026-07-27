@@ -5,7 +5,7 @@ import UIKit
 /// App version, bumped on every commit/push so the running build is
 /// identifiable in Settings. Increment by 0.01 each push.
 enum AppVersion {
-    static let current = "0.73"
+    static let current = "0.74"
 }
 
 struct SettingsView: View {
@@ -23,6 +23,7 @@ struct SettingsView: View {
 
     @Environment(\.modelContext) private var context
     @ObservedObject private var store = StoreManager.shared
+    @ObservedObject private var storeHealth = StoreHealth.shared
     @Query private var profiles: [UserProfile]
     @Query(sort: \WorkoutSession.startedAt) private var sessions: [WorkoutSession]
     @Query private var nutritionDays: [NutritionDay]
@@ -120,7 +121,7 @@ struct SettingsView: View {
         try? context.delete(model: BodyMetric.self)
         try? context.delete(model: HealthProfile.self)
         try? context.delete(model: NutritionDay.self)
-        try? context.save()
+        Persist.save(context)
         WorkoutReminders.cancelAll()
     }
 
@@ -298,6 +299,45 @@ struct SettingsView: View {
                         showClearAll = true
                     }
                     .foregroundColor(LKColor.danger)
+                }
+
+                Section {
+                    HStack {
+                        Text("Status")
+                        Spacer()
+                        if LiftKitStore.isEphemeral {
+                            Label("Not saving", systemImage: "exclamationmark.triangle.fill")
+                                .foregroundColor(LKColor.danger)
+                        } else if storeHealth.failedSaveCount > 0 {
+                            Label("\(storeHealth.failedSaveCount) failed", systemImage: "exclamationmark.triangle.fill")
+                                .foregroundColor(LKColor.danger)
+                        } else {
+                            Label("Saving normally", systemImage: "checkmark.circle.fill")
+                                .foregroundColor(LKColor.success)
+                        }
+                    }
+                    .font(LKFont.body)
+
+                    if let path = storeHealth.storePath {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Store file").font(LKFont.caption).foregroundColor(LKColor.textMuted)
+                            Text(path).font(.system(size: 11, design: .monospaced))
+                                .foregroundColor(LKColor.textSecondary)
+                                .textSelection(.enabled)
+                        }
+                    }
+                    if let err = storeHealth.lastErrorMessage {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Last error").font(LKFont.caption).foregroundColor(LKColor.textMuted)
+                            Text(err).font(.system(size: 11, design: .monospaced))
+                                .foregroundColor(LKColor.danger)
+                                .textSelection(.enabled)
+                        }
+                    }
+                } header: {
+                    Text("Storage")
+                } footer: {
+                    Text("Your data is saved on this device. If this ever shows a problem, restart the app and report the error above.")
                 }
 
                 Section("LiftKit Pro") {

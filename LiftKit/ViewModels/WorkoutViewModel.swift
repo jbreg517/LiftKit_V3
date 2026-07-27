@@ -439,7 +439,7 @@ final class WorkoutViewModel {
             }
         }
 
-        try? context.save()
+        Persist.save(context)
 
         activeSession = session
         activeConfig  = buildTimerConfig()
@@ -579,7 +579,7 @@ final class WorkoutViewModel {
             context.insert(newEntry)
         }
 
-        try? context.save()
+        Persist.save(context)
         activeSession = newSession
         activeConfig  = TimerConfig.defaultConfig(for: session.timerType ?? .manual)
         presentActiveWorkout()
@@ -644,7 +644,7 @@ final class WorkoutViewModel {
         }
         record.entry = entry
         context.insert(record)
-        try? context.save()
+        Persist.save(context)
 
         // PR detection (rep-based only; timed holds don't produce weight/rep/volume PRs)
         if !set.isTimed, let exercise = entry?.exercise {
@@ -712,7 +712,7 @@ final class WorkoutViewModel {
             }
             record.rpe = rpe
             record.setType = setType
-            try? context.save()
+            Persist.save(context)
         }
     }
 
@@ -734,7 +734,7 @@ final class WorkoutViewModel {
             let entry = session.sortedEntries.first { $0.exercise?.name.lowercased() == ex.name.lowercased() }
             if let record = entry?.sortedSets.first(where: { $0.setNumber == setNumber }) {
                 record.reps = clamped > 0 ? clamped : nil
-                try? ctx.save()
+                Persist.save(ctx)
             }
         }
     }
@@ -757,7 +757,7 @@ final class WorkoutViewModel {
             let entry = session.sortedEntries.first { $0.exercise?.name.lowercased() == ex.name.lowercased() }
             if let record = entry?.sortedSets.first(where: { $0.setNumber == setNumber }) {
                 record.duration = clamped > 0 ? TimeInterval(clamped) : nil
-                try? ctx.save()
+                Persist.save(ctx)
             }
         }
     }
@@ -813,7 +813,7 @@ final class WorkoutViewModel {
     func recordSplit(_ seconds: TimeInterval, context: ModelContext) {
         guard let session = activeSession, seconds > 0 else { return }
         session.splits = session.splits + [seconds]   // reassign so SwiftData persists the change
-        try? context.save()
+        Persist.save(context)
     }
 
     // MARK: - Active-time clock
@@ -849,7 +849,7 @@ final class WorkoutViewModel {
         session.activeSeconds = activeWorkoutSeconds
         if session.timerType == .amrap { session.roundsCompleted = completedRounds }
         recordTimedWorkoutResults(context: context)
-        try? context.save()
+        Persist.save(context)
         isShowingComplete = true
     }
 
@@ -866,7 +866,7 @@ final class WorkoutViewModel {
             session.roundsCompleted = completedRounds
         }
         recordTimedWorkoutResults(context: context)
-        try? context.save()
+        Persist.save(context)
         exportToHealthKitIfEnabled(session: session, context: context)
         activeSession = nil
         showActiveWorkout = false
@@ -996,7 +996,7 @@ final class WorkoutViewModel {
     func discardWorkout(context: ModelContext) {
         if let session = activeSession {
             context.delete(session)
-            try? context.save()
+            Persist.save(context)
         }
         activeSession = nil
         showActiveWorkout = false
@@ -1065,7 +1065,7 @@ final class WorkoutViewModel {
                 context.insert(te)
             }
         }
-        try? context.save()
+        Persist.save(context)
         return template
     }
 
@@ -1121,13 +1121,13 @@ final class WorkoutViewModel {
             }
         }
         template.lastUsedAt = Date()
-        try? context.save()
+        Persist.save(context)
         return true
     }
 
     func markTemplateUsed(_ template: WorkoutTemplate, context: ModelContext) {
         template.lastUsedAt = Date()
-        try? context.save()
+        Persist.save(context)
     }
 
     // MARK: - Helpers

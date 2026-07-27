@@ -9,8 +9,14 @@
 	<array/>
 	<key>NSPrivacyCollectedDataTypes</key>
 	<array/>
-	<!-- Required-reason API usage. UserDefaults (@AppStorage) is read/written
-	     only for this app's own settings: reason CA92.1. -->
+	<!-- Required-reason API usage (anti-fingerprinting transparency; this is
+	     SEPARATE from data collection above and does not affect the "Data Not
+	     Collected" label). UserDefaults is used for:
+	       • CA92.1 — this app's own settings (@AppStorage / UserDefaults.standard).
+	       • 1C8F.1 — shared App Group defaults (SuiteProfileStore, via
+	         UserDefaults(suiteName: group.com.ferrixguild.suite)); read/written
+	         on-device between the developer's own suite apps and never sent off
+	         device. On-device sharing is not "collection." -->
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
 		<dict>
@@ -19,6 +25,7 @@
 			<key>NSPrivacyAccessedAPITypeReasons</key>
 			<array>
 				<string>CA92.1</string>
+				<string>1C8F.1</string>
 			</array>
 		</dict>
 	</array>

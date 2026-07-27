@@ -139,7 +139,7 @@ struct ExercisePickerView: View {
                 Spacer()
                 Button {
                     ex.isFavorite.toggle()
-                    try? context.save()
+                    Persist.save(context)
                     HapticManager.shared.buttonTap()
                 } label: {
                     Image(systemName: ex.isFavorite ? "star.fill" : "star")
@@ -165,7 +165,7 @@ struct ExercisePickerView: View {
             ? customSecondary.filter { $0 != ex.primaryMuscle }.sorted { $0.rawValue < $1.rawValue }
             : libSecondaries
         context.insert(ex)
-        try? context.save()
+        Persist.save(context)
         onSelect(ex)
         dismiss()
     }
