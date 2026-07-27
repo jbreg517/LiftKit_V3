@@ -39,6 +39,55 @@ struct LiftKitApp: App {
 // One container shared by the app and the App Intents entity query, so Siri can
 // look up templates from the same store the UI uses.
 enum LiftKitStore {
+    static let appGroupID = "group.com.ferrixguild.suite"
+
+    /// True when the on-disk store couldn't open and the app fell back to an
+    /// in-memory store — meaning nothing is being saved this launch. The UI reads
+    /// this to show a blocking warning instead of silently losing a session.
+    private(set) static var isEphemeral = false
+
+    /// The Application Support directory backing the store. Uses the shared App
+    /// Group container on a provisioned build, the app's own container otherwise
+    /// (unsigned builds have no group container).
+    private static var supportDirectory: URL {
+        let dir = FileManager.default
+            .containerURL(forSecurityApplicationGroupIdentifier: appGroupID)?
+            .appending(path: "Library/Application Support")
+            ?? URL.applicationSupportDirectory
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    /// LiftKit's OWN store file. This filename MUST be explicit: with the App
+    /// Group entitlement, an unnamed `ModelContainer` resolves to a *shared*
+    /// `default.store` that all three suite apps migrate on top of each other,
+    /// dropping the tables of whichever entities aren't in the launching app's
+    /// schema — silent, unrecoverable data loss. Each app owns one filename.
+    static var storeURL: URL { supportDirectory.appending(path: "LiftKit.store") }
+
+    /// One-time copy of the legacy `default.store` into `LiftKit.store`. In both
+    /// the shared App Group (where the largest schema — LiftKit's — won the past
+    /// migrations) and the app's own unsigned container, `default.store` holds
+    /// LiftKit's data, so it's safe to adopt. COPY, never move: deleting the
+    /// original could take data a sibling app hasn't migrated out yet.
+    private static func migrateLegacyStoreIfNeeded() {
+        let flag = "didMigrateSuiteStore_v1"
+        guard !UserDefaults.standard.bool(forKey: flag) else { return }
+        defer { UserDefaults.standard.set(true, forKey: flag) }
+
+        let fm = FileManager.default
+        let target = storeURL
+        let legacy = target.deletingLastPathComponent().appending(path: "default.store")
+        guard fm.fileExists(atPath: legacy.path), !fm.fileExists(atPath: target.path) else { return }
+        // Copy the store plus its -wal / -shm companions so an in-flight
+        // transaction log isn't stranded.
+        for suffix in ["", "-wal", "-shm"] {
+            let src = URL(fileURLWithPath: legacy.path + suffix)
+            let dst = URL(fileURLWithPath: target.path + suffix)
+            if fm.fileExists(atPath: src.path) { try? fm.copyItem(at: src, to: dst) }
+        }
+    }
+
     static let container: ModelContainer = {
         let schema = Schema([
             Exercise.self,
@@ -55,6 +104,8 @@ enum LiftKitStore {
             NutritionDay.self,
         ])
 
+        migrateLegacyStoreIfNeeded()
+
         // iCloud sync is opt-in (default OFF) and only works on a properly
         // signed build with the iCloud/CloudKit entitlement (i.e. App Store /
         // TestFlight). On the current unsigned/AltStore build the flag stays
@@ -62,25 +113,26 @@ enum LiftKitStore {
         let useICloud = UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")
 
         func makeContainer(cloud: Bool, inMemory: Bool = false) throws -> ModelContainer {
-            let config = ModelConfiguration(
-                schema: schema,
-                isStoredInMemoryOnly: inMemory,
-                cloudKitDatabase: cloud ? .automatic : .none
-            )
+            let config = inMemory
+                ? ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+                : ModelConfiguration(schema: schema, url: storeURL,
+                                     cloudKitDatabase: cloud ? .automatic : .none)
             return try ModelContainer(for: schema, configurations: [config])
         }
 
         // Try the preferred store, then progressively safer fallbacks. The app
         // must never crash on launch — an unrecoverable ModelContainer would be
         // a crash-loop (bad UX and an App Review rejection under 2.1). If the
-        // on-disk store can't be opened (e.g. a failed migration), the last
-        // resort is an in-memory store so the app still runs this session.
+        // on-disk store can't be opened, the last resort is an in-memory store so
+        // the app still runs — but `isEphemeral` is set so the UI can warn that
+        // nothing is being saved, rather than losing the session silently.
         if let container = try? makeContainer(cloud: useICloud) {
             return container
         }
         if useICloud, let local = try? makeContainer(cloud: false) {
             return local   // CloudKit unavailable (e.g. missing entitlement) → local only
         }
+        isEphemeral = true
         if let memory = try? makeContainer(cloud: false, inMemory: true) {
             return memory  // on-disk store unreadable → run without persistence this launch
         }
@@ -103,6 +155,7 @@ struct RootTabView: View {
     @ObservedObject private var store = StoreManager.shared
     @Query private var templates: [WorkoutTemplate]
     @Query private var schedules: [WorkoutSchedule]
+    @State private var storeWarningAcknowledged = false
 
     var body: some View {
         TabView(selection: $vm.selectedTab) {
@@ -163,6 +216,16 @@ struct RootTabView: View {
         }
         .sheet(isPresented: $vm.showPaywall) {
             PaywallView(highlight: vm.paywallFeature)
+        }
+        // Blocking, non-dismissible-until-acknowledged notice when the on-disk
+        // store couldn't open and the app is running in memory. Full screen, not a
+        // banner: a strip under the nav bar gets missed, which is how a whole
+        // session of data goes silently missing.
+        .fullScreenCover(isPresented: Binding(
+            get: { LiftKitStore.isEphemeral && !storeWarningAcknowledged },
+            set: { _ in }
+        )) {
+            StoreWarningView { storeWarningAcknowledged = true }
         }
         .onAppear { handlePendingQuickAction() }            // cold launch
         .onChange(of: quickActions.pending) { _, _ in
@@ -235,6 +298,41 @@ struct RootTabView: View {
         vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
         vm.markTemplateUsed(template, context: context)
         vm.showWorkoutSetup = true
+    }
+}
+
+// MARK: - Store failure notice
+// Shown full-screen when the on-disk store can't open and LiftKit is running in
+// memory — so a session isn't logged and silently lost. Acknowledgeable so the
+// user can still get into the app (e.g. to note what they lost), but it returns
+// every launch the problem persists.
+struct StoreWarningView: View {
+    let onAcknowledge: () -> Void
+
+    var body: some View {
+        ZStack {
+            LKColor.background.ignoresSafeArea()
+            VStack(spacing: LKSpacing.lg) {
+                Spacer()
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 56))
+                    .foregroundColor(LKColor.danger)
+                Text("Not Saving")
+                    .font(LKFont.title)
+                    .foregroundColor(LKColor.textPrimary)
+                Text("LiftKit couldn’t open your saved data, so it’s running on temporary storage — anything you record now will be lost when you close the app. Nothing on your device has been deleted. Please update the app or report this.")
+                    .font(LKFont.body)
+                    .foregroundColor(LKColor.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, LKSpacing.xl)
+                Spacer()
+                Button("I Understand") { onAcknowledge() }
+                    .buttonStyle(LKPrimaryButtonStyle())
+                    .padding(.horizontal, LKSpacing.lg)
+                Spacer().frame(height: LKSpacing.md)
+            }
+        }
+        .interactiveDismissDisabled()
     }
 }
 
