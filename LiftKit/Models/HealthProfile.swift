@@ -128,6 +128,30 @@ struct SuiteProfile: Codable, Equatable {
 
     /// When this was last written, so a reader can tell who is newest.
     var updatedAt: Date = .distantPast
+
+    init() {}
+
+    /// Hand-written so **every field is optional on the wire**, matching FuelKit and
+    /// RunKit byte-for-byte. Swift's synthesized `init(from:)` throws when a key is
+    /// absent (it ignores property defaults), so the first app to add a field here
+    /// would make every not-yet-updated app's decode throw — and since callers use
+    /// `try?`, they'd silently treat the shared profile as missing and stop honouring
+    /// the user's goal. `decodeIfPresent` with a default keeps the format forward and
+    /// backward compatible. **Add fields only, never rename or remove.**
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        heightInches   = try c.decodeIfPresent(Double.self, forKey: .heightInches) ?? 0
+        age            = try c.decodeIfPresent(Int.self, forKey: .age) ?? 0
+        biologicalSex  = try c.decodeIfPresent(String.self, forKey: .biologicalSex) ?? BiologicalSex.unspecified.rawValue
+        latestWeightLb = try c.decodeIfPresent(Double.self, forKey: .latestWeightLb) ?? 0
+        goalType       = try c.decodeIfPresent(String.self, forKey: .goalType) ?? WeightGoalType.maintain.rawValue
+        goalWeightLb   = try c.decodeIfPresent(Double.self, forKey: .goalWeightLb) ?? 0
+        weeklyRateLb   = try c.decodeIfPresent(Double.self, forKey: .weeklyRateLb) ?? 1.0
+        activityLevel  = try c.decodeIfPresent(String.self, forKey: .activityLevel) ?? ActivityLevel.moderate.rawValue
+        proteinPerLb   = try c.decodeIfPresent(Double.self, forKey: .proteinPerLb) ?? 0.8
+        fatPercent     = try c.decodeIfPresent(Double.self, forKey: .fatPercent) ?? 0.30
+        updatedAt      = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? .distantPast
+    }
 }
 
 /// Reads/writes the one `SuiteProfile` in the shared App Group. Every app in the
@@ -157,5 +181,52 @@ enum SuiteProfileStore {
         if let data = try? JSONEncoder().encode(p) {
             defaults.set(data, forKey: key)
         }
+    }
+}
+
+/// Pulls the suite-shared profile into this app's local `HealthProfile` whenever the
+/// shared copy is newer than the last time we synced.
+///
+/// This is the **read-through** that replaces the old seed-once behaviour: previously
+/// each app copied `SuiteProfile` into a local record exactly once (`if profiles
+/// .isEmpty`) and then diverged, so a goal or weight edited in another suite app never
+/// showed up here. See `SUITE-HEALTH-SYNC.md` (§4).
+enum SuiteProfileSync {
+    /// Per-app marker (local `UserDefaults`, not the App Group) of the shared
+    /// `updatedAt` we last reconciled to.
+    private static let markerKey = "suiteProfileSyncedAt"
+
+    /// Reconcile `profile` from the App Group. **Newest-wins on `updatedAt`:** only
+    /// pulls when the shared copy is strictly newer than our last sync, so this app's
+    /// own just-saved edits are never clobbered by a stale read.
+    @MainActor
+    static func reconcile(into profile: HealthProfile, context: ModelContext) {
+        guard let s = SuiteProfileStore.load() else { return }
+        let stamp = s.updatedAt.timeIntervalSinceReferenceDate
+        guard stamp > UserDefaults.standard.double(forKey: markerKey) else { return }
+        apply(s, to: profile)
+        UserDefaults.standard.set(stamp, forKey: markerKey)
+        Persist.save(context)
+    }
+
+    /// Record that we're in sync as of `updatedAt` — call right after this app pushes
+    /// its own edit, so the next `reconcile` doesn't redundantly re-apply our write.
+    static func markSynced(_ updatedAt: Date = Date()) {
+        UserDefaults.standard.set(updatedAt.timeIntervalSinceReferenceDate, forKey: markerKey)
+    }
+
+    /// Copy shared fields onto the local profile, leaving a local value in place when
+    /// the shared one is unset (0 / "unspecified") so a partially-filled shared
+    /// profile can't erase good local data.
+    private static func apply(_ s: SuiteProfile, to p: HealthProfile) {
+        if s.heightInches > 0 { p.heightInches = s.heightInches }
+        if s.age > 0 { p.age = s.age }
+        if s.biologicalSex != BiologicalSex.unspecified.rawValue { p.biologicalSexRaw = s.biologicalSex }
+        p.activityLevelRaw = s.activityLevel
+        p.goalTypeRaw = s.goalType
+        if s.goalWeightLb > 0 { p.goalWeightLb = s.goalWeightLb }
+        if s.weeklyRateLb > 0 { p.weeklyRateLb = s.weeklyRateLb }
+        if s.proteinPerLb > 0 { p.proteinPerLb = s.proteinPerLb }
+        if s.fatPercent > 0 { p.fatPercent = s.fatPercent }
     }
 }

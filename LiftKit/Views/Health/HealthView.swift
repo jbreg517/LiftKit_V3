@@ -52,10 +52,19 @@ struct HealthView: View {
                 }
             }
             .onAppear {
-                if isPremium && healthProfiles.isEmpty {
-                    context.insert(HealthProfile())
+                guard isPremium else { return }
+                // Ensure a local profile exists, then read through the suite-shared
+                // profile so a goal / measurement edited in RunKit or FuelKit shows up
+                // here (newest-wins), instead of only seeding once and diverging.
+                let profile: HealthProfile
+                if let existing = healthProfiles.first {
+                    profile = existing
+                } else {
+                    profile = HealthProfile()
+                    context.insert(profile)
                     Persist.save(context)
                 }
+                SuiteProfileSync.reconcile(into: profile, context: context)
             }
             .sheet(isPresented: $showGoals) { HealthGoalsSheet() }
             .sheet(isPresented: $showWeightAdd) { AddBodyMetricSheet(defaultType: .bodyweight) }
@@ -1072,6 +1081,9 @@ struct HealthGoalsSheet: View {
         suite.proteinPerLb = p.proteinPerLb
         suite.fatPercent = p.fatPercent
         SuiteProfileStore.save(suite)
+        // We just wrote the shared profile; advance our sync marker so the next
+        // reconcile doesn't redundantly re-apply our own edit.
+        SuiteProfileSync.markSynced()
         Task { await HealthKitManager.shared.saveHeight(inches: p.heightInches) }
 
         dismiss()
