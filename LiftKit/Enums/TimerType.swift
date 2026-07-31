@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum TimerType: String, CaseIterable, Identifiable {
+enum TimerType: String, Codable, CaseIterable, Identifiable {
     case amrap     = "AMRAP"
     case emom      = "EMOM"
     case forTime   = "For Time"

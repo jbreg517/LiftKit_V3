@@ -17,6 +17,11 @@ final class WorkoutSession {
     /// AMRAP: rounds the athlete counted with the +/− counter. nil for other
     /// workout types and sessions recorded before this field existed.
     var roundsCompleted: Int?
+    /// The timer settings (durations, rounds, interval work/rest) this workout was
+    /// performed with, JSON-encoded via `TimerConfig`. Persisted so "Do Again"
+    /// reproduces the exact session instead of falling back to default timings.
+    /// nil for sessions recorded before this field existed.
+    var timerConfigData: Data?
 
     @Relationship(deleteRule: .cascade, inverse: \WorkoutEntry.session)
     var entries: [WorkoutEntry] = []
@@ -61,6 +66,16 @@ final class WorkoutSession {
     var timerType: TimerType? {
         guard let t = workoutType else { return nil }
         return TimerType(rawValue: t)
+    }
+
+    /// The timer configuration this session was performed with, decoded from
+    /// `timerConfigData`. nil for legacy sessions saved before it was recorded.
+    var storedConfig: TimerConfig? {
+        get {
+            guard let data = timerConfigData else { return nil }
+            return try? JSONDecoder().decode(TimerConfig.self, from: data)
+        }
+        set { timerConfigData = newValue.flatMap { try? JSONEncoder().encode($0) } }
     }
 
     var sortedEntries: [WorkoutEntry] {

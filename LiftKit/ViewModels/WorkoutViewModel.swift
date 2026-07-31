@@ -439,10 +439,15 @@ final class WorkoutViewModel {
             }
         }
 
+        // Record the exact timings alongside the session so "Do Again" reproduces
+        // them rather than resetting to defaults.
+        let config = buildTimerConfig()
+        session.storedConfig = config
+
         Persist.save(context)
 
         activeSession = session
-        activeConfig  = buildTimerConfig()
+        activeConfig  = config
         activeSessionCards = cards
         if selectedTimerType == .reps {
             activeExercises = exercises.map { ActiveExercise(from: $0) }
@@ -507,8 +512,8 @@ final class WorkoutViewModel {
                 return card
             }
             // Restore AMRAP round splits: a group change between consecutive
-            // entries marks a round boundary. (Round durations aren't stored
-            // on sessions, so they default to 10 min — templates keep them.)
+            // entries marks a round boundary. Per-round durations are reapplied
+            // afterward from the session's stored config (applyConfigToSetup).
             if type == .amrap {
                 for i in sessions.indices where i + 1 < entries.count {
                     if entries[i].supersetGroup != entries[i + 1].supersetGroup {
@@ -565,7 +570,59 @@ final class WorkoutViewModel {
             }
             if manualSessions.isEmpty { manualSessions = [SessionCard()] }
         }
+        // Restore the exact timings the workout was performed with. Without this the
+        // setup screen shows default durations/rounds and "Do Again" silently changes
+        // the workout (the round durations comment above no longer applies once a
+        // config is stored). Legacy sessions have no stored config and keep the
+        // values derived from their entries.
+        if let config = session.storedConfig {
+            applyConfigToSetup(config, type: type)
+        }
         showWorkoutSetup = true
+    }
+
+    /// Copies a stored `TimerConfig` back onto the setup-state fields the setup
+    /// screen edits, so a repeated workout starts with the same durations, rounds
+    /// and interval timings it was originally run with.
+    private func applyConfigToSetup(_ config: TimerConfig, type: TimerType) {
+        switch type {
+        case .amrap:
+            if config.roundDurations.count > 1 {
+                // Multi-round AMRAP: each round's duration goes on the first card of
+                // that round. The round boundaries (roundBreakAfter) were restored
+                // from supersetGroup changes just above.
+                let slots = Self.roundSlots(for: sessions)
+                for (round, slot) in slots.enumerated() where round < config.roundDurations.count {
+                    if let first = slot.first, first < sessions.count {
+                        let minutes = Int((config.roundDurations[round] / 60).rounded())
+                        sessions[first].roundMinutes = max(1, minutes)
+                    }
+                }
+            } else {
+                setTimeLimit(from: config.totalDuration)
+            }
+        case .forTime:
+            setTimeLimit(from: config.totalDuration)
+            forTimeRounds = max(1, config.forTimeRounds)
+        case .emom:
+            emomMinutes = max(1, config.rounds)
+        case .intervals:
+            workSeconds = max(1, Int(config.workDuration))
+            restSeconds = max(0, Int(config.restDuration))
+            intervalRounds = max(1, config.intervalRounds)
+        case .reps:
+            restBetweenSets = max(0, Int(config.restBetweenSets))
+        case .manual:
+            break
+        }
+    }
+
+    /// Splits a total duration in seconds into the setup screen's minutes/seconds
+    /// fields (used for AMRAP and For Time time caps).
+    private func setTimeLimit(from seconds: TimeInterval) {
+        let total = max(0, Int(seconds.rounded()))
+        timeLimitMinutes = total / 60
+        timeLimitSeconds = total % 60
     }
 
     func repeatWorkout(session: WorkoutSession, context: ModelContext) {
