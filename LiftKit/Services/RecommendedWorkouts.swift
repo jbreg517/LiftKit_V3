@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 // MARK: - Tagging taxonomies (also reused by future muscle-volume analytics)
 
@@ -101,6 +102,52 @@ extension RecommendedWorkout {
     }
     /// True when the workout uses the given equipment (for the chip filter).
     func uses(_ e: Equipment) -> Bool { allEquipment.contains(e) }
+
+    /// The user's `WorkoutTemplate` materialised from this prebuilt workout —
+    /// created once and reused (keyed on `recommendedSourceID`), so scheduling the
+    /// same prebuilt twice doesn't duplicate it. This is what lets a prebuilt
+    /// workout be scheduled exactly like a saved plan. Mirrors the mapping in
+    /// `WorkoutViewModel.saveAsTemplate`.
+    func materializedTemplate(in context: ModelContext) -> WorkoutTemplate {
+        let sourceID = id
+        if let existing = (try? context.fetch(FetchDescriptor<WorkoutTemplate>()))?
+            .first(where: { $0.recommendedSourceID == sourceID }) {
+            return existing
+        }
+        let template = WorkoutTemplate(name: name)
+        template.recommendedSourceID = sourceID
+        context.insert(template)
+
+        if type == .reps {
+            for (i, ex) in exercises.enumerated() {
+                let te = TemplateExercise(
+                    exerciseName: ex.name,
+                    timerType: ex.isTimed ? .forTime : .reps,
+                    targetSets: ex.sets,
+                    targetReps: ex.reps,
+                    targetDuration: ex.isTimed ? ex.durationSeconds : 0,
+                    sortOrder: i,
+                    equipment: ex.equipment == .none ? nil : ex.equipment)
+                te.restSeconds = restBetweenSets
+                te.template = template
+                context.insert(te)
+            }
+        } else {
+            for (i, s) in sessions.enumerated() {
+                let te = TemplateExercise(
+                    exerciseName: s.name,
+                    timerType: type,
+                    targetSets: 3,
+                    targetReps: s.reps,
+                    sortOrder: i,
+                    equipment: s.equipment == .none ? nil : s.equipment)
+                te.template = template
+                context.insert(te)
+            }
+        }
+        Persist.save(context)
+        return template
+    }
 }
 
 // MARK: - The catalog

@@ -14,6 +14,10 @@ final class WorkoutTemplate {
     /// template lists, while the schedule rows that reference them work normally.
     /// Additive with a default → lightweight, CloudKit-compatible migration.
     var isProgramGenerated: Bool = false
+    /// The `RecommendedWorkout.id` this plan was materialised from, when the user
+    /// scheduled a prebuilt workout. Lets us reuse one template per prebuilt instead
+    /// of duplicating it each time it's scheduled. nil for hand-built plans.
+    var recommendedSourceID: String?
 
     @Relationship(deleteRule: .cascade, inverse: \TemplateExercise.template)
     var exercises: [TemplateExercise] = []

@@ -53,6 +53,17 @@ struct ScheduleEditView: View {
                             TextField("Custom workout name", text: $customName)
                         }
                     }
+                    // Schedule a prebuilt workout without building it first — picking
+                    // one materialises it into a plan and selects it here.
+                    NavigationLink {
+                        PrebuiltWorkoutPicker { rec in
+                            selectedTemplate = rec.materializedTemplate(in: context)
+                            customName = ""
+                        }
+                    } label: {
+                        Label("Choose Prebuilt Workout", systemImage: "square.grid.2x2")
+                            .foregroundColor(LKColor.accent)
+                    }
                 }
 
                 Section("Notes") {
@@ -133,5 +144,50 @@ struct ScheduleEditView: View {
         context.delete(schedule)
         Persist.save(context)
         dismiss()
+    }
+}
+
+// MARK: - Prebuilt workout picker
+//
+// A searchable list of the recommended-workout catalog, shared by the single-day
+// scheduler and the series scheduler. On pick, the caller materialises the chosen
+// prebuilt into a reusable `WorkoutTemplate` (see `RecommendedWorkout
+// .materializedTemplate`) and this view pops.
+struct PrebuiltWorkoutPicker: View {
+    let onPick: (RecommendedWorkout) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var search = ""
+
+    private var results: [RecommendedWorkout] {
+        let trimmed = search.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return RecommendedWorkouts.all }
+        return RecommendedWorkouts.all.filter {
+            $0.name.localizedCaseInsensitiveContains(trimmed)
+            || $0.blurb.localizedCaseInsensitiveContains(trimmed)
+        }
+    }
+
+    var body: some View {
+        List {
+            ForEach(results) { workout in
+                Button {
+                    onPick(workout)
+                    HapticManager.shared.buttonTap()
+                    dismiss()
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(workout.name)
+                            .font(LKFont.body).foregroundColor(LKColor.textPrimary)
+                        Text(workout.type.rawValue)
+                            .font(LKFont.caption).foregroundColor(LKColor.textMuted)
+                    }
+                }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(LKColor.background.ignoresSafeArea())
+        .searchable(text: $search, prompt: "Search prebuilt workouts")
+        .navigationTitle("Prebuilt Workouts")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

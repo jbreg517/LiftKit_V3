@@ -762,6 +762,19 @@ struct SeriesScheduleSheet: View {
                         }
                         .disabled(order == nil && selectedIDs.count >= maxTemplates)
                     }
+                    // Prebuilt workouts can join the rotation too — picking one
+                    // materialises it into a reusable plan and selects it.
+                    NavigationLink {
+                        PrebuiltWorkoutPicker { rec in
+                            let t = rec.materializedTemplate(in: context)
+                            if !selectedIDs.contains(t.id) && selectedIDs.count < maxTemplates {
+                                selectedIDs.append(t.id)
+                            }
+                        }
+                    } label: {
+                        Label("Add a prebuilt workout", systemImage: "square.grid.2x2")
+                            .foregroundColor(LKColor.accent)
+                    }
                 } header: {
                     Text("Workouts (alternate in this order)")
                 } footer: {
