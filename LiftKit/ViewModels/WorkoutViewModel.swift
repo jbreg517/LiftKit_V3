@@ -285,6 +285,11 @@ final class WorkoutViewModel {
         case .manual:          manualSessions = sessCards.isEmpty ? [SessionCard()] : sessCards
         case .reps:            break
         }
+        // Restore the exact timer settings this plan was saved with (durations,
+        // rounds, work/rest, rest between sets); otherwise it opens at defaults.
+        if let config = template.storedConfig {
+            applyConfigToSetup(config, type: type)
+        }
     }
 
     /// Applies linear weight progression to the current rep-based
@@ -1122,6 +1127,8 @@ final class WorkoutViewModel {
                 context.insert(te)
             }
         }
+        // Persist the timings so the plan reopens with its exact durations/rounds.
+        template.storedConfig = buildTimerConfig()
         Persist.save(context)
         return template
     }
@@ -1177,6 +1184,7 @@ final class WorkoutViewModel {
                 context.insert(te)
             }
         }
+        template.storedConfig = buildTimerConfig()
         template.lastUsedAt = Date()
         Persist.save(context)
         return true

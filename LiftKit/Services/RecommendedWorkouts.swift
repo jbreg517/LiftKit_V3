@@ -145,6 +145,25 @@ extension RecommendedWorkout {
                 context.insert(te)
             }
         }
+        // Carry the workout's timings onto the plan so a scheduled prebuilt opens
+        // with its real cap/rounds/work-rest, not defaults.
+        var config = TimerConfig(type: type)
+        switch type {
+        case .amrap, .forTime:
+            config.totalDuration = TimeInterval(timeCapMinutes * 60)
+            if type == .forTime { config.forTimeRounds = max(1, forTimeRounds) }
+        case .emom:
+            config.rounds = emomMinutes
+        case .intervals:
+            config.workDuration = TimeInterval(work)
+            config.restDuration = TimeInterval(rest)
+            config.intervalRounds = rounds
+        case .reps:
+            config.restBetweenSets = TimeInterval(restBetweenSets)
+        case .manual:
+            break
+        }
+        template.storedConfig = config
         Persist.save(context)
         return template
     }

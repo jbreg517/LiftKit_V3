@@ -18,6 +18,11 @@ final class WorkoutTemplate {
     /// scheduled a prebuilt workout. Lets us reuse one template per prebuilt instead
     /// of duplicating it each time it's scheduled. nil for hand-built plans.
     var recommendedSourceID: String?
+    /// The timer settings (durations, rounds, interval work/rest, rest between sets)
+    /// this plan uses, JSON-encoded via `TimerConfig`. Persisted so a saved or
+    /// scheduled workout opens with its exact timings instead of defaults. nil for
+    /// plans saved before this field existed. Additive → lightweight migration.
+    var timerConfigData: Data?
 
     @Relationship(deleteRule: .cascade, inverse: \TemplateExercise.template)
     var exercises: [TemplateExercise] = []
@@ -41,6 +46,16 @@ final class WorkoutTemplate {
 
     var sortedExercises: [TemplateExercise] {
         exercises.sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    /// The timer configuration this plan was saved with, decoded from
+    /// `timerConfigData`. nil for legacy plans saved before it was recorded.
+    var storedConfig: TimerConfig? {
+        get {
+            guard let data = timerConfigData else { return nil }
+            return try? JSONDecoder().decode(TimerConfig.self, from: data)
+        }
+        set { timerConfigData = newValue.flatMap { try? JSONEncoder().encode($0) } }
     }
 }
 
