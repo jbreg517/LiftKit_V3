@@ -218,8 +218,20 @@ workflows:
             --scheme LiftKit 2>&1 | tee /tmp/build_ipa.log
           STATUS=${PIPESTATUS[0]}
           if [ "$STATUS" -ne 0 ]; then
-            echo "===== SIGNED BUILD FAILED (status $STATUS) — error / entitlement lines: ====="
-            grep -Ei "error:|entitlement|provisioning|doesn't include|profile|code ?sign|ARCHIVE FAILED|Undefined symbol" /tmp/build_ipa.log | tail -80
+            echo "===== SIGNED BUILD FAILED (status $STATUS) ====="
+            # build-ipa prints only a summary to stdout; the real xcodebuild output
+            # (compile + codesign errors) goes to its own log file. Find the newest
+            # one and print the errors, then a raw tail in case nothing matched.
+            LOG=$(ls -t /tmp/xcodebuild_*.log 2>/dev/null | head -1)
+            if [ -n "$LOG" ]; then
+              echo "----- error lines from $LOG -----"
+              grep -Ei "error:|entitlement|provisioning|doesn't include|code ?sign|cannot|failed|Undefined symbol" "$LOG" | tail -100
+              echo "----- raw tail of $LOG -----"
+              tail -120 "$LOG"
+            else
+              echo "No /tmp/xcodebuild_*.log found; build_ipa stdout tail:"
+              tail -120 /tmp/build_ipa.log
+            fi
             exit 1
           fi
 
