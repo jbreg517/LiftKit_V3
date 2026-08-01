@@ -119,8 +119,13 @@ workflows:
   # ONE-TIME SETUP IN THE CODEMAGIC UI (cannot be done from this file):
   #   1. Apple Developer Program enrollment, then register BOTH App IDs at
   #      developer.apple.com: `com.ferrixguild.liftkit` and `com.ferrixguild.liftkit.widgets`.
-  #      On the app's App ID enable HealthKit, In-App Purchase, and Push
-  #      Notifications (Live Activities).
+  #      On the app's App ID enable HealthKit, In-App Purchase, Push
+  #      Notifications (Live Activities), AND App Groups — assigning the group
+  #      `group.com.ferrixguild.suite` (register it first under Identifiers ▸ App
+  #      Groups if it doesn't exist; it's shared with RunKit/FuelKit). Every
+  #      entitlement in LiftKit/LiftKit.entitlements must have a matching enabled
+  #      capability on the App ID, or the fetched App Store profile won't carry it
+  #      and `build-ipa` fails with "doesn't include the … entitlement".
   #   2. Codemagic > Teams/Personal > Integrations > "App Store Connect":
   #      upload an App Store Connect API key (Issuer ID, Key ID, .p8 file).
   #      Name it EXACTLY the same string used in `integrations:` below.
@@ -204,10 +209,19 @@ workflows:
 
       - name: Build signed IPA
         script: |
-          set -eo pipefail
+          # pipefail only (no `set -e`) so the error grep runs even when the build
+          # fails — otherwise a signing/compile failure exits 65 with no visible
+          # cause (which is exactly how this bit last time).
+          set -o pipefail
           xcode-project build-ipa \
             --project LiftKit.xcodeproj \
-            --scheme LiftKit
+            --scheme LiftKit 2>&1 | tee /tmp/build_ipa.log
+          STATUS=${PIPESTATUS[0]}
+          if [ "$STATUS" -ne 0 ]; then
+            echo "===== SIGNED BUILD FAILED (status $STATUS) — error / entitlement lines: ====="
+            grep -Ei "error:|entitlement|provisioning|doesn't include|profile|code ?sign|ARCHIVE FAILED|Undefined symbol" /tmp/build_ipa.log | tail -80
+            exit 1
+          fi
 
     artifacts:
       - build/ios/ipa/*.ipa
