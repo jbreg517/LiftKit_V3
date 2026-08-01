@@ -9,7 +9,10 @@ struct ScheduleEditView: View {
     let schedule: WorkoutSchedule
     let isNew: Bool
 
-    @Query(sort: \WorkoutTemplate.lastUsedAt, order: .reverse) private var templates: [WorkoutTemplate]
+    @Query(sort: \WorkoutTemplate.lastUsedAt, order: .reverse) private var allTemplates: [WorkoutTemplate]
+    /// User plans only — program-generated session templates are hidden from the
+    /// single-day scheduler's template picker.
+    private var templates: [WorkoutTemplate] { allTemplates.filter { !$0.isProgramGenerated } }
 
     @State private var date: Date
     @State private var selectedTemplate: WorkoutTemplate?

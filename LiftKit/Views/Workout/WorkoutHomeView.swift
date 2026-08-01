@@ -16,6 +16,7 @@ struct WorkoutHomeView: View {
     @State private var showCalendarPicker = false
     @State private var showSeriesSchedule = false
     @State private var showUpcoming = false
+    @State private var showPrograms = false
 
     private var userProfile: UserProfile? { profiles.first }
     private var isPremium: Bool { store.isPro }
@@ -30,7 +31,9 @@ struct WorkoutHomeView: View {
 
     private var visibleTemplates: [WorkoutTemplate] {
         let limit = isPremium ? UserProfile.maxVisibleTemplates : UserProfile.maxFreeTemplates
-        return Array(templates.prefix(limit))
+        // Program-generated templates are an implementation detail of a scheduled
+        // program (see ProgramMaterializer) — keep them out of the user's plan list.
+        return Array(templates.filter { !$0.isProgramGenerated }.prefix(limit))
     }
 
     var body: some View {
@@ -84,6 +87,9 @@ struct WorkoutHomeView: View {
         }
         .sheet(isPresented: $showSeriesSchedule) {
             SeriesScheduleSheet()
+        }
+        .sheet(isPresented: $showPrograms) {
+            ProgramsView()
         }
         .sheet(isPresented: $showUpcoming) {
             UpcomingSchedulesView(vm: vm)
@@ -303,6 +309,12 @@ struct WorkoutHomeView: View {
                 if !templates.isEmpty {
                     if isPremium {
                         Menu {
+                            Button {
+                                showPrograms = true
+                                HapticManager.shared.buttonTap()
+                            } label: {
+                                Label("Browse Programs", systemImage: "square.stack.3d.up.fill")
+                            }
                             Button {
                                 showSeriesSchedule = true
                                 HapticManager.shared.buttonTap()
@@ -647,7 +659,10 @@ struct DueWorkoutCard: View {
 struct SeriesScheduleSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
-    @Query(sort: \WorkoutTemplate.lastUsedAt, order: .reverse) private var templates: [WorkoutTemplate]
+    @Query(sort: \WorkoutTemplate.lastUsedAt, order: .reverse) private var allTemplates: [WorkoutTemplate]
+    /// User plans only — program-generated session templates are hidden here so they
+    /// don't clutter the "pick plans to alternate" list.
+    private var templates: [WorkoutTemplate] { allTemplates.filter { !$0.isProgramGenerated } }
 
     @State private var selectedIDs: [UUID] = []
     @State private var search = ""
