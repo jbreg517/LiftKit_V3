@@ -66,6 +66,12 @@ struct HealthView: View {
                 }
                 SuiteProfileSync.reconcile(into: profile, context: context)
             }
+            // Re-reconcile the instant a sibling app writes the shared profile (iPad
+            // multitasking), rather than waiting for the next foreground.
+            .onReceive(NotificationCenter.default.publisher(for: SuiteNotifier.changed)) { _ in
+                guard isPremium, let profile = healthProfiles.first else { return }
+                SuiteProfileSync.reconcile(into: profile, context: context)
+            }
             .sheet(isPresented: $showGoals) { HealthGoalsSheet() }
             .sheet(isPresented: $showWeightAdd) { AddBodyMetricSheet(defaultType: .bodyweight) }
             .sheet(isPresented: $showNutritionAdd) {

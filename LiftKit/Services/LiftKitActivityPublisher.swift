@@ -25,9 +25,12 @@ enum LiftKitActivityPublisher {
     static func publish(sessions: [WorkoutSession], schedules: [WorkoutSchedule], now: Date = Date()) {
         let completed = sessions.filter { $0.completedAt != nil }
         let reference = referenceStrain(completed, now: now)
+        // Bodyweight for the kcal estimate — the App-Group mirror is fine here (no
+        // Health needed), since this kcal is itself the Health-off fallback.
+        let weightLb = SuiteProfileStore.load()?.latestWeightLb ?? 0
         let feed = SuiteActivityFeed(
             source: source,
-            recentLoad: dailyLoads(completed, reference: reference, now: now),
+            recentLoad: dailyLoads(completed, reference: reference, weightLb: weightLb, now: now),
             planned: plannedSessions(schedules, now: now))
         SuiteActivityStore.publish(feed)
     }
@@ -48,7 +51,7 @@ enum LiftKitActivityPublisher {
     /// (they may have run). Absent means "LiftKit has nothing to say" (see the note
     /// on `SuiteActivityStore.totalLoad`).
     private static func dailyLoads(_ sessions: [WorkoutSession], reference: Double,
-                                   now: Date) -> [SuiteDailyLoad] {
+                                   weightLb: Double, now: Date) -> [SuiteDailyLoad] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: now)
         guard let earliest = cal.date(byAdding: .day, value: -SuiteActivityFeed.historyWindow,
@@ -61,11 +64,16 @@ enum LiftKitActivityPublisher {
 
         return byDay.map { day, daySessions in
             let total = daySessions.reduce(0.0) { $0 + strain(of: $1) }
+            // Absolute burn for the App-Group fallback (0 when no bodyweight is known).
+            let kcal = weightLb > 0
+                ? daySessions.reduce(0.0) { $0 + HealthCalculations.workoutCalories(for: $1, bodyweightLb: weightLb) }
+                : 0
             return SuiteDailyLoad(date: day,
                                   kind: .strength,
                                   load: reference > 0 ? min(1, total / reference) : 0,
                                   perceivedEffort: 0,   // LiftKit doesn't collect session RPE
-                                  sessionCount: daySessions.count)
+                                  sessionCount: daySessions.count,
+                                  activeKcal: kcal)
         }
         .sorted { $0.date < $1.date }
     }

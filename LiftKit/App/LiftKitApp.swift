@@ -20,6 +20,7 @@ struct LiftKitApp: App {
 
     init() {
         requestNotificationPermission()
+        SuiteNotifier.startBridging()   // deliver cross-app change signals to views
     }
 
     var body: some Scene {
