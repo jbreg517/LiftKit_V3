@@ -36,6 +36,10 @@ struct WorkoutHomeView: View {
         return Array(templates.filter { !$0.isProgramGenerated }.prefix(limit))
     }
 
+    /// Whether the user has any of their own (non-program) plans — the gate for
+    /// "Schedule a Series", which needs templates to alternate.
+    private var hasUserTemplates: Bool { templates.contains { !$0.isProgramGenerated } }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -306,46 +310,53 @@ struct WorkoutHomeView: View {
                     .foregroundColor(LKColor.textMuted)
                     .tracking(2)
                 Spacer()
-                if !templates.isEmpty {
-                    if isPremium {
-                        Menu {
-                            Button {
-                                showPrograms = true
-                                HapticManager.shared.buttonTap()
-                            } label: {
-                                Label("Browse Programs", systemImage: "square.stack.3d.up.fill")
-                            }
+                // The schedule control is always shown (it used to be hidden until
+                // the user had saved a plan — which also hid "Browse Programs", the
+                // one thing a fresh user needs, since pre-loaded programs require no
+                // templates). "Schedule a Series" still needs user plans, so it's the
+                // only item gated on having them.
+                if isPremium {
+                    Menu {
+                        Button {
+                            showPrograms = true
+                            HapticManager.shared.buttonTap()
+                        } label: {
+                            Label("Browse Programs", systemImage: "square.stack.3d.up.fill")
+                        }
+                        if hasUserTemplates {
                             Button {
                                 showSeriesSchedule = true
                                 HapticManager.shared.buttonTap()
                             } label: {
                                 Label("Schedule a Series", systemImage: "calendar.badge.plus")
                             }
+                        }
+                        if !schedules.isEmpty {
                             Button {
                                 showUpcoming = true
                                 HapticManager.shared.buttonTap()
                             } label: {
                                 Label("Manage Upcoming", systemImage: "calendar.badge.clock")
                             }
-                        } label: {
-                            Label("Schedule", systemImage: "calendar")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(LKColor.accent)
                         }
-                    } else {
-                        // Scheduling is a Pro feature — show a locked control that
-                        // opens the paywall instead of the scheduling menu.
-                        Button {
-                            vm.paywallFeature = .scheduling
-                            vm.showPaywall = true
-                            HapticManager.shared.buttonTap()
-                        } label: {
-                            Label("Schedule", systemImage: "lock.fill")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(LKColor.textMuted)
-                        }
-                        .accessibilityLabel("Schedule, a Pro feature. Double tap to upgrade.")
+                    } label: {
+                        Label("Schedule", systemImage: "calendar")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(LKColor.accent)
                     }
+                } else {
+                    // Scheduling is a Pro feature — show a locked control that
+                    // opens the paywall instead of the scheduling menu.
+                    Button {
+                        vm.paywallFeature = .scheduling
+                        vm.showPaywall = true
+                        HapticManager.shared.buttonTap()
+                    } label: {
+                        Label("Schedule", systemImage: "lock.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(LKColor.textMuted)
+                    }
+                    .accessibilityLabel("Schedule, a Pro feature. Double tap to upgrade.")
                 }
             }
             .padding(.horizontal, LKSpacing.md)
