@@ -805,6 +805,21 @@ struct SwipeToDeleteRow<Content: View>: View {
 
             content
                 .offset(x: offset)
+                // Suppress the row's own tap the instant the drawer starts to open,
+                // so a horizontal swipe can't also register as a tap (which was
+                // firing the row's action — e.g. opening a custom workout — mid-swipe
+                // and made Delete unreachable). A pure tap (drawer still closed) still
+                // goes through; a tap while open closes the drawer.
+                .allowsHitTesting(offset == 0)
+                .overlay {
+                    if offset > 1 {
+                        Color.black.opacity(0.001)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                withAnimation(.easeOut(duration: 0.2)) { offset = 0 }
+                            }
+                    }
+                }
                 // simultaneousGesture (not .gesture) so the enclosing ScrollView
                 // doesn't swallow the horizontal swipe.
                 .simultaneousGesture(dragGesture, including: enabled ? .all : .subviews)
@@ -812,7 +827,7 @@ struct SwipeToDeleteRow<Content: View>: View {
     }
 
     private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 18)
+        DragGesture(minimumDistance: 14)
             .onChanged { value in
                 guard abs(value.translation.width) > abs(value.translation.height) else { return }
                 offset = max(0, min(value.translation.width, revealWidth))

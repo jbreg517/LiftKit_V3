@@ -60,6 +60,29 @@ struct ScheduleEditView: View {
                         .lineLimit(3...6)
                 }
 
+                // Jump into the full workout setup (weights, times, sets, rounds…)
+                // for the chosen plan. Edits/starts there behave like any workout;
+                // this screen stays about *when* it's scheduled.
+                if let template = selectedTemplate {
+                    Section {
+                        Button {
+                            // Dismiss this sheet first, then present the setup on the
+                            // next runloop — presenting a sheet in the same tick another
+                            // is dismissing makes SwiftUI silently drop it.
+                            dismiss()
+                            let t = template
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                vm.loadFromTemplate(t, type: t.sortedExercises.first?.timerType ?? .reps)
+                                vm.showWorkoutSetup = true
+                            }
+                        } label: {
+                            Label("Edit Workout", systemImage: "slider.horizontal.3")
+                        }
+                    } footer: {
+                        Text("Open the full workout to adjust weights, reps, times and rounds.")
+                    }
+                }
+
                 if !isNew {
                     Section {
                         Button(role: .destructive) {

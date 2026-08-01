@@ -161,6 +161,25 @@ struct WorkoutCalendarView: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
+        // Long-press jumps straight into the full workout editor for that day's
+        // scheduled workout (weights, times, sets…), skipping the schedule sheet.
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.45).onEnded { _ in
+                openFullEditor(for: date)
+            }
+        )
+    }
+
+    /// Opens the full workout setup for the first incomplete scheduled workout on
+    /// `date` that has a plan attached. No-op if the day has nothing scheduled.
+    private func openFullEditor(for date: Date) {
+        let sched = schedules.first {
+            !$0.isCompleted && calendar.isDate($0.date, inSameDayAs: date) && $0.template != nil
+        }
+        guard let template = sched?.template else { return }
+        HapticManager.shared.buttonTap()
+        vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
+        vm.showWorkoutSetup = true
     }
 
     // MARK: - Selected Date Info
@@ -210,17 +229,18 @@ struct WorkoutCalendarView: View {
                 .buttonStyle(.plain)
             }
 
-            if daySessions.isEmpty && daySchedules.isEmpty {
-                Button {
-                    scheduleEditTarget = ScheduleEditTarget(
-                        schedule: WorkoutSchedule(date: date), isNew: true
-                    )
-                } label: {
-                    Label("Schedule Workout", systemImage: "plus")
-                        .font(LKFont.caption)
-                        .foregroundColor(LKColor.accent)
-                }
+            // Always available once a day is selected — not just on empty days — so
+            // you can add another workout to a day that already has one.
+            Button {
+                scheduleEditTarget = ScheduleEditTarget(
+                    schedule: WorkoutSchedule(date: date), isNew: true
+                )
+            } label: {
+                Label("Schedule Workout", systemImage: "plus")
+                    .font(LKFont.caption)
+                    .foregroundColor(LKColor.accent)
             }
+            .padding(.top, LKSpacing.xs)
         }
         .padding(.top, LKSpacing.sm)
     }

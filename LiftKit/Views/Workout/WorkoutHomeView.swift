@@ -17,6 +17,7 @@ struct WorkoutHomeView: View {
     @State private var showSeriesSchedule = false
     @State private var showUpcoming = false
     @State private var showPrograms = false
+    @State private var scheduleTarget: ScheduleEditTarget?
 
     private var userProfile: UserProfile? { profiles.first }
     private var isPremium: Bool { store.isPro }
@@ -35,10 +36,6 @@ struct WorkoutHomeView: View {
         // program (see ProgramMaterializer) — keep them out of the user's plan list.
         return Array(templates.filter { !$0.isProgramGenerated }.prefix(limit))
     }
-
-    /// Whether the user has any of their own (non-program) plans — the gate for
-    /// "Schedule a Series", which needs templates to alternate.
-    private var hasUserTemplates: Bool { templates.contains { !$0.isProgramGenerated } }
 
     var body: some View {
         NavigationStack {
@@ -97,6 +94,9 @@ struct WorkoutHomeView: View {
         }
         .sheet(isPresented: $showUpcoming) {
             UpcomingSchedulesView(vm: vm)
+        }
+        .sheet(item: $scheduleTarget) { target in
+            ScheduleEditView(schedule: target.schedule, vm: vm, isNew: target.isNew)
         }
         // Note: showWorkoutSetup / showActiveWorkout are presented at the root
         // (LiftKitApp.RootTabView) so only one presenter drives each binding.
@@ -310,26 +310,35 @@ struct WorkoutHomeView: View {
                     .foregroundColor(LKColor.textMuted)
                     .tracking(2)
                 Spacer()
-                // The schedule control is always shown (it used to be hidden until
-                // the user had saved a plan — which also hid "Browse Programs", the
-                // one thing a fresh user needs, since pre-loaded programs require no
-                // templates). "Schedule a Series" still needs user plans, so it's the
-                // only item gated on having them.
+                // The schedule control is always shown for Pro (it used to be hidden
+                // until the user had saved a plan, which also hid the entry a fresh
+                // user needs most). Every scheduling entry point lives in this one
+                // menu; only "Manage Upcoming" is gated, on there being something to
+                // manage.
                 if isPremium {
                     Menu {
+                        Button {
+                            scheduleTarget = ScheduleEditTarget(
+                                schedule: WorkoutSchedule(date: Date()), isNew: true)
+                            HapticManager.shared.buttonTap()
+                        } label: {
+                            Label("Schedule a Workout", systemImage: "plus.circle.fill")
+                        }
                         Button {
                             showPrograms = true
                             HapticManager.shared.buttonTap()
                         } label: {
                             Label("Browse Programs", systemImage: "square.stack.3d.up.fill")
                         }
-                        if hasUserTemplates {
-                            Button {
-                                showSeriesSchedule = true
-                                HapticManager.shared.buttonTap()
-                            } label: {
-                                Label("Schedule a Series", systemImage: "calendar.badge.plus")
-                            }
+                        // No longer gated on having custom plans — it's reachable from
+                        // a fresh install. (The series picker itself still lists only
+                        // custom plans today; letting it pick prebuilt workouts is a
+                        // follow-up.)
+                        Button {
+                            showSeriesSchedule = true
+                            HapticManager.shared.buttonTap()
+                        } label: {
+                            Label("Schedule a Series", systemImage: "calendar.badge.plus")
                         }
                         if !schedules.isEmpty {
                             Button {
