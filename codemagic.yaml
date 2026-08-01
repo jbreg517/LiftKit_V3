@@ -209,34 +209,40 @@ workflows:
 
       - name: Build signed IPA
         script: |
-          # pipefail only (no `set -e`) so the error grep runs even when the build
-          # fails — otherwise a signing/compile failure exits 65 with no visible
-          # cause (which is exactly how this bit last time).
+          # pipefail only (no `set -e`) so the diagnostics below run on failure.
           set -o pipefail
-          xcode-project build-ipa \
-            --project LiftKit.xcodeproj \
-            --scheme LiftKit 2>&1 | tee /tmp/build_ipa.log
+          # Archive with a direct, teed xcodebuild first — the SAME command build-ipa
+          # runs (see the failing log), but with output piped here so the real
+          # codesign / entitlement error is visible in THIS step. build-ipa hides
+          # xcodebuild output in a private log file that never reached the artifacts,
+          # so a signing failure showed only a bare "status 65". The archive step is
+          # where signing happens and where it was failing.
+          xcodebuild \
+            -project LiftKit.xcodeproj \
+            -scheme LiftKit \
+            -archivePath "$CM_BUILD_DIR/LiftKit.xcarchive" \
+            archive \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            DEVELOPMENT_TEAM=29FCX35H8U \
+            "CODE_SIGN_IDENTITY=Apple Distribution" \
+            CODE_SIGN_STYLE=Manual \
+            2>&1 | tee /tmp/archive.log
           STATUS=${PIPESTATUS[0]}
           if [ "$STATUS" -ne 0 ]; then
-            echo "===== SIGNED BUILD FAILED (status $STATUS) ====="
-            # build-ipa prints only a summary to stdout; the real xcodebuild output
-            # (compile + codesign errors) goes to its own log file. Find the newest
-            # one and print the errors, then a raw tail in case nothing matched.
-            LOG=$(ls -t /tmp/xcodebuild_*.log 2>/dev/null | head -1)
-            if [ -n "$LOG" ]; then
-              echo "----- error lines from $LOG -----"
-              grep -Ei "error:|entitlement|provisioning|doesn't include|code ?sign|cannot|failed|Undefined symbol" "$LOG" | tail -100
-              echo "----- raw tail of $LOG -----"
-              tail -120 "$LOG"
-            else
-              echo "No /tmp/xcodebuild_*.log found; build_ipa stdout tail:"
-              tail -120 /tmp/build_ipa.log
-            fi
+            echo "===== ARCHIVE FAILED (status $STATUS) — signing / error lines: ====="
+            grep -Ei "error:|entitlement|provisioning|doesn't include|does not|code ?sign|no profile|no signing|cannot|Undefined symbol" /tmp/archive.log | tail -120
+            echo "----- raw tail of /tmp/archive.log -----"
+            tail -80 /tmp/archive.log
             exit 1
           fi
+          # Archive signed cleanly — export and upload the App Store IPA.
+          xcode-project build-ipa \
+            --project LiftKit.xcodeproj \
+            --scheme LiftKit
 
     artifacts:
       - build/ios/ipa/*.ipa
+      - /tmp/archive.log
       - /tmp/xcodebuild_*.log
 
     publishing:
