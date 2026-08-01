@@ -81,6 +81,9 @@ struct WorkoutHomeView: View {
                 vm.userProfile = userProfile
                 ExerciseLibrary.shared.seedIfNeeded(context: context)
                 ExerciseLibrary.shared.backfillMuscles(context: context)
+                // Republish LiftKit's training load + planned workouts to the suite
+                // feed so RunKit (recovery) and FuelKit (fuelling) can react to it.
+                LiftKitActivityPublisher.publish(from: context)
             }
         }
         .sheet(isPresented: $vm.showTypePicker) {

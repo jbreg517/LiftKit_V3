@@ -32,6 +32,8 @@
 		A70000000000000000000036 /* ProgressionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000036 /* ProgressionService.swift */; };
 		A70000000000000000000038 /* RecommendedWorkouts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000038 /* RecommendedWorkouts.swift */; };
 		A70000000000000000000055 /* WorkoutPrograms.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000055 /* WorkoutPrograms.swift */; };
+		A70000000000000000000056 /* SuiteActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000056 /* SuiteActivity.swift */; };
+		A70000000000000000000057 /* LiftKitActivityPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000057 /* LiftKitActivityPublisher.swift */; };
 		A70000000000000000000040 /* WorkoutReminders.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000040 /* WorkoutReminders.swift */; };
 		A70000000000000000000045 /* HealthCalculations.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000045 /* HealthCalculations.swift */; };
 		A70000000000000000000047 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000047 /* HealthKitManager.swift */; };
@@ -146,6 +148,8 @@
 		A60000000000000000000036 /* ProgressionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressionService.swift; sourceTree = "<group>"; };
 		A60000000000000000000038 /* RecommendedWorkouts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendedWorkouts.swift; sourceTree = "<group>"; };
 		A60000000000000000000055 /* WorkoutPrograms.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPrograms.swift; sourceTree = "<group>"; };
+		A60000000000000000000056 /* SuiteActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuiteActivity.swift; sourceTree = "<group>"; };
+		A60000000000000000000057 /* LiftKitActivityPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiftKitActivityPublisher.swift; sourceTree = "<group>"; };
 		A60000000000000000000040 /* WorkoutReminders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutReminders.swift; sourceTree = "<group>"; };
 		A60000000000000000000045 /* HealthCalculations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthCalculations.swift; sourceTree = "<group>"; };
 		A60000000000000000000047 /* HealthKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitManager.swift; sourceTree = "<group>"; };
@@ -313,6 +317,8 @@
 				A60000000000000000000036 /* ProgressionService.swift */,
 				A60000000000000000000038 /* RecommendedWorkouts.swift */,
 				A60000000000000000000055 /* WorkoutPrograms.swift */,
+				A60000000000000000000056 /* SuiteActivity.swift */,
+				A60000000000000000000057 /* LiftKitActivityPublisher.swift */,
 				A60000000000000000000040 /* WorkoutReminders.swift */,
 				A60000000000000000000045 /* HealthCalculations.swift */,
 				A60000000000000000000047 /* HealthKitManager.swift */,
@@ -644,6 +650,8 @@
 				A70000000000000000000036 /* ProgressionService.swift in Sources */,
 				A70000000000000000000038 /* RecommendedWorkouts.swift in Sources */,
 				A70000000000000000000055 /* WorkoutPrograms.swift in Sources */,
+				A70000000000000000000056 /* SuiteActivity.swift in Sources */,
+				A70000000000000000000057 /* LiftKitActivityPublisher.swift in Sources */,
 				A70000000000000000000040 /* WorkoutReminders.swift in Sources */,
 				A70000000000000000000045 /* HealthCalculations.swift in Sources */,
 				A70000000000000000000047 /* HealthKitManager.swift in Sources */,
