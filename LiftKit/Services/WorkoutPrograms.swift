@@ -61,6 +61,9 @@ struct ProgramExercise: Identifiable {
     /// Sets per block; if shorter than the program's block count the last value
     /// repeats. This is where progressive overload lives.
     let setsPerBlock: [Int]
+    /// Supersetted with the next exercise in the session — used to express a complex
+    /// (e.g. clean → press → squat done back-to-back as one set).
+    var linkedToNext: Bool = false
 
     func sets(inBlock block: Int) -> Int {
         guard !setsPerBlock.isEmpty else { return 3 }
@@ -92,8 +95,8 @@ enum ProgramCatalog {
         weeks: 8,
         weeksPerBlock: 2,
         sessions: [
-            ProgramSession(name: "Press + Complex", exercises: [press, complex]),
-            ProgramSession(name: "Complex + Press", exercises: [complex, press]),
+            ProgramSession(name: "Press + Complex", exercises: [press] + complex),
+            ProgramSession(name: "Complex + Press", exercises: complex + [press]),
         ],
         recommendedWeekdays: [2, 4, 6],   // Mon / Wed / Fri
         attribution: "Dan John's Armor Building Formula",
@@ -105,11 +108,23 @@ enum ProgramCatalog {
             name: "Double KB Military Press", equipment: .kettlebell, timerType: .reps,
             reps: 5, weight: 0, weightUnit: .lb, restSeconds: 90, setsPerBlock: [5, 5, 5, 5])
     }
-    private static var complex: ProgramExercise {
-        ProgramExercise(
-            name: "Armor Building Complex (2 clean · 1 press · 3 squat)", equipment: .kettlebell,
-            timerType: .reps, reps: 1, weight: 0, weightUnit: .lb, restSeconds: 90,
-            setsPerBlock: [5, 7, 8, 10])
+
+    /// The Armor Building Complex, listed as its three movements done back-to-back
+    /// (clean ×2 → press ×1 → front squat ×3), superset-linked so the app shows and
+    /// counts each lift separately. The set ramp applies to the complex as a whole.
+    private static var complex: [ProgramExercise] {
+        let ramp = [5, 7, 8, 10]
+        return [
+            ProgramExercise(name: "Double KB Clean", equipment: .kettlebell, timerType: .reps,
+                            reps: 2, weight: 0, weightUnit: .lb, restSeconds: 90,
+                            setsPerBlock: ramp, linkedToNext: true),
+            ProgramExercise(name: "Double KB Press", equipment: .kettlebell, timerType: .reps,
+                            reps: 1, weight: 0, weightUnit: .lb, restSeconds: 90,
+                            setsPerBlock: ramp, linkedToNext: true),
+            ProgramExercise(name: "Double KB Front Squat", equipment: .kettlebell, timerType: .reps,
+                            reps: 3, weight: 0, weightUnit: .lb, restSeconds: 90,
+                            setsPerBlock: ramp, linkedToNext: false),
+        ]
     }
 }
 
@@ -203,7 +218,7 @@ enum ProgramMaterializer {
                 equipment: ex.equipment,
                 targetWeight: ex.weight,
                 weightUnit: ex.weightUnit,
-                linkedToNext: false)
+                linkedToNext: ex.linkedToNext)
             te.restSeconds = ex.restSeconds
             te.template = template
             context.insert(te)

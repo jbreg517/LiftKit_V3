@@ -173,10 +173,16 @@ struct WorkoutCalendarView: View {
     /// Opens the full workout setup for the first incomplete scheduled workout on
     /// `date` that has a plan attached. No-op if the day has nothing scheduled.
     private func openFullEditor(for date: Date) {
-        let sched = schedules.first {
+        guard let sched = schedules.first(where: {
             !$0.isCompleted && calendar.isDate($0.date, inSameDayAs: date) && $0.template != nil
-        }
-        guard let template = sched?.template else { return }
+        }) else { return }
+        openFullEditor(for: sched)
+    }
+
+    /// Opens the full workout setup (weights/times/rounds) for a specific scheduled
+    /// workout. No-op if it has no plan attached (custom-name-only schedules).
+    private func openFullEditor(for sched: WorkoutSchedule) {
+        guard let template = sched.template else { return }
         HapticManager.shared.buttonTap()
         vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
         vm.showWorkoutSetup = true
@@ -208,25 +214,35 @@ struct WorkoutCalendarView: View {
                 let overdue = !sched.isCompleted && calendar.startOfDay(for: sched.date) < calendar.startOfDay(for: Date())
                 let statusColor: Color = sched.isCompleted ? LKColor.accent : (overdue ? LKColor.textMuted : LKColor.work)
                 let statusText = sched.isCompleted ? "Done" : (overdue ? "Overdue" : "Planned")
-                Button {
-                    scheduleEditTarget = ScheduleEditTarget(schedule: sched, isNew: false)
-                } label: {
-                    HStack {
-                        Circle().fill(statusColor).frame(width: 8, height: 8)
-                        Text(sched.displayName)
-                            .font(LKFont.body)
-                            .foregroundColor(LKColor.textPrimary)
-                        Spacer()
-                        Text(statusText)
-                            .font(LKFont.caption)
-                            .foregroundColor(statusColor)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(statusColor.opacity(0.15))
-                            .clipShape(Capsule())
+                // Plain row (not a Button) so tap and long-press coexist reliably:
+                // tap → schedule screen; long-press → straight into the full editor.
+                HStack {
+                    Circle().fill(statusColor).frame(width: 8, height: 8)
+                    Text(sched.displayName)
+                        .font(LKFont.body)
+                        .foregroundColor(LKColor.textPrimary)
+                    Spacer()
+                    Text(statusText)
+                        .font(LKFont.caption)
+                        .foregroundColor(statusColor)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(statusColor.opacity(0.15))
+                        .clipShape(Capsule())
+                    if sched.template != nil {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: 12))
+                            .foregroundColor(LKColor.textMuted)
+                            .accessibilityHidden(true)
                     }
                 }
-                .buttonStyle(.plain)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    scheduleEditTarget = ScheduleEditTarget(schedule: sched, isNew: false)
+                }
+                .onLongPressGesture(minimumDuration: 0.4) {
+                    openFullEditor(for: sched)
+                }
             }
 
             // Always available once a day is selected — not just on empty days — so
