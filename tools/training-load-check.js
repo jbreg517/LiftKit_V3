@@ -388,6 +388,122 @@ group('Monotony and strain', () => {
   check('identical every day is undefined, not infinite', monotony(flat, now), null);
 });
 
+// ---- per-muscle weekly series and the region rollup
+
+const REGIONS = {
+  push: ['chest', 'shoulders', 'triceps'],
+  pull: ['back', 'biceps'],
+  legs: ['quads', 'hamstrings', 'glutes', 'calves'],
+  core: ['core'],
+  other: ['fullBody', 'other'],
+};
+
+function weeklyHardSets(sessions, weeks, now) {
+  if (weeks <= 0) return [];
+  const thisWeek = startOfWeek(now);
+  const starts = [];
+  const buckets = new Map();
+  for (let offset = weeks - 1; offset >= 0; offset--) {
+    const start = addWeeks(thisWeek, -offset);
+    buckets.set(key(start), { weekStart: start, byMuscle: {} });
+    starts.push(start);
+  }
+  const earliest = starts[0];
+  for (const s of sessions) {
+    if (s.active || s.startedAt < earliest) continue;
+    const week = buckets.get(key(startOfWeek(s.startedAt)));
+    if (!week) continue;
+    for (const entry of s.entries) {
+      if (!entry.muscles) continue;
+      const sets = (entry.sets || []).filter(isHardSet).length;
+      if (!sets) continue;
+      for (const c of entry.muscles) {
+        week.byMuscle[c.muscle] = (week.byMuscle[c.muscle] || 0) + sets * c.weight;
+      }
+    }
+  }
+  return starts.map((d) => buckets.get(key(d)));
+}
+
+const setsForRegion = (week, region) =>
+  REGIONS[region].reduce((a, m) => a + (week.byMuscle[m] || 0), 0);
+
+function halfOverHalfChange(values) {
+  if (values.length < 4) return null;
+  const split = Math.floor(values.length / 2);
+  const first = values.slice(0, split).reduce((a, b) => a + b, 0);
+  const second = values.slice(split).reduce((a, b) => a + b, 0);
+  if (!(first > 0)) return null;
+  return ((second - first) / first) * 100;
+}
+
+group('Weekly hard sets by muscle', () => {
+  const now = day('2026-07-15');
+  const bench = {
+    sets: [set({ warmup: true }), set(), set(), set()],
+    muscles: [
+      { muscle: 'chest', weight: 1 },
+      { muscle: 'triceps', weight: 0.5 },
+      { muscle: 'shoulders', weight: 0.5 },
+    ],
+  };
+  const squat = {
+    sets: [set(), set(), set(), set(), set()],
+    muscles: [
+      { muscle: 'quads', weight: 1 },
+      { muscle: 'glutes', weight: 0.5 },
+    ],
+  };
+  const sessions = [
+    session({ startedAt: day('2026-07-13'), minutes: 50, entries: [bench] }),   // this week
+    session({ startedAt: day('2026-07-14'), minutes: 50, entries: [squat] }),   // this week
+    session({ startedAt: day('2026-07-07'), minutes: 50, entries: [bench] }),   // last week
+  ];
+
+  const weeks = weeklyHardSets(sessions, 4, now);
+  check('window length is exact', weeks.length, 4);
+  check('empty weeks are present, not skipped', weeks[0].byMuscle.chest ?? 0, 0);
+
+  const current = weeks[3];
+  check('chest gets full credit, warm-up excluded', current.byMuscle.chest, 3);
+  check('triceps gets half credit', current.byMuscle.triceps, 1.5);
+  check('quads full', current.byMuscle.quads, 5);
+  check('glutes half', current.byMuscle.glutes, 2.5);
+
+  check('push rolls up chest + shoulders + triceps', setsForRegion(current, 'push'), 3 + 1.5 + 1.5);
+  check('legs rolls up quads + glutes', setsForRegion(current, 'legs'), 5 + 2.5);
+  check('pull is empty this week', setsForRegion(current, 'pull'), 0);
+
+  // The alternation the region split exists to reveal: last week was push only.
+  check('previous week has push', setsForRegion(weeks[2], 'push'), 6);
+  check('previous week has no legs', setsForRegion(weeks[2], 'legs'), 0);
+
+  // Every muscle lands in exactly one region, so the rollups can't lose or duplicate.
+  const allRegionMuscles = Object.values(REGIONS).flat();
+  check('no muscle is in two regions', allRegionMuscles.length, new Set(allRegionMuscles).size);
+  const totalViaRegions = Object.keys(REGIONS).reduce((a, r) => a + setsForRegion(current, r), 0);
+  const totalDirect = Object.values(current.byMuscle).reduce((a, b) => a + b, 0);
+  check('region totals equal the raw total', totalViaRegions, totalDirect);
+});
+
+group('Half-over-half change', () => {
+  check('flat is zero', halfOverHalfChange([10, 10, 10, 10]), 0);
+  check('doubling reads +100%', halfOverHalfChange([5, 5, 10, 10]), 100);
+  check('halving reads -50%', halfOverHalfChange([10, 10, 5, 5]), -50);
+  check('odd length puts the extra week in the second half',
+        halfOverHalfChange([10, 10, 10, 10, 10]), 50);
+  check('no baseline, no percentage', halfOverHalfChange([0, 0, 8, 9]), null);
+  check('too short to halve', halfOverHalfChange([4, 8, 12]), null);
+
+  // The reason it is half-over-half and not last-week-vs-first: a single missed week
+  // at either end must not swing the trend.
+  const steady = [8, 9, 8, 9, 8, 9, 8, 9];
+  const missedLast = [8, 9, 8, 9, 8, 9, 8, 0];
+  check('a steady block reads flat', Math.abs(halfOverHalfChange(steady)) < 1, true);
+  check('one missed week dents it but does not invert it',
+        halfOverHalfChange(missedLast) > -30, true);
+});
+
 // ---- the suite merge rule
 
 group('Suite merge', () => {

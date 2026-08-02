@@ -155,7 +155,79 @@ enum TrainingLoad {
     /// Weekly sets per muscle group the hypertrophy literature associates with a good
     /// return. A **reference line**, not a target and not a pass mark — plenty of people
     /// train productively either side of it.
+    ///
+    /// Note it is **per muscle**, so it means nothing against a region total: "Push"
+    /// covers three muscles, and drawing a 10 line under it would imply a bar three
+    /// times too low. Only the per-muscle view draws it.
     static let referenceSetsPerMuscleWeek: Double = 10
+
+    // MARK: - Per-muscle series
+
+    /// One week's hard-set credit, broken down by muscle.
+    struct HardSetWeek: Identifiable, Equatable {
+        let weekStart: Date
+        var byMuscle: [MuscleGroup: Double] = [:]
+        var id: Date { weekStart }
+
+        func sets(for muscle: MuscleGroup) -> Double { byMuscle[muscle] ?? 0 }
+        func sets(for region: MuscleRegion) -> Double {
+            region.muscles.reduce(0) { $0 + sets(for: $1) }
+        }
+        var total: Double { byMuscle.values.reduce(0, +) }
+    }
+
+    /// Hard-set credit per muscle, per week, oldest first.
+    ///
+    /// Same window rule as `weeklyLoads`: every week in the range is present, zeros
+    /// included, because a bounded window has a known denominator and a week with no
+    /// training is a fact about that week.
+    static func weeklyHardSets(_ sessions: [WorkoutSession], weeks: Int,
+                               now: Date = Date(), calendar: Calendar = .current) -> [HardSetWeek] {
+        guard weeks > 0,
+              let thisWeek = calendar.dateInterval(of: .weekOfYear, for: now)?.start
+        else { return [] }
+
+        var buckets: [Date: HardSetWeek] = [:]
+        var starts: [Date] = []
+        for offset in stride(from: weeks - 1, through: 0, by: -1) {
+            guard let start = calendar.date(byAdding: .weekOfYear, value: -offset, to: thisWeek) else { continue }
+            buckets[start] = HardSetWeek(weekStart: start)
+            starts.append(start)
+        }
+        guard let earliest = starts.first else { return [] }
+
+        for session in sessions where !session.isActive && session.startedAt >= earliest {
+            guard let start = calendar.dateInterval(of: .weekOfYear, for: session.startedAt)?.start,
+                  var week = buckets[start] else { continue }
+            for entry in session.entries {
+                guard let exercise = entry.exercise else { continue }
+                let sets = Double(entry.sets.filter(isHardSet).count)
+                guard sets > 0 else { continue }
+                for contribution in exercise.muscleContributions {
+                    week.byMuscle[contribution.muscle, default: 0] += sets * contribution.weight
+                }
+            }
+            buckets[start] = week
+        }
+        return starts.compactMap { buckets[$0] }
+    }
+
+    /// Change across a window: the second half against the first, as a percentage.
+    ///
+    /// Half-over-half rather than first-week-against-last, which is what a naive trend
+    /// does and which breaks on exactly the data lifting produces — one missed week at
+    /// either end swings it wildly, and a zero on the first week makes it undefined.
+    ///
+    /// Nil when the first half is empty (no baseline to compare against) or the window
+    /// is too short to halve.
+    static func halfOverHalfChange(_ values: [Double]) -> Double? {
+        guard values.count >= 4 else { return nil }
+        let split = values.count / 2
+        let first = values.prefix(split).reduce(0, +)
+        let second = values.suffix(values.count - split).reduce(0, +)
+        guard first > 0 else { return nil }
+        return (second - first) / first * 100
+    }
 
     // MARK: - Aggregates
 
@@ -317,4 +389,46 @@ enum TrainingLoad {
         guard let m = monotony(days, endingOn: end, calendar: calendar) else { return nil }
         return rollingLoad(days, endingOn: end, over: 7, calendar: calendar) * m
     }
+}
+
+// MARK: - Muscle regions
+
+/// Muscle groups gathered into the four blocks lifters actually plan in.
+///
+/// Twelve series on one chart is unreadable, and the question that motivated breaking
+/// sets out by muscle was never "how much biceps" — it was that a light upper-body week
+/// followed by a heavy lower-body week makes a single total misleading. Push / pull /
+/// legs / core answers that directly, and the per-muscle detail is one tap away.
+enum MuscleRegion: String, CaseIterable, Identifiable {
+    case push, pull, legs, core
+    /// Whole-body and untagged work, which belongs to no single region and is shown only
+    /// when there is some — silently dropping it would make the rows disagree with the
+    /// session totals.
+    case other
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .push:  return "Push"
+        case .pull:  return "Pull"
+        case .legs:  return "Legs"
+        case .core:  return "Core"
+        case .other: return "Other"
+        }
+    }
+
+    var muscles: [MuscleGroup] {
+        switch self {
+        case .push:  return [.chest, .shoulders, .triceps]
+        case .pull:  return [.back, .biceps]
+        case .legs:  return [.quads, .hamstrings, .glutes, .calves]
+        case .core:  return [.core]
+        case .other: return [.fullBody, .other]
+        }
+    }
+
+    /// The four planning blocks. `other` is deliberately excluded — callers add it back
+    /// only when it actually holds work.
+    static var primary: [MuscleRegion] { [.push, .pull, .legs, .core] }
 }

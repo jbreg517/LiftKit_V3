@@ -142,10 +142,66 @@ Nobody rates every set, so the rule is *exclude what the lifter told us was easy
 **unrated** set counts: absence of a rating isn't evidence a set was easy, and dropping
 unrated sets would collapse the count for the majority who never touch the RPE field.
 
-The chart draws a dashed reference line at **10 sets per muscle per week** — a figure often
-cited in the literature, shown on the 7-day range only (drawing it over a 30-day total would
-compare a month's work against a weekly figure). It is labelled as a reference, not a
-target.
+A dashed reference line marks **10 sets per muscle per week** — a figure often cited in the
+literature, labelled as a reference and not a target. It appears only in the **per-muscle**
+view: against a region total it would be meaningless, since "Push" spans three muscles and
+the line would sit three times too low.
+
+---
+
+## The Progress tab: one block, one week axis
+
+The three metrics arrived separately and read as three unrelated pictures. They're now one
+**Training** block sharing a single range control (8 / 12 / 26 weeks), so all three describe
+the same weeks:
+
+| Chart | Question | Strength |
+|---|---|---|
+| **Training Load** | How hard? | Strongest — immune to exercise selection |
+| **Hard Sets by Group** | Where did it go? | The literature's dose metric |
+| **Weight Moved** | What moved? | Weakest — see below |
+
+The shared x-axis *is* the contextualisation. "Week of Jul 13: load spiked, work went to
+legs, tonnage jumped" reads as one story; the same three facts on three mismatched windows
+read as noise. The range picker deliberately sits on the block rather than in each chart
+header — three pickers invite three different ranges, and comparing charts across
+mismatched windows is how someone reads a story that isn't there.
+
+### Sets by group: four rows, drill down to muscles
+
+Twelve muscle lines on one chart is spaghetti. Four rows — **Push / Pull / Legs / Core** —
+each a line with a point per week, each showing its total and its change over the window.
+Tapping a row expands it to a full chart of the muscles inside it.
+
+Push/pull/legs is the vocabulary lifters plan in, and it answers the question that motivated
+per-muscle tracking in the first place: a light upper-body week followed by a heavy
+lower-body week is visible immediately as Push falling while Legs rises.
+
+A fifth **Other** row appears only when whole-body or untagged work exists. Dropping it
+silently would make the rows disagree with the session totals.
+
+Two details that matter:
+
+- **Sparklines are anchored at zero**, not to their own minimum. Auto-scaled, a group
+  holding a steady 9–10 sets would draw the same dramatic zigzag as one swinging 0–20.
+- **The change figure is half-over-half** — the window's second half against its first —
+  not last week against first week. The naive version breaks on exactly the data lifting
+  produces: one missed week at either end swings it wildly, and a zero in the first week
+  makes it undefined. Pinned by assertions.
+
+### Tonnage is third, and stays
+
+`Weight Moved` sits last because volume load is dominated by exercise selection, which makes
+it the weakest of the three. It stays because "how much did I move" is a question people
+genuinely want answered, and because the group chart directly above now supplies the context
+that makes a swing interpretable — a tonnage jump next to a Legs jump is a different fact
+from a tonnage jump alone.
+
+Its week axis was a formatted `"MM/dd"` **string**, which could never line up with the other
+two charts' date axes. Now keyed on the week's start date.
+
+It also absorbed a standalone "Volume · last 30 days" card that showed the same quantity
+over a different window — two numbers on one screen disagreeing about how volume was going.
 
 ---
 
