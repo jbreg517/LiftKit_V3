@@ -558,7 +558,8 @@ struct WorkoutDetailView: View {
         }
         switch resolved.source {
         case .derived:
-            return String(format: "Estimated RPE %.1f from your set ratings × %d min — rate the session itself for a truer figure.", resolved.value, minutes)
+            let estimate = String(format: "%.1f", resolved.value)
+            return "Estimated RPE \(estimate) from your set ratings × \(minutes) min — rate the session itself for a truer figure."
         default:
             return isEditing
                 ? "Not rated. 1 is very easy, 10 is maximal."
