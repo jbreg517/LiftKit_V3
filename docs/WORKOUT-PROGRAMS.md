@@ -63,19 +63,30 @@ the M/W/F mapping, tap **Add to Calendar**. Everything else is derived.
 - **`StartProgramSheet`** — start date, weekday toggles (pre-filled), a live preview
   of the generated sessions, then materialise.
 
-## Deferred (next step): custom authoring
+## Custom authoring (shipped 2026-08-01)
 
-The pre-loaded path exercises the whole model end to end. The **custom program
-builder** — where a user defines their own sessions, weeks and set ramp — is not yet
-built. It reuses the template builder for the sessions and adds a Weeks value plus a
-per-block set ramp (the "4 numbers" flow), then calls the same `materialize`. It is
-the biggest, most stateful screen, deferred so the core could ship and be verified
-first.
+- **`ProgramBuilderView`** — author a program (name, weeks, training days, and
+  sessions with exercises: equipment / sets / reps / superset). Produces a
+  `ProgramBlueprint` that schedules through the same `ProgramMaterializer`.
+- **`UserProgramStore`** — user programs persist as Codable JSON in Application
+  Support (no SwiftData schema surface); they appear under "Your Programs" in
+  `ProgramsView` with Create + delete.
+- **`PasteImportView` / `ProgramTextImport`** — paste program text → a rough draft
+  parsed **on-device** (no scraping/network) → opens in the builder for review and
+  edit before saving, with an optional credit link. The review gate + user-owned
+  result keep it IP-safe.
 
-Also deferred: a first-class persisted `WorkoutProgram` entity (for a "Week 3 of 8"
-progress header and mid-program edits). Today a program is a materialised series;
-the calendar already groups it by `seriesID`. Adding the entity is additive and can
-come later without reworking the materialiser.
+### Still deferred
+- **Per-block set ramp in the builder.** v1 authors flat sets (`weeksPerBlock =
+  weeks`, one block). The "4 numbers" ramp editor (which the pre-loaded Armor
+  Builder already uses in data) is a v2.
+- **On-device LLM parse.** v1's paste import is a line-based heuristic; swapping in
+  Apple Foundation Models (iOS 26) is a drop-in upgrade behind the same
+  `text → ProgramBlueprint` interface, deferred until the API can be verified on
+  device.
+- **First-class persisted `WorkoutProgram` entity** (for a "Week 3 of 8" progress
+  header / mid-program edits). Today a program is a materialised series grouped by
+  `seriesID`; adding the entity is additive.
 
 ## Suite tie-in
 
