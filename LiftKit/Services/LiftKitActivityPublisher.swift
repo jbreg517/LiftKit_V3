@@ -42,6 +42,13 @@ enum LiftKitActivityPublisher {
     /// countdown and pauses; older sessions fall back to wall-clock via `duration`).
     /// Crude, but it's normalised against the lifter's own norm below, which is what
     /// makes "hard for them" comparable across the suite.
+    ///
+    /// **Deliberately still duration-only now that sRPE exists.** Folding RPE in here
+    /// would silently change what `load` means for readers already consuming it, and
+    /// worse, it would mix units within one percentile pool — rated sessions measured in
+    /// RPE×minutes against unrated ones measured in minutes, so a lifter who rates some
+    /// sessions and not others would see their norm jump. sRPE travels in its own field
+    /// (`sessionLoad`), where its absence is visible as nil rather than as a low number.
     private static func strain(of session: WorkoutSession) -> Double {
         max(0, session.duration / 60)
     }
@@ -68,12 +75,23 @@ enum LiftKitActivityPublisher {
             let kcal = weightLb > 0
                 ? daySessions.reduce(0.0) { $0 + HealthCalculations.workoutCalories(for: $1, bodyweightLb: weightLb) }
                 : 0
+            // Session-RPE load. `sessionLoad` sums across the day's sessions because
+            // that's the only form that merges correctly downstream — a reader adding
+            // two apps' figures gets the right total, which multiplying a merged RPE by
+            // merged minutes would not. `perceivedEffort` is the hardest single session,
+            // since perceived effort doesn't add up.
+            let rated = daySessions.compactMap { session -> (rpe: Double, au: Double)? in
+                guard let au = TrainingLoad.srpe(for: session) else { return nil }
+                return (TrainingLoad.rpe(for: session).value, au)
+            }
             return SuiteDailyLoad(date: day,
                                   kind: .strength,
                                   load: reference > 0 ? min(1, total / reference) : 0,
-                                  perceivedEffort: 0,   // LiftKit doesn't collect session RPE
+                                  perceivedEffort: rated.map(\.rpe).max() ?? 0,
                                   sessionCount: daySessions.count,
-                                  activeKcal: kcal)
+                                  activeKcal: kcal,
+                                  activeMinutes: daySessions.reduce(0) { $0 + $1.activeMinutes },
+                                  sessionLoad: rated.reduce(0) { $0 + $1.au })
         }
         .sorted { $0.date < $1.date }
     }

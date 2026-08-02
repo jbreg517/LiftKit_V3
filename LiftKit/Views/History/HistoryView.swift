@@ -271,12 +271,14 @@ struct WorkoutDetailView: View {
     @State private var deletedSetIDs: Set<UUID> = []
     @State private var draftNotes: String = ""
     @State private var notesEdited = false
+    @State private var draftSessionRPE: Double?
+    @State private var sessionRPEEdited = false
     @State private var showDiscardConfirm = false
 
     private let rpeOptions: [Double] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
     private var isDirty: Bool {
-        !drafts.isEmpty || !entryDrafts.isEmpty || !deletedSetIDs.isEmpty || notesEdited
+        !drafts.isEmpty || !entryDrafts.isEmpty || !deletedSetIDs.isEmpty || notesEdited || sessionRPEEdited
     }
 
     /// Current (draft-aware) values for a set.
@@ -322,6 +324,7 @@ struct WorkoutDetailView: View {
             VStack(spacing: LKSpacing.md) {
                 // Summary
                 summarySection
+                sessionLoadSection
                 // Splits (AMRAP rounds / For Time checkpoints)
                 if !session.splits.isEmpty {
                     VStack(alignment: .leading, spacing: LKSpacing.xs) {
@@ -465,6 +468,7 @@ struct WorkoutDetailView: View {
             let trimmed = draftNotes.trimmingCharacters(in: .whitespacesAndNewlines)
             session.notes = trimmed.isEmpty ? nil : trimmed
         }
+        if sessionRPEEdited { session.sessionRPE = draftSessionRPE }
         Persist.save(context)
         clearDrafts()
     }
@@ -480,6 +484,86 @@ struct WorkoutDetailView: View {
         deletedSetIDs.removeAll()
         draftNotes = ""
         notesEdited = false
+        draftSessionRPE = nil
+        sessionRPEEdited = false
+    }
+
+    // MARK: - Session effort
+
+    /// Draft-aware session RPE, so an edit in progress is what the load figure reflects.
+    private var effectiveSessionRPE: Double? {
+        sessionRPEEdited ? draftSessionRPE : session.sessionRPE
+    }
+
+    /// The rating and the resulting load, with the picker exposed in edit mode.
+    ///
+    /// Editable here because Foster's protocol wants the rating around half an hour
+    /// after the session, and the prompt on the completion screen necessarily comes
+    /// sooner than that. A rating revised here replaces the hasty one.
+    @ViewBuilder
+    private var sessionLoadSection: some View {
+        let entered = effectiveSessionRPE
+        // Derived ratings come from the sets, which staged edits can also change; this
+        // reads the saved model, so it can lag a set edit until Save. Acceptable — it's
+        // a fallback display, and the entered rating (the one that matters) is live.
+        let resolved = TrainingLoad.rpe(for: session)
+        let rpe = entered ?? (resolved.source == .derived ? resolved.value : nil)
+        let load = rpe.map { $0 * session.activeMinutes }
+
+        VStack(alignment: .leading, spacing: LKSpacing.sm) {
+            HStack {
+                LKSectionLabel(text: "EFFORT")
+                Spacer()
+                if let load {
+                    Text("\(Int(load.rounded())) AU")
+                        .font(LKFont.bodyBold)
+                        .foregroundColor(LKColor.textPrimary)
+                }
+            }
+
+            if isEditing {
+                HStack(spacing: 4) {
+                    ForEach(rpeOptions, id: \.self) { value in
+                        Button {
+                            draftSessionRPE = entered == value ? nil : value
+                            sessionRPEEdited = true
+                            HapticManager.shared.buttonTap()
+                        } label: {
+                            Text("\(Int(value))")
+                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                .foregroundColor(entered == value ? LKColor.onAccent : LKColor.textSecondary)
+                                .frame(maxWidth: .infinity, minHeight: 34)
+                                .background(entered == value ? LKColor.accent : LKColor.surfaceElevated)
+                                .clipShape(RoundedRectangle(cornerRadius: LKRadius.small))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Rate this workout \(Int(value)) out of 10")
+                    }
+                }
+            }
+
+            Text(effortDescription(entered: entered, resolved: resolved))
+                .font(LKFont.caption)
+                .foregroundColor(LKColor.textMuted)
+        }
+        .lkCard()
+        .padding(.horizontal, LKSpacing.md)
+    }
+
+    private func effortDescription(entered: Double?,
+                                   resolved: (value: Double, source: TrainingLoad.RPESource)) -> String {
+        let minutes = Int(session.activeMinutes.rounded())
+        if let entered {
+            return "\(TrainingLoad.rpeAnchor(for: entered)) × \(minutes) min"
+        }
+        switch resolved.source {
+        case .derived:
+            return String(format: "Estimated RPE %.1f from your set ratings × %d min — rate the session itself for a truer figure.", resolved.value, minutes)
+        default:
+            return isEditing
+                ? "Not rated. 1 is very easy, 10 is maximal."
+                : "Not rated. Tap Edit to add how hard this session felt."
+        }
     }
 
     private var summarySection: some View {

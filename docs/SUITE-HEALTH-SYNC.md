@@ -182,8 +182,15 @@ and FuelKit both edit the goal + measurements.
 
 ### App Group — `SuiteActivity` (`SuiteActivityStore`, keys `suiteActivityFeed.<app>`)
 
-`SuiteDailyLoad` (date, kind, load 0–1, perceivedEffort, sessionCount) +
-`SuitePlannedSession` (date, kind, title, plannedMinutes, plannedLoad).
+`SuiteDailyLoad` (date, kind, load 0–1, perceivedEffort, sessionCount, activeKcal,
+activeMinutes, sessionLoad) + `SuitePlannedSession` (date, kind, title, plannedMinutes,
+plannedLoad).
+
+`activeMinutes` and `sessionLoad` were added 2026-08-02 for session-RPE training load —
+see [TRAINING-LOAD.md](TRAINING-LOAD.md), which also explains why `sessionLoad` is carried
+as its own field instead of being recomputed by readers from the merged RPE and minutes.
+Both are optional on the wire, so a build that predates them decodes a feed containing them
+without noticing, and a build that has them reads an older feed as 0.
 
 | App | Role |
 |---|---|

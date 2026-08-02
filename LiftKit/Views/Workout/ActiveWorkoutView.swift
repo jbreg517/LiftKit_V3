@@ -1809,6 +1809,11 @@ struct WorkoutCompleteOverlay: View {
                     .padding(.vertical, LKSpacing.xs)
                 }
 
+                if let session = vm.activeSession {
+                    SessionRPEPicker(session: session)
+                        .padding(.horizontal, LKSpacing.md)
+                }
+
                 Text(vm.completionMessage)
                     .font(LKFont.body)
                     .foregroundColor(LKColor.textSecondary)
@@ -1835,6 +1840,62 @@ struct WorkoutCompleteOverlay: View {
         }
         .onTapGesture { vm.endWorkout(context: context) }
         .transition(.opacity)
+    }
+}
+
+// MARK: - Session RPE
+
+/// "How hard was that?" — one 1–10 rating for the whole session.
+///
+/// Optional by design. A skipped rating leaves `sessionRPE` nil, which `TrainingLoad`
+/// treats as *unknown*, never as zero; the load figure simply reports how many sessions
+/// it could account for. Forcing an answer would buy a number at the cost of it meaning
+/// anything.
+///
+/// Foster's protocol asks for the rating ~30 minutes after finishing, since ratings taken
+/// straight off the last set skew high. LiftKit asks here because that's when the lifter
+/// is looking at the screen, and makes the same field editable in History so a
+/// considered answer can replace a hasty one.
+struct SessionRPEPicker: View {
+    @Bindable var session: WorkoutSession
+    @Environment(\.modelContext) private var context
+
+    private let values: [Double] = (1...10).map { Double($0) }
+
+    var body: some View {
+        VStack(spacing: LKSpacing.xs) {
+            Text("How hard was that?")
+                .font(LKFont.bodyBold)
+                .foregroundColor(LKColor.textPrimary)
+
+            HStack(spacing: 4) {
+                ForEach(values, id: \.self) { value in
+                    Button {
+                        // Tapping the current rating clears it, so a mis-tap is
+                        // recoverable without leaving the screen.
+                        session.sessionRPE = session.sessionRPE == value ? nil : value
+                        Persist.save(context)
+                        HapticManager.shared.buttonTap()
+                    } label: {
+                        Text("\(Int(value))")
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .foregroundColor(session.sessionRPE == value ? LKColor.onAccent : LKColor.textSecondary)
+                            .frame(maxWidth: .infinity, minHeight: 34)
+                            .background(session.sessionRPE == value ? LKColor.accent : LKColor.surfaceElevated)
+                            .clipShape(RoundedRectangle(cornerRadius: LKRadius.small))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Rate this workout \(Int(value)) out of 10")
+                }
+            }
+
+            Text(session.sessionRPE == nil
+                 ? "Optional — 1 is very easy, 10 is maximal. You can add it later in History."
+                 : TrainingLoad.rpeAnchor(for: session.sessionRPE ?? 0))
+                .font(LKFont.caption)
+                .foregroundColor(LKColor.textMuted)
+                .multilineTextAlignment(.center)
+        }
     }
 }
 

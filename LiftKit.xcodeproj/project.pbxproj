@@ -30,6 +30,7 @@
 		A70000000000000000000017 /* ExerciseLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000017 /* ExerciseLibrary.swift */; };
 		A70000000000000000000018 /* WeightCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000018 /* WeightCache.swift */; };
 		A70000000000000000000036 /* ProgressionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000036 /* ProgressionService.swift */; };
+		A70000000000000000000092 /* TrainingLoad.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000092 /* TrainingLoad.swift */; };
 		A70000000000000000000038 /* RecommendedWorkouts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000038 /* RecommendedWorkouts.swift */; };
 		A70000000000000000000055 /* WorkoutPrograms.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000055 /* WorkoutPrograms.swift */; };
 		A70000000000000000000056 /* SuiteActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000056 /* SuiteActivity.swift */; };
@@ -146,6 +147,7 @@
 		A60000000000000000000017 /* ExerciseLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseLibrary.swift; sourceTree = "<group>"; };
 		A60000000000000000000018 /* WeightCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightCache.swift; sourceTree = "<group>"; };
 		A60000000000000000000036 /* ProgressionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressionService.swift; sourceTree = "<group>"; };
+		A60000000000000000000092 /* TrainingLoad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingLoad.swift; sourceTree = "<group>"; };
 		A60000000000000000000038 /* RecommendedWorkouts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendedWorkouts.swift; sourceTree = "<group>"; };
 		A60000000000000000000055 /* WorkoutPrograms.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPrograms.swift; sourceTree = "<group>"; };
 		A60000000000000000000056 /* SuiteActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuiteActivity.swift; sourceTree = "<group>"; };
@@ -315,6 +317,7 @@
 				A60000000000000000000017 /* ExerciseLibrary.swift */,
 				A60000000000000000000018 /* WeightCache.swift */,
 				A60000000000000000000036 /* ProgressionService.swift */,
+				A60000000000000000000092 /* TrainingLoad.swift */,
 				A60000000000000000000038 /* RecommendedWorkouts.swift */,
 				A60000000000000000000055 /* WorkoutPrograms.swift */,
 				A60000000000000000000056 /* SuiteActivity.swift */,
@@ -648,6 +651,7 @@
 				A70000000000000000000017 /* ExerciseLibrary.swift in Sources */,
 				A70000000000000000000018 /* WeightCache.swift in Sources */,
 				A70000000000000000000036 /* ProgressionService.swift in Sources */,
+				A70000000000000000000092 /* TrainingLoad.swift in Sources */,
 				A70000000000000000000038 /* RecommendedWorkouts.swift in Sources */,
 				A70000000000000000000055 /* WorkoutPrograms.swift in Sources */,
 				A70000000000000000000056 /* SuiteActivity.swift in Sources */,

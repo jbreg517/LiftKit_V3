@@ -45,6 +45,7 @@ struct StatsView: View {
                     if weekStreak > 0 { streakBanner }
                     overviewGrid
                     trendInsight
+                    trainingLoadSection
                     muscleFocusSection
                     bodyMetricsCard
                     prBoard
@@ -102,6 +103,86 @@ struct StatsView: View {
         .padding(.horizontal, LKSpacing.md)
     }
 
+    // MARK: - Training load
+
+    private static let loadWeeks = 8
+
+    private var dayLoads: [TrainingLoad.DayLoad] { TrainingLoad.dailyLoads(sessions) }
+    private var weekLoads: [TrainingLoad.WeekLoad] {
+        TrainingLoad.weeklyLoads(sessions, weeks: Self.loadWeeks)
+    }
+
+    /// The section is **absent**, not empty, until there's a rating to show. A chart of
+    /// zeroes would read as "you did nothing" when it actually means "nobody answered
+    /// the question".
+    @ViewBuilder
+    private var trainingLoadSection: some View {
+        let weeks = weekLoads
+        if weeks.contains(where: { $0.ratedSessions > 0 }) {
+            let rated = weeks.reduce(0) { $0 + $1.ratedSessions }
+            let total = weeks.reduce(0) { $0 + $1.sessions }
+            let thisWeek = weeks.last
+            let ratio = TrainingLoad.acuteChronicRatio(dayLoads)
+
+            VStack(alignment: .leading, spacing: LKSpacing.md) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Training Load")
+                        .font(LKFont.heading)
+                        .foregroundColor(LKColor.textPrimary)
+                    Text("Session RPE × active minutes, in arbitrary units")
+                        .font(LKFont.caption)
+                        .foregroundColor(LKColor.textMuted)
+                }
+                .padding(.horizontal, LKSpacing.md)
+
+                Chart(weeks) { week in
+                    BarMark(
+                        x: .value("Week", week.weekStart, unit: .weekOfYear),
+                        y: .value("Load", week.srpe)
+                    )
+                    .foregroundStyle(LKColor.accent)
+                    .accessibilityLabel(week.weekStart.formatted(date: .abbreviated, time: .omitted))
+                    .accessibilityValue("\(Int(week.srpe.rounded())) AU")
+                }
+                .chartYAxisLabel("AU")
+                .frame(height: 160)
+                .padding(.horizontal, LKSpacing.md)
+
+                HStack(spacing: LKSpacing.md) {
+                    loadStat("This week", value: "\(Int((thisWeek?.srpe ?? 0).rounded()))", unit: "AU")
+                    loadStat("vs 4-week avg",
+                             value: ratio.map { String(format: "%.2f", $0) } ?? "—",
+                             unit: ratio == nil ? "needs 4 weeks" : "×")
+                    loadStat("Sessions rated", value: "\(rated)", unit: "of \(total)")
+                }
+                .padding(.horizontal, LKSpacing.md)
+
+                if rated < total {
+                    Text("\(total - rated) session\(total - rated == 1 ? "" : "s") in this window had no effort rating, so the bars are lower than the training you actually did. You can add a rating to any past workout in History.")
+                        .font(LKFont.caption)
+                        .foregroundColor(LKColor.textMuted)
+                        .padding(.horizontal, LKSpacing.md)
+                }
+            }
+        }
+    }
+
+    private func loadStat(_ label: String, value: String, unit: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label.uppercased())
+                .font(LKFont.caption)
+                .foregroundColor(LKColor.textMuted)
+                .tracking(1)
+            Text(value)
+                .font(LKFont.bodyBold)
+                .foregroundColor(LKColor.textPrimary)
+            Text(unit)
+                .font(LKFont.caption)
+                .foregroundColor(LKColor.textMuted)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     // MARK: - Muscle focus
 
     private struct MuscleSetCount: Identifiable {
@@ -114,19 +195,15 @@ struct StatsView: View {
     /// Working-set credit per muscle over the last `days`, highest first. Each
     /// set counts fully toward the exercise's primary muscle and half toward
     /// each secondary muscle.
+    ///
+    /// Counts **hard working sets** — warm-ups excluded, and so is anything the lifter
+    /// rated below `TrainingLoad.easySetThreshold`. It used to count every logged set,
+    /// which inflated the total for anyone who logs their warm-ups and made two lifters'
+    /// charts incomparable depending on whether they bothered.
     private func setsByMuscle(days: Int) -> [MuscleSetCount] {
         let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: Date()) ?? .distantPast
-        var counts: [MuscleGroup: Double] = [:]
-        for session in sessions where !session.isActive && session.startedAt >= cutoff {
-            for entry in session.entries {
-                guard let ex = entry.exercise else { continue }
-                let setCount = Double(entry.sets.count)
-                for c in ex.muscleContributions {
-                    counts[c.muscle, default: 0] += setCount * c.weight
-                }
-            }
-        }
-        return counts.sorted { $0.value > $1.value }.map { MuscleSetCount(muscle: $0.key, sets: $0.value) }
+        return TrainingLoad.hardSetsByMuscle(sessions, since: cutoff)
+            .map { MuscleSetCount(muscle: $0.muscle, sets: $0.sets) }
     }
 
     private var muscleFocusSection: some View {
@@ -149,27 +226,48 @@ struct StatsView: View {
                 ContentUnavailableView(
                     "No Sets Logged",
                     systemImage: "figure.strengthtraining.traditional",
-                    description: Text("Log a workout to see your muscle-group balance.")
+                    description: Text("Log a workout to see your muscle-group balance. Warm-up sets aren't counted.")
                 )
                 .frame(height: 120)
             } else {
-                Chart(data) { item in
-                    BarMark(
-                        x: .value("Sets", item.sets),
-                        y: .value("Muscle", item.muscle.label)
-                    )
-                    .foregroundStyle(LKColor.accent)
-                    .accessibilityLabel(item.muscle.label)
-                    .accessibilityValue("\(item.label) sets")
-                    .annotation(position: .trailing) {
-                        Text(item.label)
-                            .font(.caption2)
-                            .foregroundColor(LKColor.textMuted)
+                Chart {
+                    ForEach(data) { item in
+                        BarMark(
+                            x: .value("Sets", item.sets),
+                            y: .value("Muscle", item.muscle.label)
+                        )
+                        .foregroundStyle(LKColor.accent)
+                        .accessibilityLabel(item.muscle.label)
+                        .accessibilityValue("\(item.label) sets")
+                        .annotation(position: .trailing) {
+                            Text(item.label)
+                                .font(.caption2)
+                                .foregroundColor(LKColor.textMuted)
+                        }
+                    }
+                    // A weekly reference only — drawing it over a 30-day total would
+                    // compare a month's work against a week's figure.
+                    if muscleRange == .week {
+                        RuleMark(x: .value("Reference", TrainingLoad.referenceSetsPerMuscleWeek))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                            .foregroundStyle(LKColor.textMuted)
+                            .annotation(position: .top, alignment: .leading) {
+                                Text("10/wk")
+                                    .font(.caption2)
+                                    .foregroundColor(LKColor.textMuted)
+                            }
                     }
                 }
-                .chartXAxisLabel("Sets · last \(muscleRange.days) days")
+                .chartXAxisLabel("Hard sets · last \(muscleRange.days) days")
                 .frame(height: CGFloat(data.count) * 34 + 40)
                 .padding(.horizontal, LKSpacing.md)
+
+                if muscleRange == .week {
+                    Text("The dashed line marks 10 sets a week — a figure often cited in the training literature, not a target LiftKit sets for you.")
+                        .font(LKFont.caption)
+                        .foregroundColor(LKColor.textMuted)
+                        .padding(.horizontal, LKSpacing.md)
+                }
             }
         }
     }

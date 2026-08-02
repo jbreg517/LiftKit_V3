@@ -22,6 +22,14 @@ final class WorkoutSession {
     /// reproduces the exact session instead of falling back to default timings.
     /// nil for sessions recorded before this field existed.
     var timerConfigData: Data?
+    /// Session RPE 1–10 — how hard the whole workout felt, as the lifter rated it.
+    /// nil when they skipped the prompt or the session predates it.
+    ///
+    /// Deliberately separate from `SetRecord.rpe`: Foster's session-RPE method asks for
+    /// one global rating of the session, which is a different question from rating a
+    /// single set and is what makes the load figure comparable across a lift and a run.
+    /// See `TrainingLoad`.
+    var sessionRPE: Double?
 
     @Relationship(deleteRule: .cascade, inverse: \WorkoutEntry.session)
     var entries: [WorkoutEntry] = []
@@ -54,6 +62,9 @@ final class WorkoutSession {
     }
 
     var isActive: Bool { completedAt == nil }
+
+    /// Active minutes — the duration half of the session-RPE load figure.
+    var activeMinutes: Double { max(0, duration / 60) }
 
     var totalVolume: Double {
         entries.flatMap { $0.sets }.compactMap { set -> Double? in
