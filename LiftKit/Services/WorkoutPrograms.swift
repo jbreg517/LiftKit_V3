@@ -16,7 +16,7 @@ import SwiftData
 // two-session rotation flips the lead movement every week on its own, so the classic
 // "week 2 is reversed" pattern needs no extra input.
 
-struct ProgramBlueprint: Identifiable {
+struct ProgramBlueprint: Identifiable, Codable {
     let id: String
     let name: String
     let summary: String
@@ -43,13 +43,13 @@ struct ProgramBlueprint: Identifiable {
     }
 }
 
-struct ProgramSession: Identifiable {
-    let id = UUID()
+struct ProgramSession: Identifiable, Codable {
+    var id = UUID()
     let name: String
     let exercises: [ProgramExercise]
 }
 
-struct ProgramExercise: Identifiable {
+struct ProgramExercise: Identifiable, Codable {
     let id = UUID()
     let name: String
     let equipment: Equipment
@@ -231,16 +231,33 @@ enum ProgramMaterializer {
 
 struct ProgramsView: View {
     @Environment(\.dismiss) private var dismiss
+    @State private var userPrograms: [ProgramBlueprint] = UserProgramStore.load()
+    @State private var showBuilder = false
+    @State private var showImport = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: LKSpacing.md) {
-                    Text("Pick a plan and it fills your calendar — sets ramp automatically week to week. You can still build your own series any time.")
+                    Text("Pick a plan and it fills your calendar, or build your own. Editing before you start is always up to you.")
                         .font(LKFont.caption)
                         .foregroundColor(LKColor.textMuted)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
+                    if !userPrograms.isEmpty {
+                        header("YOUR PROGRAMS")
+                        ForEach(userPrograms) { bp in
+                            NavigationLink { ProgramDetailView(blueprint: bp) } label: { card(bp) }
+                                .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button(role: .destructive) { delete(bp) } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
+                        }
+                    }
+
+                    header("READY-MADE")
                     ForEach(ProgramCatalog.all) { bp in
                         NavigationLink { ProgramDetailView(blueprint: bp) } label: { card(bp) }
                             .buttonStyle(.plain)
@@ -255,8 +272,49 @@ struct ProgramsView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }.foregroundColor(LKColor.textSecondary)
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button { showBuilder = true; HapticManager.shared.buttonTap() } label: {
+                            Label("Create Program", systemImage: "plus")
+                        }
+                        Button { showImport = true; HapticManager.shared.buttonTap() } label: {
+                            Label("Import from Text", systemImage: "doc.on.clipboard")
+                        }
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+            .sheet(isPresented: $showBuilder) {
+                NavigationStack {
+                    ProgramBuilderView(draft: ProgramDraft(), onSave: save)
+                }
+            }
+            .sheet(isPresented: $showImport) {
+                NavigationStack {
+                    PasteImportView(onSave: save)
+                }
             }
         }
+    }
+
+    private func save(_ bp: ProgramBlueprint) {
+        UserProgramStore.add(bp)
+        userPrograms = UserProgramStore.load()
+        showBuilder = false
+        showImport = false
+    }
+
+    private func delete(_ bp: ProgramBlueprint) {
+        UserProgramStore.delete(bp.id)
+        userPrograms = UserProgramStore.load()
+    }
+
+    private func header(_ text: String) -> some View {
+        Text(text)
+            .font(LKFont.caption).foregroundColor(LKColor.textMuted).tracking(2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, LKSpacing.xs)
     }
 
     private func card(_ bp: ProgramBlueprint) -> some View {
@@ -426,5 +484,311 @@ struct StartProgramSheet: View {
     private var summary: String {
         if weekdays.isEmpty { return "Pick the days you'll train." }
         return "\(occurrences.count) session\(occurrences.count == 1 ? "" : "s") over \(blueprint.weeks) weeks."
+    }
+}
+
+// MARK: - User program store
+//
+// User-authored programs persist as Codable `ProgramBlueprint`s in a JSON file (not
+// SwiftData — no schema/migration surface, and a program is a value type). They show
+// under "Your Programs" and schedule through the same `ProgramMaterializer`.
+enum UserProgramStore {
+    private static var url: URL {
+        let dir = URL.applicationSupportDirectory
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appending(path: "UserPrograms.json")
+    }
+
+    static func load() -> [ProgramBlueprint] {
+        guard let data = try? Data(contentsOf: url) else { return [] }
+        return (try? JSONDecoder().decode([ProgramBlueprint].self, from: data)) ?? []
+    }
+
+    static func save(_ programs: [ProgramBlueprint]) {
+        guard let data = try? JSONEncoder().encode(programs) else { return }
+        try? data.write(to: url, options: .atomic)
+    }
+
+    static func add(_ program: ProgramBlueprint) {
+        var all = load()
+        all.removeAll { $0.id == program.id }
+        all.append(program)
+        save(all)
+    }
+
+    static func delete(_ id: String) { save(load().filter { $0.id != id }) }
+}
+
+// MARK: - Editable draft (builder state)
+
+struct ProgramDraft {
+    var name = ""
+    var weeks = 8
+    var weekdays: Set<Int> = [2, 4, 6]     // Mon / Wed / Fri
+    var sessions: [DraftSession] = [DraftSession()]
+    var attributionName = ""
+    var attributionURL = ""
+}
+
+struct DraftSession: Identifiable {
+    var id = UUID()
+    var name = "Day A"
+    var exercises: [DraftExercise] = [DraftExercise()]
+}
+
+struct DraftExercise: Identifiable {
+    var id = UUID()
+    var name = ""
+    var equipment: Equipment = .none
+    var sets = 3
+    var reps = 10
+    var linkedToNext = false
+}
+
+// MARK: - Custom program builder
+
+struct ProgramBuilderView: View {
+    @Environment(\.dismiss) private var dismiss
+    let onSave: (ProgramBlueprint) -> Void
+    @State private var draft: ProgramDraft
+
+    private let weekdayLabels = ["S", "M", "T", "W", "T", "F", "S"]
+
+    init(draft: ProgramDraft, onSave: @escaping (ProgramBlueprint) -> Void) {
+        _draft = State(initialValue: draft)
+        self.onSave = onSave
+    }
+
+    private var canSave: Bool {
+        !draft.name.trimmingCharacters(in: .whitespaces).isEmpty
+        && !draft.weekdays.isEmpty
+        && draft.sessions.contains { s in
+            s.exercises.contains { !$0.name.trimmingCharacters(in: .whitespaces).isEmpty }
+        }
+    }
+
+    var body: some View {
+        Form {
+            Section("Program") {
+                TextField("Name", text: $draft.name)
+                Stepper("Weeks: \(draft.weeks)", value: $draft.weeks, in: 1...52)
+            }
+
+            Section("Train on") {
+                HStack(spacing: LKSpacing.xs) {
+                    ForEach(1...7, id: \.self) { wd in
+                        let on = draft.weekdays.contains(wd)
+                        Button {
+                            if on { draft.weekdays.remove(wd) } else { draft.weekdays.insert(wd) }
+                        } label: {
+                            Text(weekdayLabels[wd - 1])
+                                .font(.system(size: 13, weight: .semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, LKSpacing.sm)
+                                .background(on ? LKColor.accent : LKColor.surfaceElevated)
+                                .foregroundColor(on ? .black : LKColor.textSecondary)
+                                .cornerRadius(LKRadius.small)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            ForEach($draft.sessions) { $session in
+                Section {
+                    TextField("Session name", text: $session.name)
+                    ForEach($session.exercises) { $ex in
+                        exerciseRow($ex, in: $session)
+                    }
+                    Button {
+                        $session.exercises.wrappedValue.append(DraftExercise())
+                    } label: {
+                        Label("Add exercise", systemImage: "plus.circle")
+                    }
+                } header: {
+                    HStack {
+                        Text(session.name.isEmpty ? "Session" : session.name)
+                        Spacer()
+                        if draft.sessions.count > 1 {
+                            Button(role: .destructive) {
+                                draft.sessions.removeAll { $0.id == session.id }
+                            } label: {
+                                Image(systemName: "trash").font(.system(size: 12))
+                            }
+                        }
+                    }
+                }
+            }
+
+            Section {
+                Button {
+                    draft.sessions.append(DraftSession(name: "Day \(nextDayLetter())"))
+                } label: {
+                    Label("Add session", systemImage: "plus.circle")
+                }
+            } footer: {
+                Text("Sessions rotate across your chosen days — with an odd number of days a two-session plan alternates the lead each week.")
+            }
+
+            Section("Credit (optional)") {
+                TextField("Source (e.g. a coach's name)", text: $draft.attributionName)
+                TextField("Link (https://…)", text: $draft.attributionURL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(LKColor.background.ignoresSafeArea())
+        .navigationTitle("New Program")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { dismiss() }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") { onSave(makeBlueprint()) }.bold().disabled(!canSave)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func exerciseRow(_ ex: Binding<DraftExercise>, in session: Binding<DraftSession>) -> some View {
+        VStack(alignment: .leading, spacing: LKSpacing.xs) {
+            HStack {
+                TextField("Exercise", text: ex.name)
+                Button(role: .destructive) {
+                    session.exercises.wrappedValue.removeAll { $0.id == ex.wrappedValue.id }
+                } label: {
+                    Image(systemName: "minus.circle").foregroundColor(LKColor.danger)
+                }
+                .buttonStyle(.plain)
+                .opacity(session.exercises.wrappedValue.count > 1 ? 1 : 0.3)
+                .disabled(session.exercises.wrappedValue.count <= 1)
+            }
+            Picker("Equipment", selection: ex.equipment) {
+                ForEach(Equipment.allCases) { e in Text(e.rawValue).tag(e) }
+            }
+            .pickerStyle(.menu)
+            Stepper("Sets: \(ex.wrappedValue.sets)", value: ex.sets, in: 1...20)
+            Stepper("Reps: \(ex.wrappedValue.reps)", value: ex.reps, in: 1...100)
+            Toggle("Superset with next", isOn: ex.linkedToNext)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func nextDayLetter() -> String {
+        let letters = ["A", "B", "C", "D", "E", "F", "G"]
+        let i = draft.sessions.count
+        return i < letters.count ? letters[i] : "\(i + 1)"
+    }
+
+    private func makeBlueprint() -> ProgramBlueprint {
+        let weeks = max(1, draft.weeks)
+        let sessions: [ProgramSession] = draft.sessions.compactMap { s in
+            let exs = s.exercises
+                .filter { !$0.name.trimmingCharacters(in: .whitespaces).isEmpty }
+                .map { e in
+                    ProgramExercise(
+                        name: e.name.trimmingCharacters(in: .whitespaces),
+                        equipment: e.equipment,
+                        timerType: .reps,
+                        reps: max(1, e.reps),
+                        weight: 0,
+                        weightUnit: .lb,
+                        restSeconds: 90,
+                        setsPerBlock: [max(1, e.sets)],   // flat in v1 (no per-block ramp yet)
+                        linkedToNext: e.linkedToNext)
+                }
+            guard !exs.isEmpty else { return nil }
+            return ProgramSession(name: s.name.isEmpty ? "Session" : s.name, exercises: exs)
+        }
+        return ProgramBlueprint(
+            id: "user-\(UUID().uuidString)",
+            name: draft.name.trimmingCharacters(in: .whitespaces),
+            summary: "\(weeks) week\(weeks == 1 ? "" : "s") · \(draft.weekdays.count)×/week",
+            weeks: weeks,
+            weeksPerBlock: weeks,   // one block → flat sets; per-block ramp is a v2 follow-up
+            sessions: sessions,
+            recommendedWeekdays: draft.weekdays.sorted(),
+            attribution: draft.attributionName.isEmpty ? nil : draft.attributionName,
+            attributionURL: draft.attributionURL.isEmpty ? nil : draft.attributionURL)
+    }
+}
+
+// MARK: - Paste-text import (assisted draft)
+//
+// A user pastes program text they found; a rough draft is parsed and opened in the
+// builder for review/edit before saving. Deliberately kept to on-device text only
+// (no scraping, no network). A smarter on-device LLM parse is a planned upgrade;
+// the review gate + credit link keep this IP-safe (user-owned result, not the
+// source's copyrighted text).
+struct PasteImportView: View {
+    @Environment(\.dismiss) private var dismiss
+    let onSave: (ProgramBlueprint) -> Void
+    @State private var text = ""
+
+    private var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        Form {
+            Section {
+                TextEditor(text: $text)
+                    .frame(minHeight: 180)
+            } header: {
+                Text("Paste the program")
+            } footer: {
+                Text("One movement per line (e.g. \"Back Squat 5x5\"). A rough draft is created — review and edit everything before saving. If it's someone else's program, add a credit link in the next step.")
+            }
+
+            Section {
+                NavigationLink {
+                    ProgramBuilderView(draft: ProgramTextImport.parse(trimmed), onSave: onSave)
+                } label: {
+                    Label("Create Draft", systemImage: "wand.and.stars")
+                }
+                .disabled(trimmed.isEmpty)
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(LKColor.background.ignoresSafeArea())
+        .navigationTitle("Import from Text")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { dismiss() }
+            }
+        }
+    }
+}
+
+/// Heuristic first pass: one line → one exercise, pulling a "sets×reps" token when
+/// present. Deliberately dumb — it just seeds the builder, which the user then fixes.
+enum ProgramTextImport {
+    static func parse(_ text: String) -> ProgramDraft {
+        var draft = ProgramDraft()
+        draft.name = "Imported Program"
+
+        var exercises: [DraftExercise] = []
+        for rawLine in text.split(whereSeparator: \.isNewline) {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            guard line.count >= 2, exercises.count < 30 else { continue }
+            var ex = DraftExercise()
+            if let range = line.range(of: #"(\d{1,2})\s*[xX×]\s*(\d{1,3})"#, options: .regularExpression) {
+                let nums = line[range].split { !$0.isNumber }.compactMap { Int($0) }
+                if nums.count == 2 {
+                    ex.sets = min(20, max(1, nums[0]))
+                    ex.reps = min(100, max(1, nums[1]))
+                }
+                let name = line.replacingCharacters(in: range, with: "")
+                    .trimmingCharacters(in: CharacterSet(charactersIn: " -–—:•\t.,"))
+                ex.name = name.isEmpty ? line : name
+            } else {
+                ex.name = line
+            }
+            exercises.append(ex)
+        }
+        if exercises.isEmpty { exercises = [DraftExercise()] }
+        draft.sessions = [DraftSession(name: "Day A", exercises: exercises)]
+        return draft
     }
 }
