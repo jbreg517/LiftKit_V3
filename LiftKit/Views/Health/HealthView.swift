@@ -25,6 +25,11 @@ struct HealthView: View {
     @AppStorage("healthKitEnabled") private var healthKitEnabled = false
     @State private var hkToday: HealthKitManager.DailyMacros?
     @State private var hkSeries: [HealthKitManager.DailyMacros] = []
+    /// Latest bodyweight / height read from Apple Health. When the integration is on,
+    /// HealthKit is the source of truth for measurements (it aggregates the scale,
+    /// FuelKit and any Health app), so these take precedence over local values.
+    @State private var hkWeightLb: Double?
+    @State private var hkHeightInches: Double?
 
     private var isPremium: Bool { store.isPro }
     private var hp: HealthProfile? { healthProfiles.first }
@@ -112,14 +117,27 @@ struct HealthView: View {
         guard healthKitEnabled else {
             hkToday = nil
             hkSeries = []
+            hkWeightLb = nil
+            hkHeightInches = nil
             return
         }
         let today = await HealthKitManager.shared.macros(on: Date())
         let start = Calendar.current.date(byAdding: .day, value: -14, to: Date()) ?? Date()
         let series = await HealthKitManager.shared.dailyMacros(from: start, to: Date())
+        // Measurements written by FuelKit / a scale / any Health app.
+        let weight = await HealthKitManager.shared.latestBodyMassLb()
+        let height = await HealthKitManager.shared.latestHeightInches()
         await MainActor.run {
             hkToday = today
             hkSeries = series
+            hkWeightLb = (weight ?? 0) > 0 ? weight : nil
+            hkHeightInches = (height ?? 0) > 0 ? height : nil
+            // Adopt HealthKit height into the profile so BMR / targets use the latest
+            // (HealthKit wins when the integration is on).
+            if let h = hkHeightInches, let hp, abs(hp.heightInches - h) > 0.5 {
+                hp.heightInches = h
+                Persist.save(context)
+            }
         }
     }
 
@@ -586,7 +604,10 @@ struct HealthView: View {
 
     // MARK: - Derived values
     private var latestWeightLb: Double? {
-        bodyMetrics.filter { $0.type == .bodyweight }.max(by: { $0.date < $1.date })?.value
+        // HealthKit wins when the integration is on (it aggregates the scale, FuelKit
+        // and any Health app); otherwise use a locally logged bodyweight.
+        if healthKitEnabled, let w = hkWeightLb, w > 0 { return w }
+        return bodyMetrics.filter { $0.type == .bodyweight }.max(by: { $0.date < $1.date })?.value
     }
     private var bmr: Double? {
         guard let hp, let w = latestWeightLb else { return nil }
