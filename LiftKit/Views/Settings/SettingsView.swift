@@ -18,7 +18,7 @@ import UIKit
 ///
 /// Shared convention across FuelKit, LiftKit and RunKit.
 enum AppVersion {
-    static let current = "0.75"
+    static let current = "0.76"
 }
 
 struct SettingsView: View {
