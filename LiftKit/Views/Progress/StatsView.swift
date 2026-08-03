@@ -16,6 +16,12 @@ struct StatsView: View {
     @State private var trainingWeeks: TrainingWeeks = .twelve
     /// The muscle group drilled into, or nil for the four-row overview.
     @State private var expandedRegion: MuscleRegion?
+    /// In the drill-down, the muscle whose line is isolated (others dimmed), or nil.
+    /// Driven by tapping a legend chip.
+    @State private var focusedMuscle: String?
+    /// Scrub position on the exercise weight chart — the nearest logged point is
+    /// called out. Interactivity belongs to this detail chart, not the sparklines.
+    @State private var scrubDate: Date?
     @AppStorage("unitSystem") private var unitSystemRaw = "imperial"
     private var units: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .imperial }
 
@@ -150,6 +156,14 @@ struct StatsView: View {
             let total = weeks.reduce(0) { $0 + $1.sessions }
             let thisWeek = weeks.last
             let ratio = TrainingLoad.acuteChronicRatio(dayLoads)
+            // "Your typical" band = interquartile range of non-zero weeks, so a bar
+            // above it reads as a harder-than-usual week (Whoop/Oura-style baseline,
+            // computed from the user's own data — not an external prescription).
+            let typicalBand: (lo: Double, hi: Double)? = {
+                let loads = weeks.map(\.srpe).filter { $0 > 0 }.sorted()
+                guard loads.count >= 4 else { return nil }
+                return (loads[loads.count / 4], loads[(loads.count * 3) / 4])
+            }()
 
             VStack(alignment: .leading, spacing: LKSpacing.md) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -162,18 +176,35 @@ struct StatsView: View {
                 }
                 .padding(.horizontal, LKSpacing.md)
 
-                Chart(weeks) { week in
-                    BarMark(
-                        x: .value("Week", week.weekStart, unit: .weekOfYear),
-                        y: .value("Load", week.srpe)
-                    )
-                    .foregroundStyle(LKColor.accent)
-                    .accessibilityLabel(week.weekStart.formatted(date: .abbreviated, time: .omitted))
-                    .accessibilityValue("\(Int(week.srpe.rounded())) AU")
+                Chart {
+                    if let typicalBand {
+                        RectangleMark(
+                            yStart: .value("Typical low", typicalBand.lo),
+                            yEnd: .value("Typical high", typicalBand.hi)
+                        )
+                        .foregroundStyle(LKColor.accent.opacity(0.08))
+                    }
+                    ForEach(weeks) { week in
+                        BarMark(
+                            x: .value("Week", week.weekStart, unit: .weekOfYear),
+                            y: .value("Load", week.srpe)
+                        )
+                        .foregroundStyle(LKColor.accent)
+                        .accessibilityLabel(week.weekStart.formatted(date: .abbreviated, time: .omitted))
+                        .accessibilityValue("\(Int(week.srpe.rounded())) AU")
+                    }
                 }
                 .chartYAxisLabel("AU")
+                .lkTimeAxis(days: trainingWeeks.rawValue * 7)
                 .frame(height: 160)
                 .padding(.horizontal, LKSpacing.md)
+
+                if typicalBand != nil {
+                    Text("Shaded band is your typical weekly load — bars above it are harder-than-usual weeks.")
+                        .font(LKFont.caption)
+                        .foregroundColor(LKColor.textMuted)
+                        .padding(.horizontal, LKSpacing.md)
+                }
 
                 HStack(spacing: LKSpacing.md) {
                     loadStat("This week", value: "\(Int((thisWeek?.srpe ?? 0).rounded()))", unit: "AU")
@@ -254,6 +285,7 @@ struct StatsView: View {
                     if expandedRegion != nil {
                         Button("Back") {
                             withAnimation(.easeInOut(duration: 0.2)) { expandedRegion = nil }
+                            focusedMuscle = nil
                         }
                         .font(LKFont.caption)
                         .foregroundColor(LKColor.accent)
@@ -297,6 +329,7 @@ struct StatsView: View {
 
         return Button {
             withAnimation(.easeInOut(duration: 0.2)) { expandedRegion = region }
+            focusedMuscle = nil
         } label: {
             VStack(alignment: .leading, spacing: LKSpacing.xs) {
                 HStack(alignment: .firstTextBaseline) {
@@ -384,12 +417,14 @@ struct StatsView: View {
                                 series: .value("Muscle", muscle.label)
                             )
                             .foregroundStyle(by: .value("Muscle", muscle.label))
+                            .opacity(focusedMuscle == nil || focusedMuscle == muscle.label ? 1 : 0.18)
                             .interpolationMethod(.monotone)
                             PointMark(
                                 x: .value("Week", week.weekStart),
                                 y: .value("Sets", week.sets(for: muscle))
                             )
                             .foregroundStyle(by: .value("Muscle", muscle.label))
+                            .opacity(focusedMuscle == nil || focusedMuscle == muscle.label ? 1 : 0.18)
                             .symbolSize(28)
                         }
                     }
@@ -406,7 +441,44 @@ struct StatsView: View {
                 }
                 .frame(height: 220)
                 .chartYAxisLabel("Hard sets")
-                .chartLegend(position: .bottom, spacing: LKSpacing.xs)
+                // Explicit scale so the tappable legend chips below match the lines.
+                .chartForegroundStyleScale(
+                    domain: muscles.map(\.label),
+                    range: muscles.indices.map { LKChart.categorical[$0 % LKChart.categorical.count] }
+                )
+                .chartLegend(.hidden)
+
+                // Tappable legend — tap a muscle to isolate its line (others dim),
+                // tap again to clear. Colours match the lines above.
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: LKSpacing.sm) {
+                        ForEach(Array(muscles.enumerated()), id: \.element.id) { idx, muscle in
+                            let color = LKChart.categorical[idx % LKChart.categorical.count]
+                            let on = focusedMuscle == muscle.label
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    focusedMuscle = on ? nil : muscle.label
+                                }
+                                HapticManager.shared.buttonTap()
+                            } label: {
+                                HStack(spacing: 5) {
+                                    Circle().fill(color).frame(width: 9, height: 9)
+                                    Text(muscle.label)
+                                        .font(.system(size: 12, weight: on ? .semibold : .regular))
+                                        .foregroundColor(LKColor.textPrimary)
+                                }
+                                .opacity(focusedMuscle == nil || on ? 1 : 0.45)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 5)
+                                .background(on ? color.opacity(0.15) : LKColor.surfaceElevated)
+                                .overlay(Capsule().strokeBorder(on ? color : Color.clear, lineWidth: 1))
+                                .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 2)
+                }
 
                 Text("The dashed line marks 10 sets a week per muscle — a figure often cited in the training literature, not a target LiftKit sets for you.")
                     .font(LKFont.caption)
@@ -561,6 +633,9 @@ struct StatsView: View {
                 let repsSeries = LKChart.aggregate(data.map { ($0.date, Double($0.reps)) }, bucket: bucket, reducer: .max)
                 let xLower = timeRange.days.flatMap { Calendar.current.date(byAdding: .day, value: -$0, to: Date()) } ?? (data.first?.date ?? Date())
                 let xUpper = Date()
+                let scrubbed: LKAggPoint? = scrubDate.flatMap { d in
+                    weightSeries.min(by: { abs($0.date.timeIntervalSince(d)) < abs($1.date.timeIntervalSince(d)) })
+                }
                 if data.isEmpty {
                     noDataView(icon: "chart.line.downtrend.xyaxis")
                 } else {
@@ -614,10 +689,29 @@ struct StatsView: View {
                                 .accessibilityLabel(point.date.formatted(date: .abbreviated, time: .omitted))
                                 .accessibilityValue("\(Int(point.value)) \(units.weightLabel)")
                             }
+                            // Scrub read-out: a rule + callout at the nearest logged
+                            // point while dragging across the chart.
+                            if let scrubbed {
+                                RuleMark(x: .value("Date", scrubbed.date))
+                                    .foregroundStyle(LKColor.textMuted.opacity(0.4))
+                                    .annotation(position: .top, alignment: .center, spacing: 4) {
+                                        VStack(spacing: 1) {
+                                            Text(scrubbed.date, format: .dateTime.month(.abbreviated).day())
+                                                .font(.system(size: 9)).foregroundColor(LKColor.textMuted)
+                                            Text("\(Int(scrubbed.value)) \(units.weightLabel)")
+                                                .font(.system(size: 11, weight: .semibold))
+                                                .foregroundColor(LKColor.textPrimary)
+                                        }
+                                        .padding(.horizontal, 6).padding(.vertical, 3)
+                                        .background(LKColor.surface)
+                                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                                    }
+                            }
                         }
                         .frame(height: 200)
                         .padding(.horizontal, LKSpacing.md)
                         .chartXScale(domain: xLower...xUpper)
+                        .chartXSelection(value: $scrubDate)
                         .lkTimeAxis(days: timeRange.days)
                         .chartYAxisLabel("Weight (\(units.weightLabel))")
 
@@ -698,6 +792,7 @@ struct StatsView: View {
                 .frame(height: 160)
                 .padding(.horizontal, LKSpacing.md)
                 .chartYAxisLabel("Volume (\(units.weightLabel))")
+                .lkTimeAxis(days: trainingWeeks.rawValue * 7)
 
                 Text("Sets × weight, so this follows what you chose to train as much as how hard you trained — a leg week outweighs an arm week either way. Read it next to the groups above.")
                     .font(LKFont.caption)
@@ -808,6 +903,14 @@ struct LKAggPoint: Identifiable {
 }
 
 enum LKChart {
+    /// Categorical series palette, drawn from the app's own semantic colours first
+    /// so a split chart still feels like LiftKit. Used for both the lines (via an
+    /// explicit foreground-style scale) and the matching tappable legend chips.
+    static let categorical: [Color] = [
+        LKColor.accent, LKColor.rest, LKColor.success, LKColor.danger,
+        .purple, .teal, .pink, .orange
+    ]
+
     /// Aggregate raw (date, value) samples into bucketed points. `.day` passes
     /// through unchanged (per-entry).
     static func aggregate(_ points: [(date: Date, value: Double)],

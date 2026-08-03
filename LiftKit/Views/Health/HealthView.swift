@@ -502,12 +502,16 @@ struct HealthView: View {
                         RuleMark(y: .value("Target", goal))
                             .foregroundStyle(LKColor.textMuted)
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                            .annotation(position: .top, alignment: .trailing) {
+                                Text("Target").font(.caption2).foregroundColor(LKColor.textMuted)
+                            }
                             .accessibilityLabel("Calorie target")
                             .accessibilityValue("\(Int(goal)) kcal")
                     }
                 }
                 .frame(height: 160)
                 .padding(.horizontal, LKSpacing.md)
+                .lkTimeAxis(days: 14)
             }
         }
     }

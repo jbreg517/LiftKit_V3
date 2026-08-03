@@ -125,22 +125,40 @@ struct BodyTrackingView: View {
                 )
                 .frame(height: 140)
             } else {
+                let sorted = entries
+                    .map { (date: $0.date, value: selectedType.toDisplay($0.value, units)) }
+                    .sorted { $0.date < $1.date }
+                let spanDays = sorted.first.flatMap { f in
+                    sorted.last.map { l in Calendar.current.dateComponents([.day], from: f.date, to: l.date).day ?? 0 }
+                } ?? 0
                 Chart {
-                    ForEach(entries) { m in
+                    ForEach(sorted, id: \.date) { p in
                         LineMark(
-                            x: .value("Date", m.date),
-                            y: .value(selectedType.label, selectedType.toDisplay(m.value, units))
+                            x: .value("Date", p.date),
+                            y: .value(selectedType.label, p.value)
                         )
                         .foregroundStyle(LKColor.accent)
                         .interpolationMethod(.catmullRom)
+                    }
+                    // A dot per logged entry, line-coloured and ringed in the
+                    // background colour so it reads on top of the line.
+                    ForEach(sorted, id: \.date) { p in
                         PointMark(
-                            x: .value("Date", m.date),
-                            y: .value(selectedType.label, selectedType.toDisplay(m.value, units))
+                            x: .value("Date", p.date),
+                            y: .value(selectedType.label, p.value)
+                        )
+                        .foregroundStyle(LKColor.background)
+                        .symbolSize(70)
+                        PointMark(
+                            x: .value("Date", p.date),
+                            y: .value(selectedType.label, p.value)
                         )
                         .foregroundStyle(LKColor.accent)
+                        .symbolSize(30)
                     }
                 }
                 .chartYAxisLabel("\(selectedType.label) (\(selectedType.unitLabel(units)))")
+                .lkTimeAxis(days: spanDays > 0 ? spanDays : nil)
                 .frame(height: 220)
                 .padding(.horizontal, LKSpacing.md)
             }
