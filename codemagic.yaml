@@ -19,10 +19,15 @@ workflows:
       - name: Set version and build number
         script: |
           set -eo pipefail
-          # Codemagic shallow-clones (~depth 50), which caps `git rev-list --count`
-          # and stuck CFBundleVersion at 50 — App Store/TestFlight require a strictly
-          # increasing build number. Unshallow first so the count is the true total.
-          git fetch --unshallow 2>/dev/null || true
+          # Unshallow so the count is the true total — Codemagic shallow-clones, which
+          # otherwise caps it at the clone depth and gives every build the same number.
+          # No App Store Connect check here: this workflow uploads nowhere, so the count
+          # only has to be distinct enough to tell two IPAs apart. The signed workflow
+          # below does check, because there the number has to beat what TestFlight holds.
+          if [ -f "$(git rev-parse --git-dir)/shallow" ]; then
+            git fetch --unshallow --quiet 2>/dev/null \
+              || git fetch --depth=2147483647 --quiet 2>/dev/null || true
+          fi
           BUILD=$(git rev-list --count HEAD)
           VERSION=$(grep -oE 'static let current = "[0-9.]+"' LiftKit/Views/Settings/SettingsView.swift | grep -oE '[0-9]+\.[0-9]+' | head -1)
           echo "Version $VERSION, build $BUILD"
@@ -168,11 +173,40 @@ workflows:
       - name: Set version and build number
         script: |
           set -eo pipefail
-          # Codemagic shallow-clones (~depth 50), which caps `git rev-list --count`
-          # and stuck CFBundleVersion at 50 — App Store/TestFlight require a strictly
-          # increasing build number. Unshallow first so the count is the true total.
-          git fetch --unshallow 2>/dev/null || true
+          # The build number must be strictly higher than anything already uploaded.
+          #
+          # `git rev-list --count` alone cannot guarantee that. Codemagic shallow-clones,
+          # so the count silently caps at the clone depth and every build emits the same
+          # number. That has now bitten twice — once stuck at 50, then again at 59, with
+          # TestFlight rejecting the upload both times. Unshallowing helps but is one
+          # swallowed error away from failing the same way, so it is no longer the
+          # authority: App Store Connect is asked what it actually has.
+          if [ -f "$(git rev-parse --git-dir)/shallow" ]; then
+            git fetch --unshallow --quiet 2>/dev/null \
+              || git fetch --depth=2147483647 --quiet 2>/dev/null || true
+          fi
           BUILD=$(git rev-list --count HEAD)
+          echo "Commit count: $BUILD"
+
+          # Whatever TestFlight already holds, plus one. Every step is guarded so a CLI
+          # change degrades to the commit count instead of breaking the build.
+          APP_ID=$(app-store-connect list-apps \
+                     --bundle-id-identifier "com.ferrixguild.liftkit" --json 2>/dev/null \
+                     | grep -m1 -oE '"id":[[:space:]]*"[0-9]+"' \
+                     | grep -oE '[0-9]+' || true)
+          LATEST=""
+          if [ -n "$APP_ID" ]; then
+            LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_ID" 2>/dev/null || true)
+          else
+            echo "WARNING: could not resolve the App Store Connect app id; falling back to the commit count."
+          fi
+          case "$LATEST" in ''|*[!0-9]*) LATEST=0 ;; esac
+          echo "Latest build on TestFlight: $LATEST"
+          if [ "$LATEST" -ge "$BUILD" ]; then
+            BUILD=$((LATEST + 1))
+            echo "Commit count is not ahead of TestFlight — using $BUILD instead."
+          fi
+
           VERSION=$(grep -oE 'static let current = "[0-9.]+"' LiftKit/Views/Settings/SettingsView.swift | grep -oE '[0-9]+\.[0-9]+' | head -1)
           echo "Version $VERSION, build $BUILD"
           PLIST="LiftKit/Info.plist"
