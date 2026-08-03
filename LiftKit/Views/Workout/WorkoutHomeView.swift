@@ -61,6 +61,9 @@ struct WorkoutHomeView: View {
                             .padding(.horizontal, LKSpacing.md)
                     }
 
+                    // Scheduling actions, surfaced right under the calendar
+                    schedulingSection
+
                     // Today / carried-forward scheduled workouts
                     dueWorkoutsSection
 
@@ -103,6 +106,84 @@ struct WorkoutHomeView: View {
         }
         // Note: showWorkoutSetup / showActiveWorkout are presented at the root
         // (LiftKitApp.RootTabView) so only one presenter drives each binding.
+    }
+
+    // MARK: - Scheduling section (Pro)
+    // Three equal tiles on one row under the calendar. "Schedule Workout" is a menu
+    // because there are two authoring flows (a single day and a recurring series);
+    // the other two are direct. Only shown for Pro — free users see the locked
+    // calendar card above, which already routes to the paywall.
+    @ViewBuilder
+    private var schedulingSection: some View {
+        if isPremium {
+            VStack(alignment: .leading, spacing: LKSpacing.sm) {
+                Text("SCHEDULING")
+                    .font(LKFont.caption)
+                    .foregroundColor(LKColor.textMuted)
+                    .tracking(2)
+                    .padding(.horizontal, LKSpacing.md)
+
+                HStack(spacing: LKSpacing.sm) {
+                    Menu {
+                        Button {
+                            scheduleTarget = ScheduleEditTarget(
+                                schedule: WorkoutSchedule(date: Date()), isNew: true)
+                            HapticManager.shared.buttonTap()
+                        } label: {
+                            Label("Single Workout", systemImage: "plus.circle.fill")
+                        }
+                        Button {
+                            showSeriesSchedule = true
+                            HapticManager.shared.buttonTap()
+                        } label: {
+                            Label("Recurring Series", systemImage: "calendar.badge.plus")
+                        }
+                    } label: {
+                        schedulingTile(title: "Schedule\nWorkout", systemImage: "plus.circle")
+                    }
+
+                    Button {
+                        showPrograms = true
+                        HapticManager.shared.buttonTap()
+                    } label: {
+                        schedulingTile(title: "Schedule\nProgram", systemImage: "square.stack.3d.up.fill")
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        showUpcoming = true
+                        HapticManager.shared.buttonTap()
+                    } label: {
+                        schedulingTile(title: "Manage\nSchedules", systemImage: "calendar.badge.clock")
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, LKSpacing.md)
+            }
+        }
+    }
+
+    private func schedulingTile(title: String, systemImage: String) -> some View {
+        VStack(spacing: LKSpacing.xs) {
+            Image(systemName: systemImage)
+                .font(.system(size: 20))
+                .foregroundColor(LKColor.accent)
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(LKColor.textPrimary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, LKSpacing.md)
+        .background(LKColor.surface)
+        .overlay(
+            RoundedRectangle(cornerRadius: LKRadius.large)
+                .strokeBorder(LKColor.surfaceElevated, lineWidth: 1)
+        )
+        .cornerRadius(LKRadius.large)
+        .contentShape(Rectangle())
     }
 
     // MARK: - Due workouts (today / carried forward)
@@ -307,71 +388,13 @@ struct WorkoutHomeView: View {
     // MARK: - Plans section
     private var plansSection: some View {
         VStack(alignment: .leading, spacing: LKSpacing.sm) {
-            HStack {
-                Text("YOUR WORKOUT PLANS")
-                    .font(LKFont.caption)
-                    .foregroundColor(LKColor.textMuted)
-                    .tracking(2)
-                Spacer()
-                // The schedule control is always shown for Pro (it used to be hidden
-                // until the user had saved a plan, which also hid the entry a fresh
-                // user needs most). Every scheduling entry point lives in this one
-                // menu; only "Manage Upcoming" is gated, on there being something to
-                // manage.
-                if isPremium {
-                    Menu {
-                        Button {
-                            scheduleTarget = ScheduleEditTarget(
-                                schedule: WorkoutSchedule(date: Date()), isNew: true)
-                            HapticManager.shared.buttonTap()
-                        } label: {
-                            Label("Schedule a Workout", systemImage: "plus.circle.fill")
-                        }
-                        Button {
-                            showPrograms = true
-                            HapticManager.shared.buttonTap()
-                        } label: {
-                            Label("Browse Programs", systemImage: "square.stack.3d.up.fill")
-                        }
-                        // No longer gated on having custom plans — it's reachable from
-                        // a fresh install. (The series picker itself still lists only
-                        // custom plans today; letting it pick prebuilt workouts is a
-                        // follow-up.)
-                        Button {
-                            showSeriesSchedule = true
-                            HapticManager.shared.buttonTap()
-                        } label: {
-                            Label("Schedule a Series", systemImage: "calendar.badge.plus")
-                        }
-                        if !schedules.isEmpty {
-                            Button {
-                                showUpcoming = true
-                                HapticManager.shared.buttonTap()
-                            } label: {
-                                Label("Manage Upcoming", systemImage: "calendar.badge.clock")
-                            }
-                        }
-                    } label: {
-                        Label("Schedule", systemImage: "calendar")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(LKColor.accent)
-                    }
-                } else {
-                    // Scheduling is a Pro feature — show a locked control that
-                    // opens the paywall instead of the scheduling menu.
-                    Button {
-                        vm.paywallFeature = .scheduling
-                        vm.showPaywall = true
-                        HapticManager.shared.buttonTap()
-                    } label: {
-                        Label("Schedule", systemImage: "lock.fill")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(LKColor.textMuted)
-                    }
-                    .accessibilityLabel("Schedule, a Pro feature. Double tap to upgrade.")
-                }
-            }
-            .padding(.horizontal, LKSpacing.md)
+            // Scheduling entry points now live in their own section under the
+            // calendar (see `schedulingSection`), so this header is just a label.
+            Text("YOUR WORKOUT PLANS")
+                .font(LKFont.caption)
+                .foregroundColor(LKColor.textMuted)
+                .tracking(2)
+                .padding(.horizontal, LKSpacing.md)
 
             ForEach(visibleTemplates) { template in
                 SwipeToDeleteRow(enabled: true, onDelete: {
