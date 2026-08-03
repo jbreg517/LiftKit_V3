@@ -126,13 +126,13 @@ struct BodyTrackingView: View {
                 .frame(height: 140)
             } else {
                 let sorted = entries
-                    .map { (date: $0.date, value: selectedType.toDisplay($0.value, units)) }
+                    .map { LKAggPoint(date: $0.date, value: selectedType.toDisplay($0.value, units)) }
                     .sorted { $0.date < $1.date }
                 let spanDays = sorted.first.flatMap { f in
                     sorted.last.map { l in Calendar.current.dateComponents([.day], from: f.date, to: l.date).day ?? 0 }
                 } ?? 0
                 Chart {
-                    ForEach(sorted, id: \.date) { p in
+                    ForEach(sorted) { p in
                         LineMark(
                             x: .value("Date", p.date),
                             y: .value(selectedType.label, p.value)
@@ -142,7 +142,7 @@ struct BodyTrackingView: View {
                     }
                     // A dot per logged entry, line-coloured and ringed in the
                     // background colour so it reads on top of the line.
-                    ForEach(sorted, id: \.date) { p in
+                    ForEach(sorted) { p in
                         PointMark(
                             x: .value("Date", p.date),
                             y: .value(selectedType.label, p.value)

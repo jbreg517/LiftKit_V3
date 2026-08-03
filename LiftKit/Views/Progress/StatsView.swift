@@ -629,8 +629,8 @@ struct StatsView: View {
                 // longer views; per-entry on 1W). Axis + dots come from the shared
                 // chart style.
                 let bucket = LKChartBucket.forRange(days: timeRange.days)
-                let weightSeries = LKChart.aggregate(data.map { ($0.date, $0.weight) }, bucket: bucket, reducer: .max)
-                let repsSeries = LKChart.aggregate(data.map { ($0.date, Double($0.reps)) }, bucket: bucket, reducer: .max)
+                let weightSeries = LKChart.aggregate(data.map { (date: $0.date, value: $0.weight) }, bucket: bucket, reducer: .max)
+                let repsSeries = LKChart.aggregate(data.map { (date: $0.date, value: Double($0.reps)) }, bucket: bucket, reducer: .max)
                 let xLower = timeRange.days.flatMap { Calendar.current.date(byAdding: .day, value: -$0, to: Date()) } ?? (data.first?.date ?? Date())
                 let xUpper = Date()
                 let scrubbed: LKAggPoint? = scrubDate.flatMap { d in
