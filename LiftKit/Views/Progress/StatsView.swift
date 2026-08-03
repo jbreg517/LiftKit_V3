@@ -233,7 +233,7 @@ struct StatsView: View {
     /// session totals.
     private func visibleRegions(in weeks: [TrainingLoad.HardSetWeek]) -> [MuscleRegion] {
         var regions = MuscleRegion.primary
-        if weeks.contains(where: { $0.sets(for: .other) > 0 }) { regions.append(.other) }
+        if weeks.contains(where: { $0.sets(for: MuscleRegion.other) > 0 }) { regions.append(.other) }
         return regions
     }
 
