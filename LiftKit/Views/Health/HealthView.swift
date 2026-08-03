@@ -426,13 +426,26 @@ struct HealthView: View {
 
     private var weightTrend: some View {
         let data = bodyMetrics.filter { $0.type == .bodyweight }.sorted { $0.date < $1.date }
-        let smooth = movingAverage(data, days: 7)
+        // Recency-weighted trend (irregular EWMA) in display units — smooths daily
+        // scale noise better than a fixed 7-day window when weigh-ins are sparse.
+        let displayPoints = data.map { (date: $0.date, value: units.weightFromLb($0.value)) }
+        let trend = LKChart.recencyWeightedTrend(displayPoints)
+        let rate = LKChart.ratePerWeek(trend)
         return VStack(alignment: .leading, spacing: LKSpacing.xs) {
             HStack {
                 Text("Bodyweight").font(LKFont.caption).foregroundColor(LKColor.textSecondary)
                 Spacer()
-                if data.count >= 2 {
-                    Text("dots = weigh-ins · line = 7-day avg")
+                if let rate, abs(rate) >= 0.05 {
+                    // Measured rate off the trend's slope — the actionable number.
+                    let down = rate < 0
+                    HStack(spacing: 3) {
+                        Image(systemName: down ? "arrow.down.right" : "arrow.up.right")
+                        Text("\(String(format: "%.1f", abs(rate))) \(units.weightLabel)/wk")
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(down ? LKColor.rest : LKColor.accent)
+                } else if data.count >= 2 {
+                    Text("dots = weigh-ins · line = trend")
                         .font(.system(size: 10)).foregroundColor(LKColor.textMuted)
                 }
             }
@@ -441,17 +454,26 @@ struct HealthView: View {
                 emptyChart("Log weight on a few days to see the trend.")
             } else {
                 Chart {
-                    ForEach(data) { m in
-                        PointMark(x: .value("Date", m.date), y: .value(units.weightLabel, units.weightFromLb(m.value)))
-                            .foregroundStyle(LKColor.textMuted.opacity(0.5))
-                            .symbolSize(18)
-                            .accessibilityLabel(m.date.formatted(date: .abbreviated, time: .omitted))
-                            .accessibilityValue("\(Int(units.weightFromLb(m.value))) \(units.weightLabel)")
-                    }
-                    ForEach(smooth) { p in
-                        LineMark(x: .value("Date", p.date), y: .value("Trend", units.weightFromLb(p.value)))
+                    // Trend first, so the weigh-in dots sit on top of it.
+                    ForEach(trend) { p in
+                        LineMark(x: .value("Date", p.date), y: .value("Trend", p.value))
                             .foregroundStyle(LKColor.accent)
                             .interpolationMethod(.catmullRom)
+                    }
+                    // Raw weigh-ins on top, each ringed in the background colour so a
+                    // dot landing on the trend line stays clearly visible. Grey in
+                    // both light and dark, and pronounced (was a faint 0.5 dot).
+                    ForEach(data) { m in
+                        PointMark(x: .value("Date", m.date), y: .value(units.weightLabel, units.weightFromLb(m.value)))
+                            .foregroundStyle(LKColor.background)
+                            .symbolSize(96)
+                    }
+                    ForEach(data) { m in
+                        PointMark(x: .value("Date", m.date), y: .value(units.weightLabel, units.weightFromLb(m.value)))
+                            .foregroundStyle(LKColor.textMuted.opacity(0.9))
+                            .symbolSize(44)
+                            .accessibilityLabel(m.date.formatted(date: .abbreviated, time: .omitted))
+                            .accessibilityValue("\(Int(units.weightFromLb(m.value))) \(units.weightLabel)")
                     }
                 }
                 .frame(height: 160)
