@@ -45,25 +45,41 @@ struct ProgramBlueprint: Identifiable, Codable {
 
 struct ProgramSession: Identifiable, Codable {
     var id = UUID()
-    let name: String
-    let exercises: [ProgramExercise]
+    var name: String
+    /// The day's workout type and timings (AMRAP time limit, EMOM rounds, interval
+    /// work/rest, For-Time cap, …). A program day is now a full workout of any type,
+    /// authored with the real builder; sets still ramp via each exercise's
+    /// `setsPerBlock`. Defaults to a Reps day for older programs decoded without it.
+    var config: TimerConfig = TimerConfig(type: .reps)
+    var exercises: [ProgramExercise]
+
+    var timerType: TimerType { config.type }
 }
 
 struct ProgramExercise: Identifiable, Codable {
-    let id = UUID()
-    let name: String
-    let equipment: Equipment
-    let timerType: TimerType
-    let reps: Int
-    let weight: Double
-    let weightUnit: WeightUnit
-    let restSeconds: Int
+    var id = UUID()
+    var name: String
+    var equipment: Equipment
+    /// Legacy per-exercise type. The day's type now lives on `ProgramSession.config`;
+    /// kept for decoding older programs and never used for materialisation.
+    var timerType: TimerType
+    var reps: Int
+    var weight: Double
+    var weightUnit: WeightUnit
+    var restSeconds: Int
     /// Sets per block; if shorter than the program's block count the last value
     /// repeats. This is where progressive overload lives.
-    let setsPerBlock: [Int]
+    var setsPerBlock: [Int]
     /// Supersetted with the next exercise in the session — used to express a complex
     /// (e.g. clean → press → squat done back-to-back as one set).
     var linkedToNext: Bool = false
+    /// Timed hold in seconds (e.g. a plank) for an exercise inside a timed day.
+    /// 0 = rep-based.
+    var durationSeconds: Int = 0
+    /// AMRAP multi-round: a new timed round starts after this exercise.
+    var roundBreakAfter: Bool = false
+    /// AMRAP: minutes of the round this exercise starts (0 = not set).
+    var roundMinutes: Int = 0
 
     func sets(inBlock block: Int) -> Int {
         guard !setsPerBlock.isEmpty else { return 3 }
@@ -75,6 +91,67 @@ struct ProgramExercise: Identifiable, Codable {
         let values = (0..<max(1, blocks)).map { sets(inBlock: $0) }
         if Set(values).count == 1 { return "\(values[0]) sets" }
         return values.map(String.init).joined(separator: "→") + " sets"
+    }
+}
+
+// Forgiving Codable (in extensions so the memberwise inits survive): every field
+// falls back to a default when absent, so a program saved by an older build — before
+// `config` or the timed/AMRAP fields existed — decodes cleanly instead of throwing
+// and wiping the user's saved programs.
+extension ProgramSession {
+    private enum CodingKeys: String, CodingKey { case id, name, config, exercises }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: (try? c.decode(UUID.self, forKey: .id)) ?? UUID(),
+            name: (try? c.decode(String.self, forKey: .name)) ?? "Session",
+            config: (try? c.decode(TimerConfig.self, forKey: .config)) ?? TimerConfig(type: .reps),
+            exercises: (try? c.decode([ProgramExercise].self, forKey: .exercises)) ?? [])
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(name, forKey: .name)
+        try c.encode(config, forKey: .config)
+        try c.encode(exercises, forKey: .exercises)
+    }
+}
+
+extension ProgramExercise {
+    private enum CodingKeys: String, CodingKey {
+        case name, equipment, timerType, reps, weight, weightUnit, restSeconds
+        case setsPerBlock, linkedToNext, durationSeconds, roundBreakAfter, roundMinutes
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            name: (try? c.decode(String.self, forKey: .name)) ?? "",
+            equipment: (try? c.decode(Equipment.self, forKey: .equipment)) ?? .none,
+            timerType: (try? c.decode(TimerType.self, forKey: .timerType)) ?? .reps,
+            reps: (try? c.decode(Int.self, forKey: .reps)) ?? 10,
+            weight: (try? c.decode(Double.self, forKey: .weight)) ?? 0,
+            weightUnit: (try? c.decode(WeightUnit.self, forKey: .weightUnit)) ?? .lb,
+            restSeconds: (try? c.decode(Int.self, forKey: .restSeconds)) ?? 90,
+            setsPerBlock: (try? c.decode([Int].self, forKey: .setsPerBlock)) ?? [3],
+            linkedToNext: (try? c.decode(Bool.self, forKey: .linkedToNext)) ?? false,
+            durationSeconds: (try? c.decode(Int.self, forKey: .durationSeconds)) ?? 0,
+            roundBreakAfter: (try? c.decode(Bool.self, forKey: .roundBreakAfter)) ?? false,
+            roundMinutes: (try? c.decode(Int.self, forKey: .roundMinutes)) ?? 0)
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(name, forKey: .name)
+        try c.encode(equipment, forKey: .equipment)
+        try c.encode(timerType, forKey: .timerType)
+        try c.encode(reps, forKey: .reps)
+        try c.encode(weight, forKey: .weight)
+        try c.encode(weightUnit, forKey: .weightUnit)
+        try c.encode(restSeconds, forKey: .restSeconds)
+        try c.encode(setsPerBlock, forKey: .setsPerBlock)
+        try c.encode(linkedToNext, forKey: .linkedToNext)
+        try c.encode(durationSeconds, forKey: .durationSeconds)
+        try c.encode(roundBreakAfter, forKey: .roundBreakAfter)
+        try c.encode(roundMinutes, forKey: .roundMinutes)
     }
 }
 
@@ -206,20 +283,25 @@ enum ProgramMaterializer {
                                      blueprint: ProgramBlueprint, context: ModelContext) -> WorkoutTemplate {
         let template = WorkoutTemplate(name: "\(blueprint.name) · \(session.name) · \(blueprint.blockLabel(block))")
         template.isProgramGenerated = true
+        // Carry the day's type + timings so the scheduled workout opens exactly as
+        // built (AMRAP/EMOM/interval timings, not just reps).
+        template.storedConfig = session.config
         context.insert(template)
         for (i, ex) in session.exercises.enumerated() {
             let te = TemplateExercise(
                 exerciseName: ex.name,
-                timerType: ex.timerType,
+                timerType: session.config.type,
                 targetSets: ex.sets(inBlock: block),
                 targetReps: ex.reps,
-                targetDuration: 0,
+                targetDuration: ex.durationSeconds,
                 sortOrder: i,
                 equipment: ex.equipment,
                 targetWeight: ex.weight,
                 weightUnit: ex.weightUnit,
                 linkedToNext: ex.linkedToNext)
             te.restSeconds = ex.restSeconds
+            te.roundBreakAfter = ex.roundBreakAfter
+            te.roundMinutes = ex.roundMinutes
             te.template = template
             context.insert(te)
         }
