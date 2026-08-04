@@ -1133,6 +1133,46 @@ final class WorkoutViewModel {
         return template
     }
 
+    /// Build a program day from the current setup state — no persistence, no
+    /// template-limit check — so the program builder can reuse the full per-type
+    /// setup UI and hand back a `ProgramSession`. Mirrors `saveAsTemplate`'s card
+    /// mapping; the day's type + timings come from `buildTimerConfig()`.
+    func buildProgramSession(name: String) -> ProgramSession {
+        var exercises: [ProgramExercise] = []
+        if selectedTimerType == .reps {
+            for card in self.exercises where !card.name.trimmingCharacters(in: .whitespaces).isEmpty {
+                exercises.append(ProgramExercise(
+                    name: card.name.trimmingCharacters(in: .whitespaces),
+                    equipment: card.equipment,
+                    timerType: .reps,
+                    reps: card.reps,
+                    weight: card.weight,
+                    weightUnit: card.weightUnit,
+                    restSeconds: card.restSeconds,
+                    setsPerBlock: [max(1, card.sets)],
+                    linkedToNext: card.linkedToNext,
+                    durationSeconds: card.isTimed ? card.durationSeconds : 0))
+            }
+        } else {
+            for card in activeSessions(for: selectedTimerType)
+                where !card.name.trimmingCharacters(in: .whitespaces).isEmpty {
+                exercises.append(ProgramExercise(
+                    name: card.name.trimmingCharacters(in: .whitespaces),
+                    equipment: card.equipment,
+                    timerType: selectedTimerType,
+                    reps: card.reps,
+                    weight: card.weight,
+                    weightUnit: card.weightUnit,
+                    restSeconds: 90,
+                    setsPerBlock: [3],
+                    linkedToNext: card.linkedToNext,
+                    roundBreakAfter: card.roundBreakAfter,
+                    roundMinutes: card.roundMinutes))
+            }
+        }
+        return ProgramSession(name: name, config: buildTimerConfig(), exercises: exercises)
+    }
+
     /// Overwrites the exercises (and name) of the template the setup was loaded
     /// from with the current setup. Used by the "Update Workout" button.
     @discardableResult

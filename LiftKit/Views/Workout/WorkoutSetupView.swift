@@ -20,6 +20,11 @@ struct WorkoutSetupView: View {
     @State private var showPaywall = false
 
     let type: TimerType
+    /// When set, the view authors a day for a program instead of starting a workout:
+    /// the Start / Save-as-template / Schedule actions are replaced by a single
+    /// "Add to Program" that hands back a built `ProgramSession`. The caller passes
+    /// an isolated `WorkoutViewModel`, so authoring never clobbers the live setup.
+    var onSaveToProgram: ((ProgramSession) -> Void)? = nil
 
     var body: some View {
         ScrollView {
@@ -28,9 +33,11 @@ struct WorkoutSetupView: View {
                 nameSection
                 typeControls
                 notesSection
-                startButton
-                saveButtons
-                scheduleButton
+                if onSaveToProgram == nil {
+                    startButton
+                    saveButtons
+                    scheduleButton
+                }
             }
             .padding(LKSpacing.md)
         }
@@ -49,16 +56,30 @@ struct WorkoutSetupView: View {
                     .foregroundColor(LKColor.danger)
             }
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button { startWorkout() } label: {
-                    Text("Start")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.black)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .background(LKColor.accent)
-                        .clipShape(Capsule())
+                if let onSaveToProgram {
+                    Button { addToProgram(onSaveToProgram) } label: {
+                        Text("Add")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
+                            .background(hasNamedExercise ? LKColor.accent : LKColor.surfaceElevated)
+                            .clipShape(Capsule())
+                    }
+                    .disabled(!hasNamedExercise)
+                    .accessibilityLabel("Add day to program")
+                } else {
+                    Button { startWorkout() } label: {
+                        Text("Start")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
+                            .background(LKColor.accent)
+                            .clipShape(Capsule())
+                    }
+                    .accessibilityLabel("Start workout")
                 }
-                .accessibilityLabel("Start workout")
             }
         }
         .sheet(item: $numberEntry) { item in
@@ -254,6 +275,22 @@ struct WorkoutSetupView: View {
         vm.startTimedWorkout(context: context)
         vm.showTypePicker = false
         vm.showWorkoutSetup = false
+    }
+
+    // MARK: - Program authoring
+
+    /// At least one exercise/session card has a name — the minimum to save a day.
+    private var hasNamedExercise: Bool {
+        let names = type == .reps ? vm.exercises.map(\.name) : vm.currentSessionCards.map(\.name)
+        return names.contains { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+    }
+
+    private func addToProgram(_ handler: (ProgramSession) -> Void) {
+        HapticManager.shared.buttonTap()
+        vm.selectedTimerType = type
+        let name = vm.workoutName.trimmingCharacters(in: .whitespaces)
+        handler(vm.buildProgramSession(name: name.isEmpty ? type.displayName : name))
+        dismiss()
     }
 
     private var startButton: some View {

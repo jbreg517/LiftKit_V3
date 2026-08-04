@@ -288,9 +288,12 @@ enum ProgramMaterializer {
         template.storedConfig = session.config
         context.insert(template)
         for (i, ex) in session.exercises.enumerated() {
+            // A timed exercise inside a Reps day (e.g. a plank) is a For-Time hold,
+            // mirroring how the setup builder saves it.
+            let exType: TimerType = (session.config.type == .reps && ex.durationSeconds > 0) ? .forTime : session.config.type
             let te = TemplateExercise(
                 exerciseName: ex.name,
-                timerType: session.config.type,
+                timerType: exType,
                 targetSets: ex.sets(inBlock: block),
                 targetReps: ex.reps,
                 targetDuration: ex.durationSeconds,
