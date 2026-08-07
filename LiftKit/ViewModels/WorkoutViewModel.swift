@@ -1173,6 +1173,54 @@ final class WorkoutViewModel {
         return ProgramSession(name: name, config: buildTimerConfig(), exercises: exercises)
     }
 
+    /// Load a program day back into the setup state so it can be re-edited with the
+    /// full builder — the reverse of `buildProgramSession`.
+    func loadProgramSession(_ s: ProgramSession) {
+        resetSetup()
+        let type = s.config.type
+        selectedTimerType = type
+        workoutName = s.name
+        applyConfigToSetup(s.config, type: type)
+        if type == .reps {
+            let cards: [ExerciseCard] = s.exercises.map { ex in
+                var c = ExerciseCard()
+                c.name = ex.name
+                c.equipment = ex.equipment
+                c.weight = ex.weight
+                c.weightUnit = ex.weightUnit
+                c.sets = ex.setsPerBlock.first ?? 3
+                c.reps = ex.reps
+                c.isTimed = ex.durationSeconds > 0
+                c.durationSeconds = ex.durationSeconds > 0 ? ex.durationSeconds : 60
+                c.restSeconds = ex.restSeconds
+                c.linkedToNext = ex.linkedToNext
+                return c
+            }
+            exercises = cards.isEmpty ? [ExerciseCard()] : cards
+        } else {
+            let cards: [SessionCard] = s.exercises.map { ex in
+                var c = SessionCard()
+                c.name = ex.name
+                c.equipment = ex.equipment
+                c.weight = ex.weight
+                c.weightUnit = ex.weightUnit
+                c.reps = ex.reps
+                c.linkedToNext = ex.linkedToNext
+                c.roundBreakAfter = ex.roundBreakAfter
+                c.roundMinutes = ex.roundMinutes > 0 ? ex.roundMinutes : 10
+                return c
+            }
+            let filled = cards.isEmpty ? [SessionCard()] : cards
+            switch type {
+            case .amrap, .forTime: sessions = filled
+            case .emom:            emomSessions = filled
+            case .intervals:       intervalSessions = filled
+            case .manual:          manualSessions = filled
+            case .reps:            break
+            }
+        }
+    }
+
     /// Overwrites the exercises (and name) of the template the setup was loaded
     /// from with the current setup. Used by the "Update Workout" button.
     @discardableResult
