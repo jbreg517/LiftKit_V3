@@ -80,8 +80,14 @@ struct ProgramExercise: Identifiable, Codable {
     var roundBreakAfter: Bool = false
     /// AMRAP: minutes of the round this exercise starts (0 = not set).
     var roundMinutes: Int = 0
+    /// Progressive overload for custom programs: sets added each block on top of the
+    /// base (`setsPerBlock.first`). 0 = flat. Pre-loaded programs leave this 0 and
+    /// spell their ramp out in `setsPerBlock` instead.
+    var setsIncrementPerBlock: Int = 0
 
     func sets(inBlock block: Int) -> Int {
+        let base = setsPerBlock.first ?? 3
+        if setsIncrementPerBlock > 0 { return max(1, base + block * setsIncrementPerBlock) }
         guard !setsPerBlock.isEmpty else { return 3 }
         return setsPerBlock[min(block, setsPerBlock.count - 1)]
     }
@@ -121,6 +127,7 @@ extension ProgramExercise {
     private enum CodingKeys: String, CodingKey {
         case name, equipment, timerType, reps, weight, weightUnit, restSeconds
         case setsPerBlock, linkedToNext, durationSeconds, roundBreakAfter, roundMinutes
+        case setsIncrementPerBlock
     }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -136,7 +143,8 @@ extension ProgramExercise {
             linkedToNext: (try? c.decode(Bool.self, forKey: .linkedToNext)) ?? false,
             durationSeconds: (try? c.decode(Int.self, forKey: .durationSeconds)) ?? 0,
             roundBreakAfter: (try? c.decode(Bool.self, forKey: .roundBreakAfter)) ?? false,
-            roundMinutes: (try? c.decode(Int.self, forKey: .roundMinutes)) ?? 0)
+            roundMinutes: (try? c.decode(Int.self, forKey: .roundMinutes)) ?? 0,
+            setsIncrementPerBlock: (try? c.decode(Int.self, forKey: .setsIncrementPerBlock)) ?? 0)
     }
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
@@ -152,6 +160,7 @@ extension ProgramExercise {
         try c.encode(durationSeconds, forKey: .durationSeconds)
         try c.encode(roundBreakAfter, forKey: .roundBreakAfter)
         try c.encode(roundMinutes, forKey: .roundMinutes)
+        try c.encode(setsIncrementPerBlock, forKey: .setsIncrementPerBlock)
     }
 }
 
@@ -612,6 +621,10 @@ struct ProgramDraft {
     var weekdays: Set<Int> = [2, 4, 6]     // Mon / Wed / Fri
     /// Each day is a full workout of any type, authored with the real builder.
     var days: [ProgramSession] = []
+    /// Progressive overload: when on, reps-day sets ramp up every `weeksPerBlock`
+    /// weeks, by each exercise's own per-block increment.
+    var rampSets = false
+    var weeksPerBlock = 2
     var attributionName = ""
     var attributionURL = ""
 }
@@ -645,6 +658,13 @@ struct ProgramBuilderView: View {
             Section("Program") {
                 TextField("Name", text: $draft.name)
                 Stepper("Weeks: \(draft.weeks)", value: $draft.weeks, in: 1...52)
+                Toggle("Progressive sets", isOn: $draft.rampSets)
+                if draft.rampSets {
+                    Stepper("Add sets every \(draft.weeksPerBlock) wk",
+                            value: $draft.weeksPerBlock, in: 1...max(1, draft.weeks))
+                    Text("\(blocks) block\(blocks == 1 ? "" : "s") — set each exercise's increase inside its day below. Only reps days ramp.")
+                        .font(LKFont.caption).foregroundColor(LKColor.textMuted)
+                }
             }
 
             Section("Train on") {
@@ -668,8 +688,8 @@ struct ProgramBuilderView: View {
             }
 
             Section {
-                ForEach(draft.days) { day in
-                    dayCard(day)
+                ForEach($draft.days) { $day in
+                    dayCard($day)
                 }
                 Button {
                     editingID = nil
@@ -722,17 +742,32 @@ struct ProgramBuilderView: View {
     }
 
     @ViewBuilder
-    private func dayCard(_ s: ProgramSession) -> some View {
+    private func dayCard(_ day: Binding<ProgramSession>) -> some View {
+        let s = day.wrappedValue
+        let showRamp = draft.rampSets && blocks > 1 && s.config.type == .reps
         DisclosureGroup(isExpanded: Binding(
             get: { expanded.contains(s.id) },
             set: { if $0 { expanded.insert(s.id) } else { expanded.remove(s.id) } }
         )) {
-            ForEach(s.exercises) { ex in
-                HStack {
-                    Text(ex.name).font(LKFont.body).foregroundColor(LKColor.textPrimary)
-                    Spacer()
-                    Text(exerciseDetail(ex, type: s.config.type))
-                        .font(LKFont.caption).foregroundColor(LKColor.textMuted)
+            ForEach($day.exercises) { $ex in
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack {
+                        Text(ex.name).font(LKFont.body).foregroundColor(LKColor.textPrimary)
+                        Spacer()
+                        Text(exerciseDetail(ex, type: s.config.type))
+                            .font(LKFont.caption).foregroundColor(LKColor.textMuted)
+                    }
+                    // Per-exercise ramp — so a main lift can climb while an accessory
+                    // stays flat. Only on reps days; timed holds don't count sets.
+                    if showRamp && ex.durationSeconds == 0 {
+                        Stepper("Ramp: +\(ex.setsIncrementPerBlock) set/block",
+                                value: $ex.setsIncrementPerBlock, in: 0...5)
+                            .font(LKFont.caption)
+                        if ex.setsIncrementPerBlock > 0 {
+                            Text(rampPreview(ex))
+                                .font(LKFont.caption).foregroundColor(LKColor.accent)
+                        }
+                    }
                 }
             }
             Button {
@@ -756,6 +791,18 @@ struct ProgramBuilderView: View {
                 }
             }
         }
+    }
+
+    /// Number of set-ramp blocks the program spans (1 when the ramp is off).
+    private var blocks: Int {
+        guard draft.rampSets else { return 1 }
+        let wpb = max(1, min(draft.weeksPerBlock, draft.weeks))
+        return max(1, Int(ceil(Double(draft.weeks) / Double(wpb))))
+    }
+
+    /// "5 → 7 → 9 → 11 sets" preview of one exercise's ramp across the blocks.
+    private func rampPreview(_ ex: ProgramExercise) -> String {
+        (0..<blocks).map { String(ex.sets(inBlock: $0)) }.joined(separator: " → ") + " sets"
     }
 
     private func daySummary(_ s: ProgramSession) -> String {
@@ -789,7 +836,7 @@ struct ProgramBuilderView: View {
             name: draft.name.trimmingCharacters(in: .whitespaces),
             summary: "\(weeks) week\(weeks == 1 ? "" : "s") · \(draft.weekdays.count)×/week",
             weeks: weeks,
-            weeksPerBlock: weeks,   // one block → flat sets; per-block ramp is a v2 follow-up
+            weeksPerBlock: draft.rampSets ? max(1, min(draft.weeksPerBlock, weeks)) : weeks,
             sessions: sessions,
             recommendedWeekdays: draft.weekdays.sorted(),
             attribution: draft.attributionName.isEmpty ? nil : draft.attributionName,

@@ -15,12 +15,12 @@ enum Equipment: String, CaseIterable, Identifiable, Codable {
 
     /// Whether linear progression auto-increments the load for this gear.
     /// Kettlebells jump in whole bells (16 → 20 → 24 kg), and bodyweight / bands /
-    /// unspecified gear have no small plate to add — so only barbells, dumbbells
-    /// and machines get an automatic weight bump.
+    /// unspecified gear have no small plate to add — so only barbells, dumbbells,
+    /// machines and cable stacks get an automatic weight bump.
     var allowsWeightProgression: Bool {
         switch self {
-        case .barbell, .dumbbell, .machine: return true
-        default:                            return false
+        case .barbell, .dumbbell, .machine, .cable: return true
+        default:                                    return false
         }
     }
 

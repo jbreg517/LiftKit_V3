@@ -45,7 +45,7 @@ final class ProgressionService {
         // Kettlebells, bodyweight, bands and unspecified gear jump in fixed sizes
         // (or have nothing to add), so they never get an automatic load bump — hold
         // at the last weight (a silent, note-less hold) instead of increasing or
-        // deloading. Only barbells, dumbbells and machines progress linearly.
+        // deloading. Only barbells, dumbbells, machines and cable stacks progress.
         let effective = equipment == .none ? (exercise.equipmentEnum ?? .none) : equipment
         guard effective.allowsWeightProgression else {
             return Suggestion(
