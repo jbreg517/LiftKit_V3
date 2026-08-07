@@ -41,6 +41,19 @@ final class ProgressionService {
             .sorted { $0.date > $1.date }   // newest first
 
         guard let last = performances.first else { return nil }
+
+        // Kettlebells, bodyweight, bands and unspecified gear jump in fixed sizes
+        // (or have nothing to add), so they never get an automatic load bump — hold
+        // at the last weight (a silent, note-less hold) instead of increasing or
+        // deloading. Only barbells, dumbbells and machines progress linearly.
+        let effective = equipment == .none ? (exercise.equipmentEnum ?? .none) : equipment
+        guard effective.allowsWeightProgression else {
+            return Suggestion(
+                weight: last.weight, unit: last.unit, equipment: last.equipment,
+                reason: .hold, delta: 0, note: ""
+            )
+        }
+
         let inc = increment(forExercise: exercise.name, unit: last.unit)
 
         if last.success {

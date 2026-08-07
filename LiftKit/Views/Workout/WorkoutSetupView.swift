@@ -1085,8 +1085,9 @@ struct ExerciseCardView: View {
                 }
             }
 
-            // Progression hint (auto weight suggestion)
-            if let note = card.progressionNote {
+            // Progression hint (auto weight suggestion). Empty note = a silent hold
+            // (e.g. kettlebells, which don't auto-increment) — show nothing.
+            if let note = card.progressionNote, !note.isEmpty {
                 HStack(spacing: 4) {
                     Image(systemName: progressionIcon)
                         .font(.system(size: 11, weight: .bold))
