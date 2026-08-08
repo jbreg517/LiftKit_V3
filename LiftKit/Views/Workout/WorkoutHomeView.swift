@@ -224,11 +224,12 @@ struct WorkoutHomeView: View {
 
     private func startScheduled(_ sched: WorkoutSchedule) {
         guard let template = sched.template else { return }
-        sched.isCompleted = true
-        WorkoutReminders.cancel(sched)
-        Persist.save(context)
+        // Don't mark it done just for starting — it's completed only when the
+        // workout is actually finished (see WorkoutViewModel.endWorkout). Until
+        // then it stays on the calendar.
         vm.loadFromTemplate(template, type: template.sortedExercises.first?.timerType ?? .reps)
         vm.markTemplateUsed(template, context: context)
+        vm.scheduledOrigin = sched
         vm.showWorkoutSetup = true
     }
 

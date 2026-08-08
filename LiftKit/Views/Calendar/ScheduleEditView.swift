@@ -94,6 +94,28 @@ struct ScheduleEditView: View {
                     }
                 }
 
+                // Start the scheduled workout. It stays on the calendar (green) until
+                // the workout is actually finished — starting or just looking doesn't
+                // complete it.
+                if !isNew, let template = selectedTemplate {
+                    Section {
+                        Button {
+                            dismiss()
+                            let t = template
+                            let sched = schedule
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                vm.loadFromTemplate(t, type: t.sortedExercises.first?.timerType ?? .reps)
+                                vm.markTemplateUsed(t, context: context)
+                                vm.scheduledOrigin = sched
+                                vm.showWorkoutSetup = true
+                            }
+                        } label: {
+                            Label("Start Workout", systemImage: "play.fill")
+                                .foregroundColor(LKColor.accent)
+                        }
+                    }
+                }
+
                 if !isNew {
                     Section {
                         Button(role: .destructive) {

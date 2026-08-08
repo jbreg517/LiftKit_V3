@@ -215,6 +215,11 @@ final class WorkoutViewModel {
     var activeSession: WorkoutSession?
     var activeConfig: TimerConfig = TimerConfig(type: .manual)
     var activeSessionCards: [SessionCard] = []
+    /// The scheduled workout this run came from, if any. Set when starting a
+    /// scheduled workout; the schedule is marked completed only when the workout
+    /// is actually *finished* (`endWorkout`), so starting/viewing without finishing
+    /// leaves it on the calendar. Cleared on discard and by non-scheduled starts.
+    var scheduledOrigin: WorkoutSchedule?
     var activeExercises: [ActiveExercise] = []
     var currentSessionIndex: Int = 0
     var completedRounds: Int = 0
@@ -241,6 +246,7 @@ final class WorkoutViewModel {
     // MARK: - Setup helpers
 
     func loadFromTemplate(_ template: WorkoutTemplate, type: TimerType) {
+        scheduledOrigin = nil   // scheduled starts re-set this after loading
         editingTemplate = template
         selectedTimerType = type
         workoutName = template.name
@@ -928,6 +934,12 @@ final class WorkoutViewModel {
             session.roundsCompleted = completedRounds
         }
         recordTimedWorkoutResults(context: context)
+        // Only now — on a genuine finish — does the scheduled workout count as done.
+        if let sched = scheduledOrigin {
+            sched.isCompleted = true
+            WorkoutReminders.cancel(sched)
+            scheduledOrigin = nil
+        }
         Persist.save(context)
         exportToHealthKitIfEnabled(session: session, context: context)
         activeSession = nil
@@ -1060,6 +1072,8 @@ final class WorkoutViewModel {
             context.delete(session)
             Persist.save(context)
         }
+        // Abandoned — leave the scheduled workout on the calendar (still green).
+        scheduledOrigin = nil
         activeSession = nil
         showActiveWorkout = false
         isShowingComplete = false
@@ -1423,6 +1437,7 @@ final class WorkoutViewModel {
 
     func resetSetup() {
         editingTemplate = nil
+        scheduledOrigin = nil
         workoutName = ""
         notes = ""
         setupAttribution = nil
