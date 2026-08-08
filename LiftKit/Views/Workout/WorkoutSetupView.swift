@@ -1009,7 +1009,22 @@ struct ExerciseCardView: View {
             HStack(spacing: LKSpacing.md) {
                 setsDropdown
                 Spacer(minLength: LKSpacing.md)
-                if card.isTimed {
+                if card.isDistance {
+                    // Distance per set, in the card's own unit (m/yd for gym carries,
+                    // km/mi for rucks). Step scales with the unit so a tap is useful
+                    // at both 40 m and 3 mi.
+                    LKCardControlBlock(
+                        minusAction: { card.distance = max(0, card.distance - distanceStep) },
+                        numberText: distanceText,
+                        numberAction: {
+                            numberEntry = NumberEntryItem(
+                                title: "Distance", message: "Distance per set (\(card.distanceUnit.label))",
+                                currentValue: card.distance, minValue: 0, maxValue: 100_000
+                            ) { card.distance = $0 }
+                        },
+                        plusAction: { card.distance += distanceStep }
+                    ) { modeTag }
+                } else if card.isTimed {
                     LKCardControlBlock(
                         minusAction: { card.durationSeconds = max(5, card.durationSeconds - 5) },
                         numberText: "\(card.durationSeconds)",
@@ -1133,7 +1148,14 @@ struct ExerciseCardView: View {
         card.exerciseID = ex.id
         card.name = ex.name
         card.equipment = ex.equipmentEnum ?? .none
-        card.isTimed = ExerciseLibrary.isTimedByDefault(ex.name)
+        // A vest-loaded movement is a ruck or carry by default — measured over ground,
+        // not in reps. Still switchable from the mode tag.
+        if card.equipment.favorsDistanceTracking {
+            card.tracking = .distance
+            if card.distance == 0 { card.distance = card.distanceUnit.isShort ? 40 : 1 }
+        } else {
+            card.isTimed = ExerciseLibrary.isTimedByDefault(ex.name)
+        }
         refreshSuggestion(resetWeightIfNone: true)
     }
 
@@ -1191,14 +1213,26 @@ struct ExerciseCardView: View {
         }
     }
 
-    // Reps / Time mode toggle, sized to match the "Reps" tag column width.
+    // Reps / Time / Distance mode toggle, sized to match the tag column width.
+    // In distance mode the tag doubles as the unit picker, so a farmer's carry can
+    // be metres while a ruck is miles.
     private var modeTag: some View {
         Menu {
-            Button { card.isTimed = false } label: { Label("Reps", systemImage: "repeat") }
-            Button { card.isTimed = true }  label: { Label("Time", systemImage: "timer") }
+            Button { card.tracking = .reps } label: { Label("Reps", systemImage: "repeat") }
+            Button { card.tracking = .time } label: { Label("Time", systemImage: "timer") }
+            Button {
+                card.tracking = .distance
+                if card.distance == 0 { card.distance = card.distanceUnit.isShort ? 40 : 1 }
+            } label: { Label("Distance", systemImage: "figure.hiking") }
+            if card.isDistance {
+                Divider()
+                Picker("Unit", selection: $card.distanceUnit) {
+                    ForEach(DistanceUnit.allCases) { u in Text(u.label).tag(u) }
+                }
+            }
         } label: {
             HStack(spacing: 2) {
-                Text(card.isTimed ? "Time" : "Reps")
+                Text(card.isDistance ? card.distanceUnit.label : (card.isTimed ? "Time" : "Reps"))
                     .font(.system(size: 12, weight: .semibold))
                 Image(systemName: "chevron.down")
                     .font(.system(size: 9, weight: .semibold))
@@ -1206,6 +1240,17 @@ struct ExerciseCardView: View {
             .foregroundColor(LKColor.textSecondary)
             .frame(width: cardTagW, alignment: .leading)
         }
+    }
+
+    /// Step size that stays useful across scales: 5 m/yd for gym carries, 0.1 km/mi
+    /// for rucks.
+    private var distanceStep: Double { card.distanceUnit.isShort ? 5 : 0.1 }
+
+    /// Whole numbers for short units, one decimal for long ones.
+    private var distanceText: String {
+        card.distanceUnit.isShort
+            ? String(Int(card.distance.rounded()))
+            : String(format: "%.1f", card.distance)
     }
 
     private var progressionColor: Color {

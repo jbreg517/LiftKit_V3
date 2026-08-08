@@ -110,6 +110,12 @@ struct ActiveSet: Identifiable {
     var weightUnit: WeightUnit
     var setType: SetType = .normal
     var rpe: Double? = nil
+    /// Carry tracking: distance in `distanceUnit` (converted to canonical meters
+    /// when the set is logged). Defaulted so existing call sites are unaffected.
+    var isDistance: Bool = false
+    var plannedDistance: Double = 0
+    var actualDistance: Double = 0
+    var distanceUnit: DistanceUnit = .default(for: .current, short: true)
 }
 
 // MARK: - Active Exercise State
@@ -120,6 +126,9 @@ struct ActiveExercise: Identifiable {
     var weight: Double
     var weightUnit: WeightUnit
     var isTimed: Bool
+    /// Measured over ground (a ruck or loaded carry) rather than in reps or a hold.
+    var isDistance: Bool = false
+    var distanceUnit: DistanceUnit = .default(for: .current, short: true)
     var sets: [ActiveSet]
     /// Rest between sets in seconds for this exercise. Editable mid-workout.
     var restSeconds: Int
@@ -135,6 +144,8 @@ struct ActiveExercise: Identifiable {
         self.weight = card.weight
         self.weightUnit = card.weightUnit
         self.isTimed = card.isTimed
+        self.isDistance = card.isDistance
+        self.distanceUnit = card.distanceUnit
         self.restSeconds = card.restSeconds
         self.sets = (0..<card.sets).map { i in
             ActiveSet(
@@ -146,7 +157,11 @@ struct ActiveExercise: Identifiable {
                 plannedDuration: card.durationSeconds,
                 actualDuration: card.durationSeconds,
                 weight: card.weight,
-                weightUnit: card.weightUnit
+                weightUnit: card.weightUnit,
+                isDistance: card.isDistance,
+                plannedDistance: card.distance,
+                actualDistance: card.distance,
+                distanceUnit: card.distanceUnit
             )
         }
     }
@@ -313,6 +328,12 @@ final class WorkoutViewModel {
             card.reps = ex.targetReps
             card.isTimed = ex.timerType == .forTime
             card.durationSeconds = ex.targetDuration > 0 ? ex.targetDuration : 60
+            // A saved carry reopens in distance mode, in its authored unit.
+            if ex.isDistance {
+                card.tracking = .distance
+                card.distanceUnit = ex.distanceUnit
+                card.distance = ex.distanceUnit.fromMeters(ex.targetDistanceMeters)
+            }
             card.restSeconds = ex.restSeconds > 0 ? ex.restSeconds : restBetweenSets
             card.linkedToNext = ex.linkedToNext
             return card
@@ -732,7 +753,24 @@ final class WorkoutViewModel {
         let entry = session.sortedEntries.first { $0.exercise?.name.lowercased() == ex.name.lowercased() }
 
         let record: SetRecord
-        if set.isTimed {
+        if set.isDistance {
+            // A carry: ground covered under load. Weight is the external load (a vest
+            // or pack), stored with the distance in canonical meters.
+            let usesWeight = set.weight > 0
+            record = SetRecord(
+                setNumber: setIndex + 1,
+                weight: usesWeight ? set.weight : nil,
+                weightUnit: set.weightUnit,
+                reps: nil,
+                plannedWeight: usesWeight ? set.weight : nil,
+                plannedReps: nil,
+                setType: set.setType,
+                rpe: set.rpe,
+                distanceMeters: set.distanceUnit.toMeters(set.actualDistance),
+                distanceUnit: set.distanceUnit,
+                plannedDistanceMeters: set.distanceUnit.toMeters(set.plannedDistance)
+            )
+        } else if set.isTimed {
             let usesWeight = set.weight > 0
             record = SetRecord(
                 setNumber: setIndex + 1,
@@ -762,8 +800,9 @@ final class WorkoutViewModel {
         context.insert(record)
         Persist.save(context)
 
-        // PR detection (rep-based only; timed holds don't produce weight/rep/volume PRs)
-        if !set.isTimed, let exercise = entry?.exercise {
+        // PR detection (rep-based only; timed holds and carries don't produce
+        // weight/rep/volume PRs)
+        if !set.isTimed, !set.isDistance, let exercise = entry?.exercise {
             let prs = PRDetectionService.shared.checkAndRecord(set: record, exercise: exercise, context: context)
             if !prs.isEmpty {
                 newPRTypes = prs
@@ -1166,6 +1205,10 @@ final class WorkoutViewModel {
                     linkedToNext: card.linkedToNext
                 )
                 te.restSeconds = card.restSeconds
+                // Carry distance, stored canonically in meters with the unit it was
+                // entered in so it reads back the same way.
+                te.targetDistanceMeters = card.distanceMeters ?? 0
+                te.distanceUnitRaw = card.isDistance ? card.distanceUnit.rawValue : nil
                 te.template = template
                 context.insert(te)
             }
@@ -1311,6 +1354,10 @@ final class WorkoutViewModel {
                     linkedToNext: card.linkedToNext
                 )
                 te.restSeconds = card.restSeconds
+                // Carry distance, stored canonically in meters with the unit it was
+                // entered in so it reads back the same way.
+                te.targetDistanceMeters = card.distanceMeters ?? 0
+                te.distanceUnitRaw = card.isDistance ? card.distanceUnit.rawValue : nil
                 te.template = template
                 context.insert(te)
             }
