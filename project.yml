@@ -1,0 +1,132 @@
+name: LiftKit
+
+# Generated project (XcodeGen), matching RunKit and FuelKit. The checked-in
+# LiftKit.xcodeproj it replaces was hand-maintained, which made adding a target —
+# specifically the watch app — impractical without a Mac. See docs/WATCH-APP.md.
+#
+# Regenerate after changing this file, or after adding/removing source files:
+#     xcodegen generate
+# CI does it automatically before building.
+#
+# LiftKit.xcodeproj is still checked in for now, deliberately: it is the fallback
+# while this manifest is being proven. CI overwrites it during a build, so the
+# tracked copy is already stale — once a signed build from the generated project
+# matches the old one, the project should be deleted and gitignored (as RunKit
+# does). Until then, reverting the CI change restores a known-good build.
+
+options:
+  bundleIdPrefix: com.ferrixguild
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    # CI rewrites the version into Info.plist directly on every build, so this is
+    # not load-bearing there — but keep it in sync anyway: a stale value misleads
+    # anyone reading the repo, and it IS used by a local build.
+    MARKETING_VERSION: "1.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # No DEVELOPMENT_TEAM here on purpose. The old project carried an empty string,
+    # and an empty string is still a value — it would override what
+    # `xcode-project use-profiles` writes per target during the signed build.
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+
+targets:
+  LiftKit:
+    type: application
+    platform: iOS
+    sources:
+      - path: LiftKit
+    dependencies:
+      - target: LiftKitWidgets
+        embed: true
+      # Explicitly linked in the old project. Swift would import most of these
+      # implicitly, but dropping them here would be a silent change to what the
+      # binary links, so they are carried over as-is.
+      - sdk: Charts.framework
+      - sdk: AuthenticationServices.framework
+      - sdk: UserNotifications.framework
+      - sdk: AudioToolbox.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ferrixguild.liftkit
+        INFOPLIST_FILE: LiftKit/Info.plist
+        CODE_SIGN_ENTITLEMENTS: LiftKit/LiftKit.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS: NO
+        ENABLE_PREVIEWS: YES
+        SWIFT_EMIT_LOC_STRINGS: YES
+        CODE_SIGN_STYLE: Automatic
+        LD_RUNPATH_SEARCH_PATHS:
+          - $(inherited)
+          - "@executable_path/Frameworks"
+
+  LiftKitWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: LiftKitWidgets
+      # Member of both targets in the old project: the Live Activity's attributes
+      # are declared once and compiled into the app and the extension, so the two
+      # cannot disagree about the activity's shape.
+      - path: LiftKit/Services/LiftKitActivityAttributes.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ferrixguild.liftkit.widgets
+        INFOPLIST_FILE: LiftKitWidgets/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+        SWIFT_EMIT_LOC_STRINGS: YES
+        CODE_SIGN_STYLE: Automatic
+        LD_RUNPATH_SEARCH_PATHS:
+          - $(inherited)
+          - "@executable_path/Frameworks"
+          - "@executable_path/../../Frameworks"
+
+  LiftKitTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: LiftKitTests
+    dependencies:
+      - target: LiftKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ferrixguild.liftkit.tests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_EMIT_LOC_STRINGS: NO
+        CODE_SIGN_STYLE: Automatic
+
+  LiftKitUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: LiftKitUITests
+    dependencies:
+      - target: LiftKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ferrixguild.liftkit.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_EMIT_LOC_STRINGS: NO
+        CODE_SIGN_STYLE: Automatic
+
+schemes:
+  # CI builds `-scheme LiftKit`, so this name is load-bearing.
+  LiftKit:
+    build:
+      targets:
+        LiftKit: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - LiftKitTests
+        - LiftKitUITests
+    archive:
+      config: Release

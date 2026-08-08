@@ -16,6 +16,17 @@ workflows:
           include: true
 
     scripts:
+      # LiftKit.xcodeproj is generated from project.yml and is not in the repo, so
+      # this has to run before anything touches the project.
+      - name: Generate Xcode project
+        script: |
+          set -eo pipefail
+          which xcodegen || brew install xcodegen
+          xcodegen --version
+          xcodegen generate
+          # Fail loudly here rather than with a confusing "scheme not found" later.
+          test -d LiftKit.xcodeproj || { echo "xcodegen produced no project"; exit 1; }
+
       - name: Set version and build number
         script: |
           set -eo pipefail
@@ -170,6 +181,16 @@ workflows:
         - signing   # must define CERTIFICATE_PRIVATE_KEY (a distribution-cert private key)
 
     scripts:
+      # Must run before `xcode-project use-profiles` below — that patches the
+      # project in place, and regenerating afterwards would throw the patch away.
+      - name: Generate Xcode project
+        script: |
+          set -eo pipefail
+          which xcodegen || brew install xcodegen
+          xcodegen --version
+          xcodegen generate
+          test -d LiftKit.xcodeproj || { echo "xcodegen produced no project"; exit 1; }
+
       - name: Set version and build number
         script: |
           set -eo pipefail
