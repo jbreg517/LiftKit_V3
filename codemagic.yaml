@@ -109,6 +109,25 @@ workflows:
           # Confirm Payload/ is at the root of the zip (AltStore requirement)
           unzip -l "$CM_BUILD_DIR/$IPA_NAME" | head -5
 
+      - name: Build watch app (compile check)
+        script: |
+          # The watch app isn't embedded in the iOS app yet — it can't be until the
+          # watchkitapp App ID exists — so nothing else would compile it. Building
+          # its own scheme here keeps it from rotting unnoticed. No signing: the
+          # point is that the code type-checks for watchOS.
+          set -o pipefail
+          xcodebuild build \
+            -scheme LiftKitWatch \
+            -destination 'generic/platform=watchOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee /tmp/watch.log
+          STATUS=$?
+          if [ $STATUS -ne 0 ]; then
+            echo "===== watch build errors ====="
+            grep -E "error:" /tmp/watch.log | head -40
+          fi
+          exit $STATUS
+
       - name: Run unit tests
         script: |
           set -eo pipefail

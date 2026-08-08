@@ -21,6 +21,7 @@ struct LiftKitApp: App {
     init() {
         requestNotificationPermission()
         SuiteNotifier.startBridging()   // deliver cross-app change signals to views
+        WatchBridge.shared.activate()   // pair with the watch app, if there is one
     }
 
     var body: some Scene {

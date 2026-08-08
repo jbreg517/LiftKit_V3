@@ -14,6 +14,7 @@ options:
   bundleIdPrefix: com.ferrixguild
   deploymentTarget:
     iOS: "17.0"
+    watchOS: "10.0"
   createIntermediateGroups: true
 
 settings:
@@ -38,6 +39,20 @@ targets:
     dependencies:
       - target: LiftKitWidgets
         embed: true
+      # NOT YET EMBEDDED. Turning this on makes the watch app part of the archive,
+      # which means the signed build needs a provisioning profile for
+      # com.ferrixguild.liftkit.watchkitapp — an App ID that doesn't exist yet
+      # (the developer account is locked). Embedding it early would break a
+      # currently-green TestFlight pipeline for no gain, so the target is built and
+      # compile-checked on its own scheme until the App ID exists.
+      #
+      # When enabling: `copy` is required. Without the explicit subpath XcodeGen
+      # embeds a watch app like a framework and the archive fails validation.
+      # - target: LiftKitWatch
+      #   embed: true
+      #   copy:
+      #     destination: productsDirectory
+      #     subpath: "$(CONTENTS_FOLDER_PATH)/Watch"
       # Explicitly linked in the old project. Swift would import most of these
       # implicitly, but dropping them here would be a silent change to what the
       # binary links, so they are carried over as-is.
@@ -83,6 +98,32 @@ targets:
           - "@executable_path/Frameworks"
           - "@executable_path/../../Frameworks"
 
+  # The watch app will eventually run the workout itself, so it links the real
+  # timer config rather than a parallel copy. These files are listed one by one
+  # rather than globbing a folder: most of LiftKit/ imports SwiftData or UIKit and
+  # will not compile for watchOS, so membership has to be a deliberate, reviewable
+  # list.
+  LiftKitWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: LiftKitWatch
+      - path: LiftKit/Shared/WatchMenu.swift      # the wire format itself
+      - path: LiftKit/Shared/WorkoutOwner.swift   # stops both devices recording one workout
+      - path: LiftKit/Shared/TimerConfig.swift    # one definition of what an EMOM is
+      - path: LiftKit/Enums/TimerType.swift
+      - path: LiftKit/Enums/WeightUnit.swift      # WeightUnit + UnitSystem + DistanceUnit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ferrixguild.liftkit.watchkitapp
+        INFOPLIST_FILE: LiftKitWatch/Info.plist
+        CODE_SIGN_ENTITLEMENTS: LiftKitWatch/LiftKitWatch.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_STYLE: Automatic
+        # Overrides the "1,2" in settings.base. Inheriting it silently produces a
+        # watch app that will not install.
+        TARGETED_DEVICE_FAMILY: "4"
+
   LiftKitTests:
     type: bundle.unit-test
     platform: iOS
@@ -124,5 +165,17 @@ schemes:
       targets:
         - LiftKitTests
         - LiftKitUITests
+    archive:
+      config: Release
+
+  # Its own scheme so the watch code is compiled on every CI run even though it
+  # isn't embedded in the app yet — otherwise it would rot unnoticed until the
+  # App ID exists.
+  LiftKitWatch:
+    build:
+      targets:
+        LiftKitWatch: all
+    run:
+      config: Debug
     archive:
       config: Release

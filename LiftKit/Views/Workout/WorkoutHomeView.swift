@@ -88,6 +88,9 @@ struct WorkoutHomeView: View {
                 // Republish LiftKit's training load + planned workouts to the suite
                 // feed so RunKit (recovery) and FuelKit (fuelling) can react to it.
                 LiftKitActivityPublisher.publish(from: context)
+                // Keep the watch's menu current. Diffed before sending, so an
+                // unchanged menu never crosses the link.
+                WatchBridge.shared.publish(from: context)
             }
         }
         .sheet(isPresented: $vm.showTypePicker) {

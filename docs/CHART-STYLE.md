@@ -104,6 +104,41 @@ Apple's rule, worth keeping:
   (`.chartXSelection` + a rule/callout snapped to the nearest real entry) for
   reading exact values.
 
+### Snapping has a limit
+
+Snap to the nearest **real entry** — but only when the tap is actually near one. A bare
+`min(by:)` over the series returns the closest point at *any* distance, so tapping an
+empty stretch pops a read-out for an entry three weeks away, which reads as data sitting
+where there is none. Gaps are information (§3); this keeps them that way.
+
+Derive the tolerance from the series' own spacing rather than a fixed number of days:
+**half the median gap between entries, floored at two days.** Median, not mean, so one
+long gap after a holiday doesn't loosen the whole chart. Someone who weighs in weekly can
+still hit their points; a dense run doesn't grab from across the chart.
+`FKChart.nearest(to:in:)` in FuelKit is the reference for this one — LiftKit's scrub
+predates it and still snaps unbounded.
+
+### What the callout says
+
+- One row per value at that date, each pre-formatted by the caller (only it knows the
+  units and precision). Omit a series with no entry in that bucket — a missing row is
+  "not measured", where a zero would be a claim about the day.
+- On a split chart (§5) show **every** series, not just the focused one: the comparison
+  is the reason they share an axis.
+- Where a chart leads with a trend over raw dots (§4), show both — the reading and the
+  trend value — because the difference between them is the point of that card.
+- Keep it small and sitting on the plot area. Anything card-sized covers the data it
+  describes.
+- Highlight the selected point (a larger, series-coloured `PointMark` over its quiet
+  twin) so it's clear which entry is being read.
+
+One scrub state **per chart**, never shared. A single crosshair across a page moves rules
+on charts the user isn't touching, and stacked charts measure different things at
+different cadences.
+
+Scrubbing coexists with a vertical `ScrollView` — SwiftUI resolves the gesture in the
+scroll view's favour. LiftKit has shipped this inside one since the reference landed.
+
 ## Porting checklist for RunKit / FuelKit
 
 1. Copy the `LKChart` / `LKChartBucket` / `LKAggPoint` types and the

@@ -104,13 +104,18 @@ devices can't drift on semantics:
 
 The migration is sequenced so the risky part is proven before anything depends on it.
 
-1. **Migrate to XcodeGen, no watch target.** Write `project.yml` reproducing the
-   current app + widgets + tests exactly, add `xcodegen generate` to Codemagic before
-   `xcode-project use-profiles`. **Validate with a signed build and compare to the
-   current one before going further** — same bundle ids, App Group, entitlements,
-   widget embedding.
-2. **Add the watch target + `Shared/` wire format.** Menu sync only: the watch lists
-   what it could run and starts nothing.
+1. ~~**Migrate to XcodeGen, no watch target.**~~ **Done** — validated by a signed
+   build that shipped; `LiftKit.xcodeproj` is now generated and gitignored.
+2. ~~**Add the watch target + `Shared/` wire format.**~~ **Done** (menu sync only:
+   the watch lists what it could run and starts nothing).
+
+   **The watch app is not embedded in the iOS app yet.** Embedding requires a
+   provisioning profile for `com.ferrixguild.liftkit.watchkitapp`, and that App ID
+   can't be created while the developer account is locked. Enabling it early would
+   break a currently-green TestFlight pipeline for no gain. So the target lives on
+   its own scheme, compiled on every CI run (`Build watch app (compile check)`,
+   unsigned) so it can't rot. The commented-out `dependencies` entry in
+   `project.yml` is the single switch to flip once the App ID exists.
 3. **Timed workouts on the wrist** — `HKWorkoutSession`, the clock, round completion,
    `RecordingOwner`, session hand-back via `transferFile`.
 4. **Reps completion.**

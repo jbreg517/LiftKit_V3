@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundleDisplayName</key>
+	<string>LiftKit</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<!-- Marks this as a modern single-target watchOS app. The old two-target
+	     WatchKit-extension layout (WKWatchKitApp) is gone as of watchOS 9. -->
+	<key>WKApplication</key>
+	<true/>
+	<key>WKCompanionAppBundleIdentifier</key>
+	<string>com.ferrixguild.liftkit</string>
+	<!-- Without workout-processing the app is suspended the moment the wrist drops,
+	     which stops the round clock and the phase haptics mid-workout. This is the
+	     whole reason the watch owns an HKWorkoutSession rather than mirroring the
+	     phone's timer — see docs/WATCH-APP.md.
+
+	     EXACTLY ONE session mode is allowed. workout-processing, location,
+	     self-care, mindfulness, physical-therapy and alarm are mutually exclusive —
+	     watchOS grants one kind of extended runtime session, not a set — and
+	     declaring two fails App Store validation with error 90362. (Learned in
+	     RunKit; the same plist there carries the same warning.) -->
+	<key>WKBackgroundModes</key>
+	<array>
+		<string>workout-processing</string>
+	</array>
+	<key>NSHealthShareUsageDescription</key>
+	<string>LiftKit reads your heart rate and energy while you train, so it can show live metrics on your wrist. This stays on your device.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>LiftKit saves the workouts you record on your watch to Apple Health, including duration and active energy.</string>
+</dict>
+</plist>
