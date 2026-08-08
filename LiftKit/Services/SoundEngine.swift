@@ -13,15 +13,19 @@ final class SoundEngine {
     private init() {
         let sr = 44100.0
         format = AVAudioFormat(standardFormatWithSampleRate: sr, channels: 1)!
-        engine.attach(player)
-        engine.connect(player, to: engine.mainMixerNode, format: format)
+        // Configure the session BEFORE touching the engine graph. Accessing
+        // `mainMixerNode` (below) activates the audio session, so if the category
+        // isn't set with `.mixWithOthers` first the engine grabs an interrupting
+        // session and stops the user's music/podcast the moment a workout starts.
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, options: [.mixWithOthers])
             try AVAudioSession.sharedInstance().setActive(true)
-            try engine.start()
         } catch {
             // Sound unavailable — haptics still work
         }
+        engine.attach(player)
+        engine.connect(player, to: engine.mainMixerNode, format: format)
+        try? engine.start()
     }
 
     /// Short soft tick played at each of the 3-2-1 countdown seconds

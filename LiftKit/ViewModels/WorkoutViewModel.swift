@@ -215,6 +215,11 @@ final class WorkoutViewModel {
     var activeSession: WorkoutSession?
     var activeConfig: TimerConfig = TimerConfig(type: .manual)
     var activeSessionCards: [SessionCard] = []
+    /// The scheduled workout this run came from, if any. Set when starting a
+    /// scheduled workout; the schedule is marked completed only when the workout
+    /// is actually *finished* (`endWorkout`), so starting/viewing without finishing
+    /// leaves it on the calendar. Cleared on discard and by non-scheduled starts.
+    var scheduledOrigin: WorkoutSchedule?
     var activeExercises: [ActiveExercise] = []
     var currentSessionIndex: Int = 0
     var completedRounds: Int = 0
@@ -241,6 +246,7 @@ final class WorkoutViewModel {
     // MARK: - Setup helpers
 
     func loadFromTemplate(_ template: WorkoutTemplate, type: TimerType) {
+        scheduledOrigin = nil   // scheduled starts re-set this after loading
         editingTemplate = template
         selectedTimerType = type
         workoutName = template.name
@@ -928,6 +934,12 @@ final class WorkoutViewModel {
             session.roundsCompleted = completedRounds
         }
         recordTimedWorkoutResults(context: context)
+        // Only now — on a genuine finish — does the scheduled workout count as done.
+        if let sched = scheduledOrigin {
+            sched.isCompleted = true
+            WorkoutReminders.cancel(sched)
+            scheduledOrigin = nil
+        }
         Persist.save(context)
         exportToHealthKitIfEnabled(session: session, context: context)
         activeSession = nil
@@ -1060,6 +1072,8 @@ final class WorkoutViewModel {
             context.delete(session)
             Persist.save(context)
         }
+        // Abandoned — leave the scheduled workout on the calendar (still green).
+        scheduledOrigin = nil
         activeSession = nil
         showActiveWorkout = false
         isShowingComplete = false
@@ -1131,6 +1145,94 @@ final class WorkoutViewModel {
         template.storedConfig = buildTimerConfig()
         Persist.save(context)
         return template
+    }
+
+    /// Build a program day from the current setup state — no persistence, no
+    /// template-limit check — so the program builder can reuse the full per-type
+    /// setup UI and hand back a `ProgramSession`. Mirrors `saveAsTemplate`'s card
+    /// mapping; the day's type + timings come from `buildTimerConfig()`.
+    func buildProgramSession(name: String) -> ProgramSession {
+        var exercises: [ProgramExercise] = []
+        if selectedTimerType == .reps {
+            for card in self.exercises where !card.name.trimmingCharacters(in: .whitespaces).isEmpty {
+                exercises.append(ProgramExercise(
+                    name: card.name.trimmingCharacters(in: .whitespaces),
+                    equipment: card.equipment,
+                    timerType: .reps,
+                    reps: card.reps,
+                    weight: card.weight,
+                    weightUnit: card.weightUnit,
+                    restSeconds: card.restSeconds,
+                    setsPerBlock: [max(1, card.sets)],
+                    linkedToNext: card.linkedToNext,
+                    durationSeconds: card.isTimed ? card.durationSeconds : 0))
+            }
+        } else {
+            for card in activeSessions(for: selectedTimerType)
+                where !card.name.trimmingCharacters(in: .whitespaces).isEmpty {
+                exercises.append(ProgramExercise(
+                    name: card.name.trimmingCharacters(in: .whitespaces),
+                    equipment: card.equipment,
+                    timerType: selectedTimerType,
+                    reps: card.reps,
+                    weight: card.weight,
+                    weightUnit: card.weightUnit,
+                    restSeconds: 90,
+                    setsPerBlock: [3],
+                    linkedToNext: card.linkedToNext,
+                    roundBreakAfter: card.roundBreakAfter,
+                    roundMinutes: card.roundMinutes))
+            }
+        }
+        return ProgramSession(name: name, config: buildTimerConfig(), exercises: exercises)
+    }
+
+    /// Load a program day back into the setup state so it can be re-edited with the
+    /// full builder — the reverse of `buildProgramSession`.
+    func loadProgramSession(_ s: ProgramSession) {
+        resetSetup()
+        let type = s.config.type
+        selectedTimerType = type
+        workoutName = s.name
+        applyConfigToSetup(s.config, type: type)
+        if type == .reps {
+            let cards: [ExerciseCard] = s.exercises.map { ex in
+                var c = ExerciseCard()
+                c.name = ex.name
+                c.equipment = ex.equipment
+                c.weight = ex.weight
+                c.weightUnit = ex.weightUnit
+                c.sets = ex.setsPerBlock.first ?? 3
+                c.reps = ex.reps
+                c.isTimed = ex.durationSeconds > 0
+                c.durationSeconds = ex.durationSeconds > 0 ? ex.durationSeconds : 60
+                c.restSeconds = ex.restSeconds
+                c.linkedToNext = ex.linkedToNext
+                return c
+            }
+            exercises = cards.isEmpty ? [ExerciseCard()] : cards
+        } else {
+            let cards: [SessionCard] = s.exercises.map { ex in
+                var c = SessionCard()
+                c.name = ex.name
+                c.equipment = ex.equipment
+                c.weight = ex.weight
+                c.weightUnit = ex.weightUnit
+                c.reps = ex.reps
+                c.linkedToNext = ex.linkedToNext
+                c.roundBreakAfter = ex.roundBreakAfter
+                c.roundMinutes = ex.roundMinutes > 0 ? ex.roundMinutes : 10
+                return c
+            }
+            let filled = cards.isEmpty ? [SessionCard()] : cards
+            switch type {
+            case .amrap, .forTime: sessions = filled
+            case .emom:            emomSessions = filled
+            case .intervals:       intervalSessions = filled
+            case .manual:          manualSessions = filled
+            case .reps:            break
+            }
+        }
     }
 
     /// Overwrites the exercises (and name) of the template the setup was loaded
@@ -1335,6 +1437,7 @@ final class WorkoutViewModel {
 
     func resetSetup() {
         editingTemplate = nil
+        scheduledOrigin = nil
         workoutName = ""
         notes = ""
         setupAttribution = nil

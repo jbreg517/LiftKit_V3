@@ -45,27 +45,49 @@ struct ProgramBlueprint: Identifiable, Codable {
 
 struct ProgramSession: Identifiable, Codable {
     var id = UUID()
-    let name: String
-    let exercises: [ProgramExercise]
+    var name: String
+    /// The day's workout type and timings (AMRAP time limit, EMOM rounds, interval
+    /// work/rest, For-Time cap, …). A program day is now a full workout of any type,
+    /// authored with the real builder; sets still ramp via each exercise's
+    /// `setsPerBlock`. Defaults to a Reps day for older programs decoded without it.
+    var config: TimerConfig = TimerConfig(type: .reps)
+    var exercises: [ProgramExercise]
+
+    var timerType: TimerType { config.type }
 }
 
 struct ProgramExercise: Identifiable, Codable {
-    let id = UUID()
-    let name: String
-    let equipment: Equipment
-    let timerType: TimerType
-    let reps: Int
-    let weight: Double
-    let weightUnit: WeightUnit
-    let restSeconds: Int
+    var id = UUID()
+    var name: String
+    var equipment: Equipment
+    /// Legacy per-exercise type. The day's type now lives on `ProgramSession.config`;
+    /// kept for decoding older programs and never used for materialisation.
+    var timerType: TimerType
+    var reps: Int
+    var weight: Double
+    var weightUnit: WeightUnit
+    var restSeconds: Int
     /// Sets per block; if shorter than the program's block count the last value
     /// repeats. This is where progressive overload lives.
-    let setsPerBlock: [Int]
+    var setsPerBlock: [Int]
     /// Supersetted with the next exercise in the session — used to express a complex
     /// (e.g. clean → press → squat done back-to-back as one set).
     var linkedToNext: Bool = false
+    /// Timed hold in seconds (e.g. a plank) for an exercise inside a timed day.
+    /// 0 = rep-based.
+    var durationSeconds: Int = 0
+    /// AMRAP multi-round: a new timed round starts after this exercise.
+    var roundBreakAfter: Bool = false
+    /// AMRAP: minutes of the round this exercise starts (0 = not set).
+    var roundMinutes: Int = 0
+    /// Progressive overload for custom programs: sets added each block on top of the
+    /// base (`setsPerBlock.first`). 0 = flat. Pre-loaded programs leave this 0 and
+    /// spell their ramp out in `setsPerBlock` instead.
+    var setsIncrementPerBlock: Int = 0
 
     func sets(inBlock block: Int) -> Int {
+        let base = setsPerBlock.first ?? 3
+        if setsIncrementPerBlock > 0 { return max(1, base + block * setsIncrementPerBlock) }
         guard !setsPerBlock.isEmpty else { return 3 }
         return setsPerBlock[min(block, setsPerBlock.count - 1)]
     }
@@ -75,6 +97,70 @@ struct ProgramExercise: Identifiable, Codable {
         let values = (0..<max(1, blocks)).map { sets(inBlock: $0) }
         if Set(values).count == 1 { return "\(values[0]) sets" }
         return values.map(String.init).joined(separator: "→") + " sets"
+    }
+}
+
+// Forgiving Codable (in extensions so the memberwise inits survive): every field
+// falls back to a default when absent, so a program saved by an older build — before
+// `config` or the timed/AMRAP fields existed — decodes cleanly instead of throwing
+// and wiping the user's saved programs.
+extension ProgramSession {
+    private enum CodingKeys: String, CodingKey { case id, name, config, exercises }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: (try? c.decode(UUID.self, forKey: .id)) ?? UUID(),
+            name: (try? c.decode(String.self, forKey: .name)) ?? "Session",
+            config: (try? c.decode(TimerConfig.self, forKey: .config)) ?? TimerConfig(type: .reps),
+            exercises: (try? c.decode([ProgramExercise].self, forKey: .exercises)) ?? [])
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(name, forKey: .name)
+        try c.encode(config, forKey: .config)
+        try c.encode(exercises, forKey: .exercises)
+    }
+}
+
+extension ProgramExercise {
+    private enum CodingKeys: String, CodingKey {
+        case name, equipment, timerType, reps, weight, weightUnit, restSeconds
+        case setsPerBlock, linkedToNext, durationSeconds, roundBreakAfter, roundMinutes
+        case setsIncrementPerBlock
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            name: (try? c.decode(String.self, forKey: .name)) ?? "",
+            equipment: (try? c.decode(Equipment.self, forKey: .equipment)) ?? .none,
+            timerType: (try? c.decode(TimerType.self, forKey: .timerType)) ?? .reps,
+            reps: (try? c.decode(Int.self, forKey: .reps)) ?? 10,
+            weight: (try? c.decode(Double.self, forKey: .weight)) ?? 0,
+            weightUnit: (try? c.decode(WeightUnit.self, forKey: .weightUnit)) ?? .lb,
+            restSeconds: (try? c.decode(Int.self, forKey: .restSeconds)) ?? 90,
+            setsPerBlock: (try? c.decode([Int].self, forKey: .setsPerBlock)) ?? [3],
+            linkedToNext: (try? c.decode(Bool.self, forKey: .linkedToNext)) ?? false,
+            durationSeconds: (try? c.decode(Int.self, forKey: .durationSeconds)) ?? 0,
+            roundBreakAfter: (try? c.decode(Bool.self, forKey: .roundBreakAfter)) ?? false,
+            roundMinutes: (try? c.decode(Int.self, forKey: .roundMinutes)) ?? 0,
+            setsIncrementPerBlock: (try? c.decode(Int.self, forKey: .setsIncrementPerBlock)) ?? 0)
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(name, forKey: .name)
+        try c.encode(equipment, forKey: .equipment)
+        try c.encode(timerType, forKey: .timerType)
+        try c.encode(reps, forKey: .reps)
+        try c.encode(weight, forKey: .weight)
+        try c.encode(weightUnit, forKey: .weightUnit)
+        try c.encode(restSeconds, forKey: .restSeconds)
+        try c.encode(setsPerBlock, forKey: .setsPerBlock)
+        try c.encode(linkedToNext, forKey: .linkedToNext)
+        try c.encode(durationSeconds, forKey: .durationSeconds)
+        try c.encode(roundBreakAfter, forKey: .roundBreakAfter)
+        try c.encode(roundMinutes, forKey: .roundMinutes)
+        try c.encode(setsIncrementPerBlock, forKey: .setsIncrementPerBlock)
     }
 }
 
@@ -193,7 +279,7 @@ enum ProgramMaterializer {
             let key = "\(o.sessionIndex)-\(o.block)"
             let template = cache[key] ?? makeTemplate(o.session, block: o.block, blueprint: blueprint, context: context)
             cache[key] = template
-            let sched = WorkoutSchedule(date: o.date, template: template, seriesID: seriesID)
+            let sched = WorkoutSchedule(date: o.date, template: template, seriesID: seriesID, programID: blueprint.id)
             context.insert(sched)
             WorkoutReminders.schedule(sched)
         }
@@ -206,20 +292,28 @@ enum ProgramMaterializer {
                                      blueprint: ProgramBlueprint, context: ModelContext) -> WorkoutTemplate {
         let template = WorkoutTemplate(name: "\(blueprint.name) · \(session.name) · \(blueprint.blockLabel(block))")
         template.isProgramGenerated = true
+        // Carry the day's type + timings so the scheduled workout opens exactly as
+        // built (AMRAP/EMOM/interval timings, not just reps).
+        template.storedConfig = session.config
         context.insert(template)
         for (i, ex) in session.exercises.enumerated() {
+            // A timed exercise inside a Reps day (e.g. a plank) is a For-Time hold,
+            // mirroring how the setup builder saves it.
+            let exType: TimerType = (session.config.type == .reps && ex.durationSeconds > 0) ? .forTime : session.config.type
             let te = TemplateExercise(
                 exerciseName: ex.name,
-                timerType: ex.timerType,
+                timerType: exType,
                 targetSets: ex.sets(inBlock: block),
                 targetReps: ex.reps,
-                targetDuration: 0,
+                targetDuration: ex.durationSeconds,
                 sortOrder: i,
                 equipment: ex.equipment,
                 targetWeight: ex.weight,
                 weightUnit: ex.weightUnit,
                 linkedToNext: ex.linkedToNext)
             te.restSeconds = ex.restSeconds
+            te.roundBreakAfter = ex.roundBreakAfter
+            te.roundMinutes = ex.roundMinutes
             te.template = template
             context.insert(te)
         }
@@ -231,6 +325,7 @@ enum ProgramMaterializer {
 
 struct ProgramsView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
     @State private var userPrograms: [ProgramBlueprint] = UserProgramStore.load()
     @State private var showBuilder = false
     @State private var showImport = false
@@ -308,6 +403,20 @@ struct ProgramsView: View {
     private func delete(_ bp: ProgramBlueprint) {
         UserProgramStore.delete(bp.id)
         userPrograms = UserProgramStore.load()
+        // Also clear the still-upcoming sessions this program scheduled, and cancel
+        // their reminders — otherwise notifications keep firing for a program the
+        // user just deleted. Past/completed sessions are left as history.
+        let pid: String? = bp.id
+        let today = Calendar.current.startOfDay(for: Date())
+        let descriptor = FetchDescriptor<WorkoutSchedule>(
+            predicate: #Predicate { $0.programID == pid && !$0.isCompleted })
+        if let scheduled = try? context.fetch(descriptor) {
+            for sched in scheduled where sched.date >= today {
+                WorkoutReminders.cancel(sched)
+                context.delete(sched)
+            }
+            Persist.save(context)
+        }
     }
 
     private func header(_ text: String) -> some View {
@@ -525,24 +634,14 @@ struct ProgramDraft {
     var name = ""
     var weeks = 8
     var weekdays: Set<Int> = [2, 4, 6]     // Mon / Wed / Fri
-    var sessions: [DraftSession] = [DraftSession()]
+    /// Each day is a full workout of any type, authored with the real builder.
+    var days: [ProgramSession] = []
+    /// Progressive overload: when on, reps-day sets ramp up every `weeksPerBlock`
+    /// weeks, by each exercise's own per-block increment.
+    var rampSets = false
+    var weeksPerBlock = 2
     var attributionName = ""
     var attributionURL = ""
-}
-
-struct DraftSession: Identifiable {
-    var id = UUID()
-    var name = "Day A"
-    var exercises: [DraftExercise] = [DraftExercise()]
-}
-
-struct DraftExercise: Identifiable {
-    var id = UUID()
-    var name = ""
-    var equipment: Equipment = .none
-    var sets = 3
-    var reps = 10
-    var linkedToNext = false
 }
 
 // MARK: - Custom program builder
@@ -551,6 +650,10 @@ struct ProgramBuilderView: View {
     @Environment(\.dismiss) private var dismiss
     let onSave: (ProgramBlueprint) -> Void
     @State private var draft: ProgramDraft
+    @State private var expanded: Set<UUID> = []
+    /// Drives the day-authoring sheet; `editingID == nil` means adding a new day.
+    @State private var authoring = false
+    @State private var editingID: UUID?
 
     private let weekdayLabels = ["S", "M", "T", "W", "T", "F", "S"]
 
@@ -562,9 +665,7 @@ struct ProgramBuilderView: View {
     private var canSave: Bool {
         !draft.name.trimmingCharacters(in: .whitespaces).isEmpty
         && !draft.weekdays.isEmpty
-        && draft.sessions.contains { s in
-            s.exercises.contains { !$0.name.trimmingCharacters(in: .whitespaces).isEmpty }
-        }
+        && draft.days.contains { !$0.exercises.isEmpty }
     }
 
     var body: some View {
@@ -572,6 +673,13 @@ struct ProgramBuilderView: View {
             Section("Program") {
                 TextField("Name", text: $draft.name)
                 Stepper("Weeks: \(draft.weeks)", value: $draft.weeks, in: 1...52)
+                Toggle("Progressive sets", isOn: $draft.rampSets)
+                if draft.rampSets {
+                    Stepper("Add sets every \(draft.weeksPerBlock) wk",
+                            value: $draft.weeksPerBlock, in: 1...max(1, draft.weeks))
+                    Text("\(blocks) block\(blocks == 1 ? "" : "s") — set each exercise's increase inside its day below. Only reps days ramp.")
+                        .font(LKFont.caption).foregroundColor(LKColor.textMuted)
+                }
             }
 
             Section("Train on") {
@@ -594,40 +702,20 @@ struct ProgramBuilderView: View {
                 }
             }
 
-            ForEach($draft.sessions) { $session in
-                Section {
-                    TextField("Session name", text: $session.name)
-                    ForEach($session.exercises) { $ex in
-                        exerciseRow($ex, in: $session)
-                    }
-                    Button {
-                        $session.exercises.wrappedValue.append(DraftExercise())
-                    } label: {
-                        Label("Add exercise", systemImage: "plus.circle")
-                    }
-                } header: {
-                    HStack {
-                        Text(session.name.isEmpty ? "Session" : session.name)
-                        Spacer()
-                        if draft.sessions.count > 1 {
-                            Button(role: .destructive) {
-                                draft.sessions.removeAll { $0.id == session.id }
-                            } label: {
-                                Image(systemName: "trash").font(.system(size: 12))
-                            }
-                        }
-                    }
-                }
-            }
-
             Section {
-                Button {
-                    draft.sessions.append(DraftSession(name: "Day \(nextDayLetter())"))
-                } label: {
-                    Label("Add session", systemImage: "plus.circle")
+                ForEach($draft.days) { $day in
+                    dayCard($day)
                 }
+                Button {
+                    editingID = nil
+                    authoring = true
+                } label: {
+                    Label("Add a day", systemImage: "plus.circle")
+                }
+            } header: {
+                Text("Days")
             } footer: {
-                Text("Sessions rotate across your chosen days — with an odd number of days a two-session plan alternates the lead each week.")
+                Text("Each day is a full workout of any type — pick the type, then build it with all the usual options. Days rotate across your training days; with an odd number of days a two-day plan alternates each week.")
             }
 
             Section("Credit (optional)") {
@@ -649,69 +737,189 @@ struct ProgramBuilderView: View {
                 Button("Save") { onSave(makeBlueprint()) }.bold().disabled(!canSave)
             }
         }
+        .sheet(isPresented: $authoring) {
+            ProgramDayAuthorSheet(existing: editingDay) { session in
+                if let editingID, let i = draft.days.firstIndex(where: { $0.id == editingID }) {
+                    var s = session
+                    s.id = editingID
+                    draft.days[i] = s
+                } else {
+                    draft.days.append(session)
+                    expanded.insert(session.id)
+                }
+            }
+        }
+    }
+
+    private var editingDay: ProgramSession? {
+        guard let editingID else { return nil }
+        return draft.days.first { $0.id == editingID }
     }
 
     @ViewBuilder
-    private func exerciseRow(_ ex: Binding<DraftExercise>, in session: Binding<DraftSession>) -> some View {
-        VStack(alignment: .leading, spacing: LKSpacing.xs) {
-            HStack {
-                TextField("Exercise", text: ex.name)
-                Button(role: .destructive) {
-                    session.exercises.wrappedValue.removeAll { $0.id == ex.wrappedValue.id }
-                } label: {
-                    Image(systemName: "minus.circle").foregroundColor(LKColor.danger)
+    private func dayCard(_ day: Binding<ProgramSession>) -> some View {
+        let s = day.wrappedValue
+        let showRamp = draft.rampSets && blocks > 1 && s.config.type == .reps
+        DisclosureGroup(isExpanded: Binding(
+            get: { expanded.contains(s.id) },
+            set: { if $0 { expanded.insert(s.id) } else { expanded.remove(s.id) } }
+        )) {
+            ForEach($day.exercises) { $ex in
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack {
+                        Text(ex.name).font(LKFont.body).foregroundColor(LKColor.textPrimary)
+                        Spacer()
+                        Text(exerciseDetail(ex, type: s.config.type))
+                            .font(LKFont.caption).foregroundColor(LKColor.textMuted)
+                    }
+                    // Per-exercise ramp — so a main lift can climb while an accessory
+                    // stays flat. Only on reps days; timed holds don't count sets.
+                    if showRamp && ex.durationSeconds == 0 {
+                        Stepper("Ramp: +\(ex.setsIncrementPerBlock) set/block",
+                                value: $ex.setsIncrementPerBlock, in: 0...5)
+                            .font(LKFont.caption)
+                        if ex.setsIncrementPerBlock > 0 {
+                            Text(rampPreview(ex))
+                                .font(LKFont.caption).foregroundColor(LKColor.accent)
+                        }
+                    }
                 }
-                .buttonStyle(.plain)
-                .opacity(session.exercises.wrappedValue.count > 1 ? 1 : 0.3)
-                .disabled(session.exercises.wrappedValue.count <= 1)
             }
-            Picker("Equipment", selection: ex.equipment) {
-                ForEach(Equipment.allCases) { e in Text(e.rawValue).tag(e) }
+            Button {
+                editingID = s.id
+                authoring = true
+            } label: {
+                Label("Edit day", systemImage: "slider.horizontal.3")
             }
-            .pickerStyle(.menu)
-            Stepper("Sets: \(ex.wrappedValue.sets)", value: ex.sets, in: 1...20)
-            Stepper("Reps: \(ex.wrappedValue.reps)", value: ex.reps, in: 1...100)
-            Toggle("Superset with next", isOn: ex.linkedToNext)
+            Button(role: .destructive) {
+                draft.days.removeAll { $0.id == s.id }
+            } label: {
+                Label("Delete day", systemImage: "trash")
+            }
+        } label: {
+            HStack(spacing: LKSpacing.sm) {
+                Image(systemName: s.config.type.sfSymbol).foregroundColor(LKColor.accent)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(s.name.isEmpty ? s.config.type.displayName : s.name)
+                        .font(LKFont.bodyBold).foregroundColor(LKColor.textPrimary)
+                    Text(daySummary(s)).font(LKFont.caption).foregroundColor(LKColor.textMuted)
+                }
+            }
         }
-        .padding(.vertical, 2)
     }
 
-    private func nextDayLetter() -> String {
-        let letters = ["A", "B", "C", "D", "E", "F", "G"]
-        let i = draft.sessions.count
-        return i < letters.count ? letters[i] : "\(i + 1)"
+    /// Number of set-ramp blocks the program spans (1 when the ramp is off).
+    private var blocks: Int {
+        guard draft.rampSets else { return 1 }
+        let wpb = max(1, min(draft.weeksPerBlock, draft.weeks))
+        return max(1, Int(ceil(Double(draft.weeks) / Double(wpb))))
+    }
+
+    /// "5 → 7 → 9 → 11 sets" preview of one exercise's ramp across the blocks.
+    private func rampPreview(_ ex: ProgramExercise) -> String {
+        (0..<blocks).map { String(ex.sets(inBlock: $0)) }.joined(separator: " → ") + " sets"
+    }
+
+    private func daySummary(_ s: ProgramSession) -> String {
+        let n = s.exercises.count
+        let moves = "\(n) move\(n == 1 ? "" : "s")"
+        let c = s.config
+        switch c.type {
+        case .amrap:     return "AMRAP · \(Int(c.totalTime / 60)) min · \(moves)"
+        case .emom:      return "EMOM · \(c.rounds) min · \(moves)"
+        case .forTime:   return "For Time · \(Int(c.totalDuration / 60)) min cap · \(moves)"
+        case .intervals: return "Intervals · \(c.intervalRounds)× · \(moves)"
+        case .reps:      return "Reps · \(moves)"
+        case .manual:    return "Self-paced · \(moves)"
+        }
+    }
+
+    private func exerciseDetail(_ ex: ProgramExercise, type: TimerType) -> String {
+        if ex.durationSeconds > 0 { return "\(ex.durationSeconds)s" }
+        if type == .reps {
+            let sets = ex.setsPerBlock.first ?? 1
+            return "\(sets)×\(ex.reps)"
+        }
+        return "\(ex.reps) reps"
     }
 
     private func makeBlueprint() -> ProgramBlueprint {
         let weeks = max(1, draft.weeks)
-        let sessions: [ProgramSession] = draft.sessions.compactMap { s in
-            let exs = s.exercises
-                .filter { !$0.name.trimmingCharacters(in: .whitespaces).isEmpty }
-                .map { e in
-                    ProgramExercise(
-                        name: e.name.trimmingCharacters(in: .whitespaces),
-                        equipment: e.equipment,
-                        timerType: .reps,
-                        reps: max(1, e.reps),
-                        weight: 0,
-                        weightUnit: .lb,
-                        restSeconds: 90,
-                        setsPerBlock: [max(1, e.sets)],   // flat in v1 (no per-block ramp yet)
-                        linkedToNext: e.linkedToNext)
-                }
-            guard !exs.isEmpty else { return nil }
-            return ProgramSession(name: s.name.isEmpty ? "Session" : s.name, exercises: exs)
-        }
+        let sessions = draft.days.filter { !$0.exercises.isEmpty }
         return ProgramBlueprint(
             id: "user-\(UUID().uuidString)",
             name: draft.name.trimmingCharacters(in: .whitespaces),
             summary: "\(weeks) week\(weeks == 1 ? "" : "s") · \(draft.weekdays.count)×/week",
             weeks: weeks,
-            weeksPerBlock: weeks,   // one block → flat sets; per-block ramp is a v2 follow-up
+            weeksPerBlock: draft.rampSets ? max(1, min(draft.weeksPerBlock, weeks)) : weeks,
             sessions: sessions,
             recommendedWeekdays: draft.weekdays.sorted(),
             attribution: draft.attributionName.isEmpty ? nil : draft.attributionName,
             attributionURL: draft.attributionURL.isEmpty ? nil : draft.attributionURL)
+    }
+}
+
+// MARK: - Day authoring sheet (reuses the real workout builder)
+
+/// Type picker → the full `WorkoutSetupView` in authoring mode, so a program day is
+/// built with exactly the same options as a normal workout. Hands the built
+/// `ProgramSession` back via `onDone`. `existing` pre-loads a day for editing.
+struct ProgramDayAuthorSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let existing: ProgramSession?
+    let onDone: (ProgramSession) -> Void
+    @State private var vm = WorkoutViewModel()
+    @State private var chosenType: TimerType?
+    @State private var loaded = false
+
+    var body: some View {
+        NavigationStack {
+            if let type = chosenType {
+                WorkoutSetupView(vm: vm, type: type, onSaveToProgram: onDone)
+            } else {
+                typeList
+            }
+        }
+        .onAppear {
+            guard !loaded else { return }
+            loaded = true
+            if let existing {
+                vm.loadProgramSession(existing)
+                chosenType = existing.config.type
+            }
+        }
+    }
+
+    private var typeList: some View {
+        List {
+            ForEach(TimerType.allCases) { t in
+                Button {
+                    vm.resetSetup()
+                    vm.selectedTimerType = t
+                    chosenType = t
+                } label: {
+                    HStack(spacing: LKSpacing.md) {
+                        Image(systemName: t.sfSymbol)
+                            .foregroundColor(LKColor.accent).frame(width: 28)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(t.displayName).font(LKFont.bodyBold).foregroundColor(LKColor.textPrimary)
+                            Text(t.subtitle).font(LKFont.caption).foregroundColor(LKColor.textMuted)
+                        }
+                        Spacer()
+                    }
+                }
+                .listRowBackground(LKColor.surface)
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(LKColor.background.ignoresSafeArea())
+        .navigationTitle("Choose Type")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { dismiss() }
+            }
+        }
     }
 }
 
@@ -768,27 +976,29 @@ enum ProgramTextImport {
         var draft = ProgramDraft()
         draft.name = "Imported Program"
 
-        var exercises: [DraftExercise] = []
+        var exercises: [ProgramExercise] = []
         for rawLine in text.split(whereSeparator: \.isNewline) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             guard line.count >= 2, exercises.count < 30 else { continue }
-            var ex = DraftExercise()
+            var sets = 3, reps = 10, name = line
             if let range = line.range(of: #"(\d{1,2})\s*[xX×]\s*(\d{1,3})"#, options: .regularExpression) {
                 let nums = line[range].split { !$0.isNumber }.compactMap { Int($0) }
                 if nums.count == 2 {
-                    ex.sets = min(20, max(1, nums[0]))
-                    ex.reps = min(100, max(1, nums[1]))
+                    sets = min(20, max(1, nums[0]))
+                    reps = min(100, max(1, nums[1]))
                 }
-                let name = line.replacingCharacters(in: range, with: "")
+                let stripped = line.replacingCharacters(in: range, with: "")
                     .trimmingCharacters(in: CharacterSet(charactersIn: " -–—:•\t.,"))
-                ex.name = name.isEmpty ? line : name
-            } else {
-                ex.name = line
+                name = stripped.isEmpty ? line : stripped
             }
-            exercises.append(ex)
+            exercises.append(ProgramExercise(
+                name: name, equipment: .none, timerType: .reps,
+                reps: reps, weight: 0, weightUnit: .lb, restSeconds: 90,
+                setsPerBlock: [sets]))
         }
-        if exercises.isEmpty { exercises = [DraftExercise()] }
-        draft.sessions = [DraftSession(name: "Day A", exercises: exercises)]
+        if !exercises.isEmpty {
+            draft.days = [ProgramSession(name: "Day A", config: TimerConfig(type: .reps), exercises: exercises)]
+        }
         return draft
     }
 }
