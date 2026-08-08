@@ -61,11 +61,12 @@ struct WorkoutHomeView: View {
                             .padding(.horizontal, LKSpacing.md)
                     }
 
-                    // Scheduling actions, surfaced right under the calendar
-                    schedulingSection
-
-                    // Today / carried-forward scheduled workouts
+                    // What's due right now sits closest to the calendar — it's the
+                    // thing you act on today; scheduling is the thing you do next.
                     dueWorkoutsSection
+
+                    // Scheduling actions
+                    schedulingSection
 
                     // Recommended workouts
                     recommendedSection
