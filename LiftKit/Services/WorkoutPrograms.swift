@@ -279,7 +279,7 @@ enum ProgramMaterializer {
             let key = "\(o.sessionIndex)-\(o.block)"
             let template = cache[key] ?? makeTemplate(o.session, block: o.block, blueprint: blueprint, context: context)
             cache[key] = template
-            let sched = WorkoutSchedule(date: o.date, template: template, seriesID: seriesID)
+            let sched = WorkoutSchedule(date: o.date, template: template, seriesID: seriesID, programID: blueprint.id)
             context.insert(sched)
             WorkoutReminders.schedule(sched)
         }
@@ -325,6 +325,7 @@ enum ProgramMaterializer {
 
 struct ProgramsView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
     @State private var userPrograms: [ProgramBlueprint] = UserProgramStore.load()
     @State private var showBuilder = false
     @State private var showImport = false
@@ -402,6 +403,20 @@ struct ProgramsView: View {
     private func delete(_ bp: ProgramBlueprint) {
         UserProgramStore.delete(bp.id)
         userPrograms = UserProgramStore.load()
+        // Also clear the still-upcoming sessions this program scheduled, and cancel
+        // their reminders — otherwise notifications keep firing for a program the
+        // user just deleted. Past/completed sessions are left as history.
+        let pid: String? = bp.id
+        let today = Calendar.current.startOfDay(for: Date())
+        let descriptor = FetchDescriptor<WorkoutSchedule>(
+            predicate: #Predicate { $0.programID == pid && !$0.isCompleted })
+        if let scheduled = try? context.fetch(descriptor) {
+            for sched in scheduled where sched.date >= today {
+                WorkoutReminders.cancel(sched)
+                context.delete(sched)
+            }
+            Persist.save(context)
+        }
     }
 
     private func header(_ text: String) -> some View {

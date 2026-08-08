@@ -13,6 +13,10 @@ final class WorkoutSchedule {
     /// schedules. Optional with a nil default keeps this a lightweight,
     /// CloudKit-compatible migration.
     var seriesID: UUID?
+    /// The `ProgramBlueprint.id` this occurrence was materialised from, so deleting
+    /// the program can find and clear its scheduled sessions + reminders. nil for
+    /// hand-scheduled workouts. Additive/optional → lightweight migration.
+    var programID: String?
 
     var template: WorkoutTemplate?
 
@@ -23,7 +27,8 @@ final class WorkoutSchedule {
         customName: String? = nil,
         notes: String? = nil,
         isCompleted: Bool = false,
-        seriesID: UUID? = nil
+        seriesID: UUID? = nil,
+        programID: String? = nil
     ) {
         self.id = id
         self.date = date
@@ -32,6 +37,7 @@ final class WorkoutSchedule {
         self.notes = notes
         self.isCompleted = isCompleted
         self.seriesID = seriesID
+        self.programID = programID
     }
 
     var displayName: String {
