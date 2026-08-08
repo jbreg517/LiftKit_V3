@@ -21,7 +21,7 @@ settings:
     # CI rewrites the version into Info.plist directly on every build, so this is
     # not load-bearing there — but keep it in sync anyway: a stale value misleads
     # anyone reading the repo, and it IS used by a local build.
-    MARKETING_VERSION: "1.1.0"
+    MARKETING_VERSION: "0.80"
     CURRENT_PROJECT_VERSION: "1"
     # No DEVELOPMENT_TEAM here on purpose. The old project carried an empty string,
     # and an empty string is still a value — it would override what
