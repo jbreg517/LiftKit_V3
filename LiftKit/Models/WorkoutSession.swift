@@ -74,6 +74,23 @@ final class WorkoutSession {
         }.reduce(0, +)
     }
 
+    /// Every carry set in this session (vest/ruck work measured over ground).
+    var carrySets: [SetRecord] { entries.flatMap(\.sets).filter(\.isDistance) }
+
+    /// Whether this session contains any weighted-carry work.
+    var hasCarries: Bool { !carrySets.isEmpty }
+
+    /// Total ground covered under load, in meters.
+    var carryDistanceMeters: Double { carrySets.compactMap(\.distanceMeters).reduce(0, +) }
+
+    /// The carry analogue of tonnage: kilograms moved over distance. Reported
+    /// separately from `totalVolume` because load × distance and load × reps aren't
+    /// the same quantity. Mirrors `SuiteCarry.kgKilometers`.
+    var carryKgKilometers: Double { carrySets.reduce(0) { $0 + $1.carryKgKilometers } }
+
+    /// Heaviest external load carried in this session, in kilograms.
+    var heaviestCarryKg: Double { carrySets.map(\.loadKg).max() ?? 0 }
+
     var timerType: TimerType? {
         guard let t = workoutType else { return nil }
         return TimerType(rawValue: t)

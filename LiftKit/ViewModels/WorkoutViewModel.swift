@@ -871,6 +871,24 @@ final class WorkoutViewModel {
         }
     }
 
+    /// Un-logs a completed set, deleting its persisted record. Used by carries,
+    /// where the reps/seconds editor doesn't apply, so a mistaken tap is undoable.
+    func uncompleteSet(exerciseIndex: Int, setIndex: Int, context: ModelContext) {
+        guard exerciseIndex < activeExercises.count else { return }
+        var ex = activeExercises[exerciseIndex]
+        guard setIndex < ex.sets.count else { return }
+        ex.sets[setIndex].isCompleted = false
+        activeExercises[exerciseIndex] = ex
+
+        guard let session = activeSession else { return }
+        let setNumber = setIndex + 1
+        let entry = session.sortedEntries.first { $0.exercise?.name.lowercased() == ex.name.lowercased() }
+        if let record = entry?.sortedSets.first(where: { $0.setNumber == setNumber }) {
+            context.delete(record)
+            Persist.save(context)
+        }
+    }
+
     func adjustReps(exerciseIndex: Int, setIndex: Int, newReps: Int, context: ModelContext? = nil) {
         guard exerciseIndex < activeExercises.count else { return }
         var ex = activeExercises[exerciseIndex]

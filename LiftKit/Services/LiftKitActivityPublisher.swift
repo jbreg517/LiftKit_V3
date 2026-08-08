@@ -31,8 +31,42 @@ enum LiftKitActivityPublisher {
         let feed = SuiteActivityFeed(
             source: source,
             recentLoad: dailyLoads(completed, reference: reference, weightLb: weightLb, now: now),
-            planned: plannedSessions(schedules, now: now))
+            planned: plannedSessions(schedules, now: now),
+            carries: carries(completed, weightLb: weightLb, now: now))
         SuiteActivityStore.publish(feed)
+    }
+
+    // MARK: - Carries
+
+    /// Weighted-carry work (vest / ruck / farmer's) as `SuiteCarry` entries, so RunKit
+    /// and FuelKit can fold LiftKit's loaded work into their own views. One entry per
+    /// session that contains carries — a gym session's carries are one bout of work,
+    /// not one per set. Distance-less carries publish `kilometers: 0`, which the
+    /// contract expects and covers with `kgMinutes`.
+    private static func carries(_ sessions: [WorkoutSession], weightLb: Double,
+                                now: Date) -> [SuiteCarry] {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -SuiteActivityFeed.historyWindow,
+                                           to: now) ?? .distantPast
+        let bodyweightKg = weightLb > 0 ? weightLb * 0.453592 : 0
+        return sessions
+            .filter { $0.hasCarries && $0.startedAt >= cutoff }
+            .map { session in
+                let sets = session.carrySets
+                // Minutes under load: the summed hold time when recorded, otherwise the
+                // session's own active minutes — a carry logged only by distance still
+                // took time, and kgMinutes is the only figure a reader gets for it.
+                let heldSeconds = sets.compactMap(\.duration).reduce(0, +)
+                let minutes = heldSeconds > 0 ? heldSeconds / 60 : session.activeMinutes
+                return SuiteCarry(
+                    startedAt: session.startedAt,
+                    kind: .carry,
+                    title: session.name,
+                    loadKg: session.heaviestCarryKg,
+                    bodyweightKg: bodyweightKg,
+                    minutes: minutes,
+                    kilometers: session.carryDistanceMeters / 1000.0)
+            }
+            .sorted { $0.startedAt < $1.startedAt }
     }
 
     // MARK: - Load

@@ -1520,6 +1520,11 @@ struct ActiveWorkoutView: View {
         return Button {
             if set.isTimed {
                 handleTimedSetTap(exIdx: exIdx, setIdx: setIdx, set: set, isRunning: isRunning)
+            } else if set.isDistance && set.isCompleted {
+                // The reps/seconds editor doesn't apply to a carry; distance is set
+                // in the workout setup. Tapping a logged carry just un-logs it.
+                vm.uncompleteSet(exerciseIndex: exIdx, setIndex: setIdx, context: context)
+                HapticManager.shared.buttonTap()
             } else if set.isCompleted {
                 // Tap completed → edit reps + RPE + set type
                 editingSet = SetEditTarget(exIdx: exIdx, setIdx: setIdx)
@@ -1538,7 +1543,9 @@ struct ActiveWorkoutView: View {
                     .tracking(0.5)
                     .foregroundColor(setCaptionColor(set: set, isRunning: isRunning))
                 Text(setCircleLabel(set: set, isRunning: isRunning))
-                    .font(.system(size: set.isTimed ? 16 : 18, weight: .bold))
+                    .font(.system(size: (set.isTimed || set.isDistance) ? 15 : 18, weight: .bold))
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
                     .foregroundColor(setCircleTextColor(set: set, isRunning: isRunning))
                     .contentTransition(.numericText())
             }
@@ -1555,8 +1562,9 @@ struct ActiveWorkoutView: View {
         .accessibilityLabel(setCircleAccessibility(set: set, isRunning: isRunning))
         .contextMenu {
             // Rep sets get a long-press menu: Complete on top, then a scrollable
-            // 0…planned rep picker. (Timed holds keep their tap-to-start flow.)
-            if !set.isTimed {
+            // 0…planned rep picker. (Timed holds keep their tap-to-start flow;
+            // carries are logged by tapping, with distance edited in setup.)
+            if !set.isTimed, !set.isDistance {
                 Button {
                     completeSet(exIdx: exIdx, setIdx: setIdx, reps: set.plannedReps)
                 } label: {
@@ -1608,13 +1616,24 @@ struct ActiveWorkoutView: View {
     }
 
     private func setCircleLabel(set: ActiveSet, isRunning: Bool) -> String {
+        if set.isDistance { return distanceLabel(set) }
         if set.isTimed {
             return isRunning ? "\(timedRemaining)s" : "\(set.actualDuration)s"
         }
         return "\(set.actualReps)"
     }
 
+    /// Compact distance for the set tile — "40m" / "1.5mi".
+    private func distanceLabel(_ set: ActiveSet) -> String {
+        let v = set.actualDistance
+        let n = set.distanceUnit.isShort ? String(Int(v.rounded())) : String(format: "%.1f", v)
+        return n + set.distanceUnit.label
+    }
+
     private func setCircleAccessibility(set: ActiveSet, isRunning: Bool) -> String {
+        if set.isDistance {
+            return "Set \(set.setNumber), \(distanceLabel(set)), \(set.isCompleted ? "completed" : "incomplete")"
+        }
         if set.isTimed {
             if isRunning { return "Set \(set.setNumber), \(timedRemaining) seconds remaining" }
             return "Set \(set.setNumber), \(set.actualDuration) second hold, \(set.isCompleted ? "completed" : "tap to start")"
