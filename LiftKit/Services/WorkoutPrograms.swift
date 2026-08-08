@@ -765,7 +765,10 @@ struct ProgramBuilderView: View {
             get: { expanded.contains(s.id) },
             set: { if $0 { expanded.insert(s.id) } else { expanded.remove(s.id) } }
         )) {
-            ForEach($day.exercises) { $ex in
+            // `day` is already a Binding parameter, not a property wrapper, so the
+            // nested binding is `day.exercises` (dynamic member lookup) — `$day`
+            // doesn't exist here.
+            ForEach(day.exercises) { $ex in
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
                         Text(ex.name).font(LKFont.body).foregroundColor(LKColor.textPrimary)
