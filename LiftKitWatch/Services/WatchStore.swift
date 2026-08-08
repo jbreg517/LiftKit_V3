@@ -45,6 +45,25 @@ final class WatchStore: NSObject {
                             replyHandler: nil) { _ in }
     }
 
+    /// Queue a finished workout for the phone.
+    ///
+    /// `transferFile`, not `sendMessage`: the workout must survive the phone being
+    /// out of range for its entire duration. The system persists the queue to disk
+    /// and retries on its own, so this succeeds even if the phone spent the session
+    /// in a locker.
+    func send(_ payload: WatchWorkoutPayload) {
+        guard let session, let data = WatchLink.encode(payload) else { return }
+        let url = FileManager.default.temporaryDirectory
+            .appending(path: "\(WatchLink.sessionFilePrefix)\(payload.id.uuidString).json")
+        do {
+            try data.write(to: url)
+            session.transferFile(url, metadata: nil)
+        } catch {
+            // Nothing useful to do — the workout is already in HealthKit on the
+            // watch, so it isn't lost; it just won't appear in LiftKit's history.
+        }
+    }
+
     /// Decodes a context payload into the published menu. Ignores anything it can't
     /// read, so a malformed or future payload leaves the last good menu in place
     /// rather than blanking the screen mid-workout.
@@ -76,5 +95,12 @@ extension WatchStore: WCSessionDelegate {
     /// The phone telling us it started or finished a workout.
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
         DispatchQueue.main.async { WorkoutOwner.shared.handle(message: message) }
+    }
+
+    /// The system copies the file before queueing it, so the temp copy we wrote is
+    /// ours to clean up. Left alone these accumulate in the watch's tmp directory.
+    func session(_ session: WCSession, didFinish fileTransfer: WCSessionFileTransfer, error: Error?) {
+        guard error == nil else { return }   // still queued for retry — leave it
+        try? FileManager.default.removeItem(at: fileTransfer.file.fileURL)
     }
 }

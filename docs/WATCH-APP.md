@@ -116,9 +116,25 @@ The migration is sequenced so the risky part is proven before anything depends o
    its own scheme, compiled on every CI run (`Build watch app (compile check)`,
    unsigned) so it can't rot. The commented-out `dependencies` entry in
    `project.yml` is the single switch to flip once the App ID exists.
-3. **Timed workouts on the wrist** — `HKWorkoutSession`, the clock, round completion,
-   `RecordingOwner`, session hand-back via `transferFile`.
-4. **Reps completion.**
+3. ~~**Timed workouts on the wrist**~~ and 4. ~~**Reps completion**~~ — **Done.**
+   `WatchWorkoutController` owns the `HKWorkoutSession`, runs the block clock, and
+   collects heart rate and active energy from `HKLiveWorkoutBuilder`. Round
+   completion for AMRAP/For-Time, set completion for reps, pause that preserves
+   remaining time rather than burning it, and hand-back via `transferFile`.
+
+   **Phase advance is reimplemented, not shared, and that is a drift risk worth
+   naming.** `TimerEngine.advancePhase()` on the phone is the source of truth; the
+   watch mirrors it because the phone engine reaches for UIKit haptics and an audio
+   engine while the wrist uses `WKInterfaceDevice`. What *is* shared is
+   `TimerConfig` — the numbers — so the two can only ever disagree about what
+   happens at a block's end, never about how long the block is. If `advancePhase()`
+   changes, `WatchWorkoutController.advance()` must change with it.
+
+   The phone imports finished workouts through an **on-disk inbox**, not an
+   in-memory queue: the system can deliver a transferred file by relaunching the app
+   in the background, and an in-memory queue would lose the workout if the process
+   were killed before the UI ran. Import is idempotent on the payload id, because
+   transfers can be redelivered.
 5. **Polish** — complications, Live Activity handoff, always-on refinement.
 
 ## Risks

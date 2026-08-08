@@ -108,8 +108,9 @@ targets:
     platform: watchOS
     sources:
       - path: LiftKitWatch
-      - path: LiftKit/Shared/WatchMenu.swift      # the wire format itself
-      - path: LiftKit/Shared/WorkoutOwner.swift   # stops both devices recording one workout
+      - path: LiftKit/Shared/WatchMenu.swift            # the menu wire format
+      - path: LiftKit/Shared/WatchWorkoutPayload.swift  # the finished-workout wire format
+      - path: LiftKit/Shared/WorkoutOwner.swift         # stops both devices recording one workout
       - path: LiftKit/Shared/TimerConfig.swift    # one definition of what an EMOM is
       - path: LiftKit/Enums/TimerType.swift
       - path: LiftKit/Enums/WeightUnit.swift      # WeightUnit + UnitSystem + DistanceUnit

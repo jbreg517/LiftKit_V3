@@ -78,12 +78,41 @@ struct WatchRootView: View {
     }
 }
 
-/// What this workout is, read on the wrist. Starting it comes in phase 3.
+/// What this workout is, and the button that starts it.
 struct WatchWorkoutDetailView: View {
     let item: WatchMenu.Item
+    @State private var controller = WatchWorkoutController.shared
+    @State private var owner = WorkoutOwner.shared
+    @State private var showActive = false
 
     var body: some View {
         List {
+            Section {
+                Button {
+                    controller.start(item)
+                    showActive = true
+                } label: {
+                    Label("Start", systemImage: "play.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+                .listRowInsets(EdgeInsets())
+
+                // A warning, not a block. Out of range neither device knows about the
+                // other, so refusing to start here would strand someone whose phone
+                // is in a locker — see WorkoutOwner.
+                if owner.otherDeviceIsActive {
+                    Label(owner.otherDeviceLabel.isEmpty
+                          ? "Already running on your phone"
+                          : "“\(owner.otherDeviceLabel)” is running on your phone",
+                          systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.yellow)
+                }
+            }
+
             Section(item.summary) {
                 ForEach(item.exercises) { ex in
                     VStack(alignment: .leading, spacing: 1) {
@@ -97,6 +126,10 @@ struct WatchWorkoutDetailView: View {
         }
         .navigationTitle(item.name.isEmpty ? item.type.displayName : item.name)
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: $showActive) {
+            WatchActiveView(controller: controller)
+        }
+        .task { await controller.requestAuthorization() }
     }
 
     private func detail(_ ex: WatchMenu.Exercise) -> String {
