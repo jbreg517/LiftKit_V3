@@ -83,6 +83,19 @@ final class TemplateExercise {
     /// AMRAP: duration in minutes of the round this exercise starts
     /// (0 = not set; only meaningful on the first exercise of a round).
     var roundMinutes: Int = 0
+    /// Planned distance per set in **meters** (canonical) for a carry/ruck.
+    /// 0 = not distance-tracked. Additive with a default → lightweight migration.
+    var targetDistanceMeters: Double = 0
+    /// The unit the distance was authored in, so it's shown back the same way.
+    var distanceUnitRaw: String?
+
+    /// True when this exercise is measured over ground rather than in reps or a hold.
+    var isDistance: Bool { targetDistanceMeters > 0 }
+
+    var distanceUnit: DistanceUnit {
+        distanceUnitRaw.flatMap { DistanceUnit(rawValue: $0) }
+            ?? DistanceUnit.default(for: .current, short: targetDistanceMeters < 400)
+    }
 
     var template: WorkoutTemplate?
 

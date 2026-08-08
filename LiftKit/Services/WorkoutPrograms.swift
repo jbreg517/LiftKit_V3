@@ -406,16 +406,17 @@ struct ProgramsView: View {
         // Also clear the still-upcoming sessions this program scheduled, and cancel
         // their reminders — otherwise notifications keep firing for a program the
         // user just deleted. Past/completed sessions are left as history.
-        let pid: String? = bp.id
+        // Filtered in Swift rather than with #Predicate: the macro's handling of an
+        // optional-String comparison is fussy, and a program's schedule count is tiny.
+        let pid = bp.id
         let today = Calendar.current.startOfDay(for: Date())
-        let descriptor = FetchDescriptor<WorkoutSchedule>(
-            predicate: #Predicate { $0.programID == pid && !$0.isCompleted })
-        if let scheduled = try? context.fetch(descriptor) {
-            for sched in scheduled where sched.date >= today {
+        if let all = try? context.fetch(FetchDescriptor<WorkoutSchedule>()) {
+            let doomed = all.filter { $0.programID == pid && !$0.isCompleted && $0.date >= today }
+            for sched in doomed {
                 WorkoutReminders.cancel(sched)
                 context.delete(sched)
             }
-            Persist.save(context)
+            if !doomed.isEmpty { Persist.save(context) }
         }
     }
 

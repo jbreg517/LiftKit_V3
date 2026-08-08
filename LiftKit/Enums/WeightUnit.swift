@@ -10,6 +10,45 @@ enum WeightUnit: String, CaseIterable, Codable {
     }
 }
 
+/// How a carry's distance is entered. Short units cover gym work (a 40 m farmer's
+/// carry); long units cover rucks. Stored canonically in **meters** — the same
+/// pattern as weights (lb) and lengths (inches) — so stats and the suite feed never
+/// have to guess.
+enum DistanceUnit: String, CaseIterable, Codable, Identifiable {
+    case meters = "m"
+    case yards  = "yd"
+    case kilometers = "km"
+    case miles  = "mi"
+
+    var id: String { rawValue }
+    var label: String { rawValue }
+    /// Short units are for in-gym carries; long units for rucks and marches.
+    var isShort: Bool { self == .meters || self == .yards }
+
+    private var metersPerUnit: Double {
+        switch self {
+        case .meters:     return 1
+        case .yards:      return 0.9144
+        case .kilometers: return 1000
+        case .miles:      return 1609.344
+        }
+    }
+
+    func toMeters(_ value: Double) -> Double { value * metersPerUnit }
+    func fromMeters(_ meters: Double) -> Double { meters / metersPerUnit }
+
+    /// Sensible default for a measurement system: short for gym carries, long for
+    /// distance work.
+    static func `default`(for system: UnitSystem, short: Bool) -> DistanceUnit {
+        switch (system, short) {
+        case (.metric, true):   return .meters
+        case (.metric, false):  return .kilometers
+        case (.imperial, true): return .yards
+        case (.imperial, false): return .miles
+        }
+    }
+}
+
 /// App-wide measurement preference. Weights are stored canonically in lb and
 /// body lengths in inches; this converts them to/from the user's chosen system
 /// for display and entry.

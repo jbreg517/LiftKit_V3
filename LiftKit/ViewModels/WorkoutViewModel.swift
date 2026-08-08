@@ -39,6 +39,13 @@ struct ExerciseCard: Identifiable {
     /// Track hold time (e.g. planks) instead of reps.
     var isTimed: Bool = false
     var durationSeconds: Int = 60
+    /// Track ground covered under load (a ruck or loaded carry) instead of reps.
+    /// Mutually exclusive with `isTimed` — use `tracking` to set either safely.
+    var isDistance: Bool = false
+    /// Distance per set, in the user's chosen `distanceUnit` (not canonical meters —
+    /// this is entry state; it's converted on save).
+    var distance: Double = 0
+    var distanceUnit: DistanceUnit = .default(for: .current, short: true)
     /// Rest between sets in seconds for this exercise (per-exercise, editable).
     var restSeconds: Int = 90
     /// Supersetted with the next exercise in the list (alternate between them).
@@ -46,6 +53,47 @@ struct ExerciseCard: Identifiable {
     // Transient progression hint shown in setup (not persisted).
     var progressionNote: String? = nil
     var progressionReason: ProgressionService.Reason? = nil
+
+    /// How this exercise is measured. Backed by the two flags above rather than
+    /// replacing them, so the existing `isTimed` call sites keep working while new
+    /// code gets an unambiguous tri-state. Setting it keeps the flags exclusive.
+    var tracking: TrackingMode {
+        get {
+            if isDistance { return .distance }
+            if isTimed { return .time }
+            return .reps
+        }
+        set {
+            isTimed = newValue == .time
+            isDistance = newValue == .distance
+        }
+    }
+
+    /// This card's planned distance in canonical meters, or nil when not tracked.
+    var distanceMeters: Double? {
+        guard isDistance, distance > 0 else { return nil }
+        return distanceUnit.toMeters(distance)
+    }
+}
+
+/// How an exercise is measured: in reps, in time under load, or over ground.
+enum TrackingMode: String, CaseIterable, Identifiable {
+    case reps, time, distance
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .reps:     return "Reps"
+        case .time:     return "Time"
+        case .distance: return "Distance"
+        }
+    }
+    var sfSymbol: String {
+        switch self {
+        case .reps:     return "number"
+        case .time:     return "stopwatch"
+        case .distance: return "figure.hiking"
+        }
+    }
 }
 
 // MARK: - Active Set State

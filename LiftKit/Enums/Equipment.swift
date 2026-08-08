@@ -9,20 +9,28 @@ enum Equipment: String, CaseIterable, Identifiable, Codable {
     case cable          = "Cable"
     case bodyweight     = "Bodyweight"
     case resistanceBand = "Band"
+    /// Load worn on the body — rucking, weighted carries, weighted calisthenics.
+    /// The recorded weight is the *external* load (the vest/pack), not bodyweight.
+    case weightVest     = "Weight Vest"
     case other          = "Other"
 
     var id: String { rawValue }
 
     /// Whether linear progression auto-increments the load for this gear.
-    /// Kettlebells jump in whole bells (16 → 20 → 24 kg), and bodyweight / bands /
-    /// unspecified gear have no small plate to add — so only barbells, dumbbells,
-    /// machines and cable stacks get an automatic weight bump.
+    /// Kettlebells jump in whole bells (16 → 20 → 24 kg), weight vests load in fixed
+    /// plates (and are often already maxed), and bodyweight / bands / unspecified gear
+    /// have no small plate to add — so only barbells, dumbbells, machines and cable
+    /// stacks get an automatic weight bump.
     var allowsWeightProgression: Bool {
         switch self {
         case .barbell, .dumbbell, .machine, .cable: return true
         default:                                    return false
         }
     }
+
+    /// Gear whose work is usually measured over ground or under load for time rather
+    /// than in reps — a ruck or a loaded carry. Used to default the tracking mode.
+    var favorsDistanceTracking: Bool { self == .weightVest }
 
     var sfSymbol: String {
         switch self {
@@ -34,6 +42,7 @@ enum Equipment: String, CaseIterable, Identifiable, Codable {
         case .cable:          return "cable.connector"
         case .bodyweight:     return "figure.walk"
         case .resistanceBand: return "waveform.path"
+        case .weightVest:     return "figure.hiking"
         case .other:          return "ellipsis.circle"
         }
     }
@@ -45,8 +54,8 @@ enum EquipmentPrefs {
     static let key = "availableEquipment"
     /// Gear the user can mark as owned. Bodyweight / none / other need nothing.
     /// Cable was retired as a user-facing option (see `alwaysAvailable`).
-    static let selectable: [Equipment] = [.barbell, .dumbbell, .kettlebell, .machine, .resistanceBand]
-    static let defaultRaw = "Barbell,Dumbbell,Kettlebell,Machine,Band"
+    static let selectable: [Equipment] = [.barbell, .dumbbell, .kettlebell, .machine, .resistanceBand, .weightVest]
+    static let defaultRaw = "Barbell,Dumbbell,Kettlebell,Machine,Band,Weight Vest"
 
     static func available(_ raw: String) -> Set<Equipment> {
         Set(raw.split(separator: ",").compactMap { Equipment(rawValue: String($0)) })
