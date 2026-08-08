@@ -8,11 +8,7 @@ name: LiftKit
 #     xcodegen generate
 # CI does it automatically before building.
 #
-# LiftKit.xcodeproj is still checked in for now, deliberately: it is the fallback
-# while this manifest is being proven. CI overwrites it during a build, so the
-# tracked copy is already stale — once a signed build from the generated project
-# matches the old one, the project should be deleted and gitignored (as RunKit
-# does). Until then, reverting the CI change restores a known-good build.
+# LiftKit.xcodeproj is generated and gitignored — this file is the source of truth.
 
 options:
   bundleIdPrefix: com.ferrixguild
